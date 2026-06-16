@@ -1,0 +1,112 @@
+# Apature Judgment Engine - Technical Requirements Document
+
+Created: 2026-06-16
+Status: MVP build specification (decisions E1–E6 applied)
+
+## 1. Technical Summary
+
+Judgment Engine is the shared substrate that turns a generic vision model into a trusted reviewer. It exposes an asynchronous job API to all product surfaces, captures rendered UI deterministically in an isolated sandbox, extracts repo context, runs grounded Qwen3-VL critique, validates and version-stamps findings, and records the feedback that becomes the company's data moat.
+
+It owns capture, context, model serving, validation, eval, data, and shared security. It does not own any buyer-facing UX. Apature manages model serving by default — there is no bring-your-own-key path; enterprise data residency is the in-VPC self-host path.
+
+## 2. Core Contract
+
+```ts
+critique(images, context) -> Findings
+```
+
+Exposed through the async job API (§3). Result includes: overall grade; findings (dimension, severity, confidence, route, viewport, element_ref, evidence, suggestion, introduced_by_this_pr); not-reviewed reasons; validation metadata (hallucination drops); and `{engineVersion, model, promptVersion, captureVersion}`. The contract must be stable enough that consumers evolve independently; an `x-schema-version` header guards it and the type package evolves additive-only.
+
+## 3. Async Job API (E1)
+
+The seam every consumer uses.
+
+- `POST /jobs` -> `202 { jobId }`. Body: `idempotencyKey`, `depth: "triage" | "deep"`, `installationId`, the capture/context intent, and the consumer id. HMAC-SHA256 signed; the engine verifies and scopes all work and storage to `installationId`.
+- `GET /jobs/:id` -> `{ status: queued|running|cancelling|completed|failed, result? }`.
+- `DELETE /jobs/:id` -> sets `status=cancelling`, returns immediately.
+
+Job store and dispatch:
+
+- Postgres `jobs` table is the source of truth (status, timing, consumer, installationId, idempotencyKey, result pointer). Workers `LISTEN` on `pg_notify` and claim with `SELECT ... FOR UPDATE SKIP LOCKED`. Results in object storage; Redis is used only for token-buckets/quotas, never as the job store.
+- **Idempotency key** is `{consumer}:{installationId}:{intentType}:{intentHash}`; `INSERT ... ON CONFLICT DO NOTHING` gives ACID dedup across consumers (Gate's `pr:head_sha` is one `intentHash`).
+- **Cancellation** is cooperative: `cancelling` is written at once; the worker tears down the in-flight Firecracker microVM (Fly Machines stop) and aborts the inference stream (AbortController) within one heartbeat (~5s). Correctness never depends on the kill landing in time.
+- Deferred to scale: a completion-webhook callback replacing polling; a durable-execution engine if the pipeline becomes a multi-step saga.
+
+## 4. Capture Sandbox (E3)
+
+- One **Firecracker microVM per job on Fly Machines** (BUILD, not a managed browser vendor — KVM isolation for hostile PR code and network-layer egress control are hard requirements; this resolves the #23 spike).
+- **Egress:** `nftables` in the guest namespace denies RFC-1918 / link-local `169.254.0.0/16` / metadata / `::1`, allows public assets with per-domain caps; Playwright re-resolves DNS to defeat rebinding.
+- **storageState:** KMS-decrypted in-VM only, origin-scoped, disabled on fork PRs.
+- Cold-start at MVP; a warm-pool manager (snapshot/UFFD) is deferred. 120s wall clock is per page-capture; fan out across microVMs. Everything behind `captureInSandbox(url, ctx)`; the in-VPC path runs the same sandbox in the customer cloud.
+
+## 5. Capture Trust Protocol (E4)
+
+`domcontentloaded` then explicit readiness; never `networkidle`; wait for fonts; freeze animations + reduced motion (re-inject post-scroll); scroll once for lazy-load. Stability via perceptual-hash plus an orthogonal structural-diff hash, excluding animated regions. A page flagged visually unstable applies a **confidence ceiling (≤ 0.70)** to every finding before the post-filter, so instability cannot produce a blocking finding.
+
+## 6. Repo Context Extraction
+
+Context grounds the model in the actual repo and must be deterministic and versioned.
+
+- Tailwind v3 resolved config in a sandboxed worker; Tailwind v4 `@theme`/`@config` via PostCSS; CSS custom properties; `tokens.json` (W3C / Style Dictionary); component-library detection -> rubric addenda; `.designreview.yml` brand block; diff->route mapping (framework page-files for MVP, import-graph for v1.5); repo README / approved visual anchors.
+- All assembled into a **deterministic, content-hashed context block** placed under the model's prefix-cache boundary; invalidated by content hash, not wall-clock TTL.
+
+## 7. Model Serving (E2)
+
+- **Phased, all behind one adapter:** DashScope (`qwen3-vl-plus` deep / `qwen3-vl-flash` triage, OpenAI-compatible) for v1; self-host vLLM/SGLang as the act-2 lever (guided decoding, continuous batching, prefix caching, FP8, GPU warm-pool); a fine-tuned Qwen3-VL as the act-3 owned judge. The adapter stamps `model`/`promptVersion`.
+- **Structured output:** DashScope two-step (Thinking critique → non-thinking `json_object` coercion → Zod) because thinking ⊥ JSON mode and `max_tokens` cannot be set with `json_object`; the prompt must contain the literal word "JSON". Self-host uses single-call guided decoding (xgrammar/outlines).
+- **Image budget:** Qwen3-VL patch-16 + `min_pixels`/`max_pixels` (never Claude's `⌈w/28⌉`/2576px/4784 constants); `max_pixels` enforced in the adapter is the cost lever. Prefix caching keyed on the byte-identical context block; `<=3` concurrent deep passes.
+
+## 8. Critique & Validation Pipeline (E4)
+
+Tiled images (within `max_pixels`) + context block + deterministic checks -> Thinking pass -> `json_object` coercion -> Zod parse -> **drop-and-count hallucination gate** (drop any finding whose `route`/`element_ref` is not in the captured set / geometry map; emit the drop as a metric) -> post-filter (confidence >= 0.55, dedupe across viewports, cap 1 blocker + 6) -> version stamp. Deterministic facts (contrast, overflow, touch targets) are computed in code and given to the model as facts, never read off pixels. Deferred: conditional re-ask/repair; `json_schema` coercion when GA.
+
+## 9. Evaluation & Model/Prompt Promotion (E6, E4)
+
+- Synthetic canary generator; 150-PR human-labeled set; precision/recall by dimension; blocker recall (headline); nit precision (trust); quadratic-weighted kappa with bootstrapped CIs.
+- **Hard gate on canary recall**; the human set is monitored with CIs (a sub-CI move is not actionable). Run on a **frozen, content-addressed capture set**. Hallucination-drop and capture-instability are gated SLO metrics.
+- **Eval-gated promotion:** a `model_prompt_registry` (Postgres) versions every model/prompt; CI runs the offline batch eval and **blocks merge on eval-fail**; rollback is a registry status flip; nothing reaches production without a version bump + eval pass. Weekly production injected-defect canaries. Shadow/canary rollout deferred.
+
+## 10. Data Moat & Learning (E5)
+
+- `findings`, `feedback`, `rater_permission` in Postgres. Signals: explicit (thumbs, `/ignore`), in-loop recheck auto-labels (densest), implicit suggestion string-match only. Link-unfurlers and "touched the element" never count; collaborator verdicts weighted over drive-by.
+- Per-repo memory digest (<= 600 tok) appended to the deep-pass suffix — immediate personalization.
+- **Preference dataset:** DVC-versioned export on the existing R2 (reproducible point-in-time sets, lineage finding -> verdict -> screenshot). Screenshots are PII: explicit tenant **training consent** + a PII scan gate cross-tenant training inclusion.
+- **Owned judge (act-3):** ORPO fine-tune on (preferred, rejected) finding pairs, promoted only behind the eval gate, swapped in behind the model adapter. Per-tenant LoRA deferred.
+
+## 11. Capacity, Fairness & Backpressure (E6)
+
+Global Redis token-bucket on the model endpoint (outer envelope) + per-`installationId` quota + priority queues (gate-blocking > gate-background > other consumers). One tenant's burst cannot starve others. Backpressure surfaces as `429 + Retry-After` to consumers' circuit breakers. Composes with the `<=3` concurrent deep cap and warm-pool capacity.
+
+## 12. Security & Privacy
+
+No `contents: write`; the model judges, never edits or drives. SSRF hardening with DNS-rebind checks; deny internal/metadata/link-local egress, allow public assets so pages render honestly. Screenshots encrypted at rest (SSE-KMS); tenant-scoped keys with per-repo data keys (shared CMK free / per-tenant CMK paid / per-repo DEK always — never per-repo KMS keys). Auth storageState encrypted, origin-scoped, off on fork PRs. Prompt-injection defenses for DOM text (delimiters) and rendered screenshot text (the schema-constrained output is the backstop; eval canaries include rendered-text attacks). Retention 0 default / 30d paid under DPA. Enterprise residency via in-VPC self-host.
+
+## 13. Runtime & Infrastructure Substrate
+
+Monorepo (pnpm): job-API service, capture worker, context worker, critique adapter, eval harness, shared types. Fly.io / Fly Machines (microVMs for capture, services as Fly apps). Postgres (jobs, findings, feedback, registry). Redis (token-buckets, quotas, `noeviction`). S3/R2 object storage + on-demand signed URLs. AWS KMS-backed secrets. OpenTelemetry + Grafana. Operational choices stay behind interfaces so consumers never depend on vendor specifics.
+
+## 14. Observability & SLOs
+
+OTel spans across job -> capture -> context -> critique -> validate -> store, with `{engineVersion, model, promptVersion, captureVersion}` span attributes. SLOs: end-to-end critique latency p50/p95; hallucination-drop rate; capture-instability rate; queue backpressure; model-rate-limit incidents; eval precision/recall by dimension. Grafana panels per consumer and per tenant; alerts on hallucination-drop spikes, eval-gate regressions, and capacity saturation.
+
+## 15. Milestones
+
+- **EM0 - Foundation & ops:** monorepo, CI, Fly, Postgres, Redis, S3/R2, KMS, OTel/Grafana, secrets; the async job API + job store + cancellation; capacity/fairness; version stamping.
+- **EM1 - Capture core:** Playwright capture, readiness/phash/structural-diff, tiling, geometry, a11y/deterministic checks, Firecracker sandbox, nftables egress + tests, storageState.
+- **EM2 - Context & critique:** the full context-extraction layer; the model adapter, two-step structured output, `max_pixels`, prefix cache, drop-and-count gate, post-filter, confidence ceiling.
+- **EM3 - Eval & quality gate:** canaries, golden set, metrics, regression + quality gate on the frozen capture set, model/prompt registry + CI eval-gate, hallucination/instability SLOs.
+- **EM4 - Data moat & learning:** feedback signals, rater weighting, per-repo memory, consent/PII gate, DVC-versioned export.
+- **EM5 - Security & residency:** SSE-KMS + retention, SSRF hardening + tests, prompt-injection defenses, GDPR/DPA, in-VPC residency.
+- **EM6 - Scale & owned model (deferred):** self-host vLLM + GPU warm-pool, capture warm-pool, ORPO fine-tune + promotion, per-tenant LoRA, webhook callback, json_schema coercion, shadow/canary.
+
+## 16. Acceptance Criteria
+
+The substrate is acceptable when:
+
+- A consumer can submit a job, poll, and receive a version-stamped `Findings` result; a duplicate idempotency key never re-runs capture; a `DELETE` tears down in-flight work.
+- Capture is deterministic enough that the §9 quality gate clears on a frozen capture set; unstable pages never yield blocking findings.
+- Hostile PR code cannot reach internal/metadata endpoints (egress + DNS-rebind tests pass).
+- Findings referencing unknown routes/element_refs are dropped and counted; no malformed/partial result is ever returned.
+- No prompt or model reaches production without a version bump and a passing eval gate.
+- The preference dataset is reproducible, lineage-tracked, and excludes non-consenting tenants from cross-tenant training.
+- Apature manages model serving end to end; no consumer brings a key.

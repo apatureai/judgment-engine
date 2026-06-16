@@ -170,7 +170,8 @@ Required controls:
 - Tenant-scoped keys with per-repo data keys.
 - Auth storage state encrypted, origin-scoped, and disabled on fork PRs.
 - Prompt-injection defenses for DOM text and rendered screenshot text.
-- BYO DashScope key or self-hosted customer VPC path for enterprise.
+- Apature manages model serving by default; consumers never bring or manage a model key.
+- Self-hosted / in-VPC path for enterprise data residency, when screenshots must stay in the customer's cloud.
 
 ## 12. Operations
 
