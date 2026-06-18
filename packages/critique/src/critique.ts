@@ -1,7 +1,8 @@
-import type { CaptureImage, Critique, CritiqueOptions, Grade, RepoContext } from "@engine/types";
+import type { CaptureImage, Critique, CritiqueOptions, RepoContext } from "@engine/types";
 import type { ModelImage, ModelRequest } from "./model.js";
 import { defaultModelFactory } from "./mock-model.js";
 import { resolvePassModel, type ModelClientFactory, type PassModelOverrides } from "./registry.js";
+import { parseCritiqueOutput } from "./schema.js";
 import { buildResultMetadata } from "./version-stamp.js";
 
 export const ENGINE_VERSION = "0.0.0";
@@ -39,21 +40,13 @@ function buildRequest(
   };
 }
 
-function safeJson(text: string): { grade?: Grade; overall?: string } | null {
-  try {
-    return JSON.parse(text) as { grade?: Grade; overall?: string };
-  } catch {
-    return null;
-  }
-}
-
 /**
  * The single critique entry point used by every surface (TRD §6.1). It resolves
  * the per-pass model config, builds the request, and routes through the swappable
  * `ModelClient` — a model swap (Qwen3-VL <-> Claude, DashScope <-> self-host) is a
- * config change with no change here or at any call site. The result is stamped
- * with the resolved model (#68). Prompt (#30), two-step JSON (#29), schema
- * validation (#31), and the hallucination gate (#32) build on this seam.
+ * config change with no change here or at any call site. The model output is
+ * Zod-validated (#31); the result is stamped with the resolved model (#68).
+ * Two-step JSON (#29) and the hallucination gate (#32) build on this seam.
  */
 export async function critique(
   images: CaptureImage[],
@@ -65,13 +58,15 @@ export async function critique(
   const client = (deps.modelFactory ?? defaultModelFactory)(config);
   const response = await client.complete(buildRequest(config.model, config.thinking, images, context));
 
-  const parsed = safeJson(response.text);
+  // #31: parse + Zod-validate; never hand prose downstream.
+  const parsed = parseCritiqueOutput(response.text);
+  const output = parsed.ok ? parsed.value : null;
 
   return {
-    grade: parsed?.grade ?? "ship",
-    overall: parsed?.overall ?? `critique via ${config.model}`,
-    findings: [],
-    notReviewed: [],
+    grade: output?.grade ?? "ship",
+    overall: output?.overall ?? `critique via ${config.model}`,
+    findings: output?.findings ?? [],
+    notReviewed: output?.notReviewed ?? [],
     validation: { hallucinationDrops: 0, captureUnstable: false },
     metadata: buildResultMetadata({
       engineVersion: ENGINE_VERSION,

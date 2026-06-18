@@ -24,3 +24,10 @@ export {
   buildSystemPrompt,
 } from "./prompt.js";
 export type { SystemPromptOptions } from "./prompt.js";
+export {
+  FindingSchema,
+  CritiqueOutputSchema,
+  parseCritiqueOutput,
+  schemaInstruction,
+} from "./schema.js";
+export type { CritiqueOutput, ModelFinding, ParseResult } from "./schema.js";
