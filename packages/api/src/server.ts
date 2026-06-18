@@ -1,4 +1,4 @@
-import type { JobRecord, JobStore, ReviewDepth } from "@engine/jobs";
+import type { CancellationCoordinator, JobRecord, JobStore, ReviewDepth } from "@engine/jobs";
 import { objectKey, type ObjectStore } from "@engine/storage";
 import { SCHEMA_VERSION, type EngineReviewResult } from "@engine/types";
 import {
@@ -26,6 +26,8 @@ export interface JobApiOptions {
   now?: () => number;
   /** Worker step; defaults to a version-stamped stub result. */
   processor?: JobProcessor;
+  /** Cooperative-cancellation coordinator (#66); when set, DELETE aborts inference + microVM. */
+  coordinator?: CancellationCoordinator;
 }
 
 /** Transport-agnostic request (a thin HTTP adapter maps Node/Fastify onto this). */
@@ -110,6 +112,8 @@ export function createJobApi(options: JobApiOptions) {
         return { state: "running" };
       case "succeeded":
         return { state: "completed" };
+      case "cancelling":
+        return { state: "cancelling" };
       case "failed":
         return { state: "failed", error: job.error ?? "engine job failed" };
       case "canceled":
@@ -160,8 +164,11 @@ export function createJobApi(options: JobApiOptions) {
   async function handleDelete(id: string, installationId: string): Promise<ApiResponse> {
     const job = await options.store.get(id);
     if (!job || job.installationId !== installationId) return json(404, { error: "not_found" });
-    const canceled = await options.store.cancel(id);
-    return json(200, { jobId: id, canceled: canceled !== null });
+    // Cooperative cancel (#66): flip to `cancelling` immediately (consumer sees
+    // intent at once), then best-effort abort inference + stop the microVM.
+    const cancelling = await options.store.requestCancel(id);
+    if (cancelling) await options.coordinator?.cancel(id);
+    return json(200, { jobId: id, cancelling: cancelling !== null });
   }
 
   async function handle(req: ApiRequest): Promise<ApiResponse> {

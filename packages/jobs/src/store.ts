@@ -1,6 +1,12 @@
 import type { SqlExecutor } from "@engine/db";
 
-export type JobStatus = "queued" | "running" | "succeeded" | "failed" | "canceled";
+export type JobStatus =
+  | "queued"
+  | "running"
+  | "cancelling"
+  | "succeeded"
+  | "failed"
+  | "canceled";
 export type ReviewDepth = "triage" | "deep";
 
 /** Postgres NOTIFY channel workers LISTEN on; payload is the new job id. */
@@ -177,6 +183,34 @@ export class JobStore {
     const { rows } = await this.exec.query<JobRow>(
       `UPDATE jobs SET status = 'canceled', finished_at = now()
        WHERE id = $1 AND status IN ('queued', 'running')
+       RETURNING ${COLS}`,
+      [id],
+    );
+    return rows[0] ? mapRow(rows[0]) : null;
+  }
+
+  /**
+   * Cooperative-cancel step 1 (#66): move a non-terminal job to `cancelling`
+   * immediately so consumers see the intent at once. Returns the record, or null
+   * if already terminal/cancelling. Teardown (microVM kill + inference abort)
+   * happens after; `markCanceled` finalizes. Because `complete`/`fail` only act
+   * on `running` rows, no result is written for a job once it leaves `running`.
+   */
+  async requestCancel(id: string): Promise<JobRecord | null> {
+    const { rows } = await this.exec.query<JobRow>(
+      `UPDATE jobs SET status = 'cancelling'
+       WHERE id = $1 AND status IN ('queued', 'running')
+       RETURNING ${COLS}`,
+      [id],
+    );
+    return rows[0] ? mapRow(rows[0]) : null;
+  }
+
+  /** Cooperative-cancel step 2 (#66): finalize a `cancelling` job to `canceled`. */
+  async markCanceled(id: string): Promise<JobRecord | null> {
+    const { rows } = await this.exec.query<JobRow>(
+      `UPDATE jobs SET status = 'canceled', finished_at = now()
+       WHERE id = $1 AND status = 'cancelling'
        RETURNING ${COLS}`,
       [id],
     );
