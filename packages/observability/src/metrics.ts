@@ -22,6 +22,8 @@ export const METRIC_NAMES = {
   modelRateLimited: "engine.model.rate_limited",
   /** Prefix-cache hit ratio for the stable context block (#34). */
   cacheHit: "engine.critique.cache_hit",
+  /** Model-reported cached input tokens per call; 0 means the prefix cache missed (#34). */
+  cacheReadInputTokens: "engine.model.cache_read_input_tokens",
 } as const;
 
 /**
@@ -37,6 +39,7 @@ export class EngineMetrics {
   private readonly captureInstability: Histogram;
   private readonly modelRateLimited: Counter;
   private readonly cacheHit: Histogram;
+  private readonly cacheReadInputTokens: Histogram;
   private queueDepthProvider: () => number = () => 0;
 
   constructor(meter: Meter = metrics.getMeter(METER_NAME)) {
@@ -52,6 +55,9 @@ export class EngineMetrics {
     this.modelRateLimited = meter.createCounter(METRIC_NAMES.modelRateLimited);
     this.cacheHit = meter.createHistogram(METRIC_NAMES.cacheHit, {
       description: "Prefix-cache hit ratio for the stable context block (0..1).",
+    });
+    this.cacheReadInputTokens = meter.createHistogram(METRIC_NAMES.cacheReadInputTokens, {
+      description: "Model-reported cached input tokens per call; 0 indicates a prefix-cache miss.",
     });
 
     meter
@@ -85,6 +91,11 @@ export class EngineMetrics {
 
   recordCacheHit(ratio: number, attributes?: Attributes): void {
     this.cacheHit.record(ratio, attributes);
+  }
+
+  /** Record the model-reported cached input tokens for a call (0 = cache miss). */
+  recordCacheReadInputTokens(tokens: number, attributes?: Attributes): void {
+    this.cacheReadInputTokens.record(tokens, attributes);
   }
 
   /** Register a callback the queue-depth observable gauge reads on collection. */
