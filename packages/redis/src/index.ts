@@ -25,3 +25,5 @@ export type {
   TokenBucketLimiter,
   EvalClient,
 } from "./token-bucket.js";
+export { FairnessGate } from "./fairness.js";
+export type { FairnessDecision, FairnessReason } from "./fairness.js";

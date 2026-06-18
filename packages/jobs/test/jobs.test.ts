@@ -99,6 +99,31 @@ describe("pg_notify dispatch", () => {
   });
 });
 
+describe("priority scheduling (#67)", () => {
+  it("claims higher-priority work first (gate-blocking before other consumers)", async () => {
+    // Enqueue a low-priority other-consumer job first, then a gate-blocking one.
+    await store.enqueue({
+      consumer: "mcp",
+      installationId: "1",
+      intentType: "pr_review",
+      idempotencyKey: "mcp:1:pr_review:a",
+      depth: "deep",
+    });
+    const { job: gateJob } = await store.enqueue({
+      consumer: "gate",
+      installationId: "1",
+      intentType: "pr_review",
+      idempotencyKey: "gate:1:pr_review:b",
+      depth: "deep",
+    });
+
+    // Despite being enqueued second, the gate-blocking job is claimed first.
+    const claimed = await store.claimNext();
+    expect(claimed?.id).toBe(gateJob.id);
+    expect(claimed?.priority).toBe(0);
+  });
+});
+
 describe("cooperative cancellation (#66)", () => {
   it("requestCancel -> cancelling (immediately), then markCanceled -> canceled", async () => {
     const { job } = await store.enqueue(baseInput);
