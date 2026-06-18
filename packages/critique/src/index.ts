@@ -33,3 +33,5 @@ export {
 export type { CritiqueOutput, ModelFinding, ParseResult } from "./schema.js";
 export { hallucinationGate } from "./hallucination-gate.js";
 export type { HallucinationGateInput, HallucinationGateResult } from "./hallucination-gate.js";
+export { postFilter } from "./post-filter.js";
+export type { PostFilterOptions } from "./post-filter.js";

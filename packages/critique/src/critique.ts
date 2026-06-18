@@ -3,6 +3,7 @@ import type { ModelImage, ModelRequest } from "./model.js";
 import { defaultModelFactory } from "./mock-model.js";
 import { resolvePassModel, type ModelClientFactory, type PassModelOverrides } from "./registry.js";
 import { hallucinationGate } from "./hallucination-gate.js";
+import { postFilter } from "./post-filter.js";
 import { parseCritiqueOutput } from "./schema.js";
 import { buildResultMetadata } from "./version-stamp.js";
 
@@ -71,10 +72,13 @@ export async function critique(
     geometrySelectors: deps.geometrySelectors,
   });
 
+  // #33: trust-budget post-filter (confidence floor, dedupe, cap).
+  const findings = postFilter(gated.findings);
+
   return {
     grade: output?.grade ?? "ship",
     overall: output?.overall ?? `critique via ${config.model}`,
-    findings: gated.findings,
+    findings,
     notReviewed: output?.notReviewed ?? [],
     validation: { hallucinationDrops: gated.hallucinationDrops, captureUnstable: false },
     metadata: buildResultMetadata({
