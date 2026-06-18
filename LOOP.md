@@ -43,6 +43,41 @@ apatureai/gate.
 
 ## Self-improvement log (newest first)
 
+- 2026-06-18 (run 2): EM1 capture sweep — implemented the pure-logic cores that
+  the live-browser worker will call: #16 (`downscale.ts` pixel-budget + coord
+  rescale), #17 (`tiling.ts`), #18 (`geometry.ts`), #15 (`stability.ts` phash +
+  structural-diff gate), #20 (`page-health.ts`), #24 (`egress.ts` SSRF policy +
+  domain budget), #25 (`storage-state.ts`). Resolved #23 (BUILD, already in
+  docs). Skipped the live-browser/infra ones (#11/#12/#13/#14/#21/#22/#73).
+  EM1 is now fully accounted for. 94 tests green. Learnings:
+  - **The "pure core vs live seam" split is the EM1 unlock.** Almost every
+    capture issue has a browser-free decision/computation (budget math, tiling
+    geometry, hash-distance gate logic, SSRF allow/deny, cookie scoping, health
+    aggregation) separable from the Playwright/Firecracker I/O. Implement the
+    pure core with an injected sampler/extractor; mark the I/O `[~]` with the
+    `captureInSandbox` stub as the seam. This turned a "blocked on browser"
+    milestone into 7 shipped, fully-tested modules.
+  - **A SPIKE issue is "done" when the decision is recorded in the docs** — #23's
+    BUILD outcome was already in ARCHITECTURE/TRD, so it's `[x] resolved`, not a
+    skip and not code.
+  - **Share one `Rect`/value type** across capture modules (export from
+    `checks.ts`, import elsewhere) — re-exporting two same-named `Rect`s from the
+    package index collides. Caught at design time, not by the compiler.
+  - **`noUncheckedIndexedAccess` bites string indexing too** (`a[i]` in hamming
+    distance, regex `m[1]`): guard with `?? "0"` / `m?.[1]`. Tests pass under
+    esbuild but `pnpm typecheck` fails — always run both before committing.
+  - **A review-merge loop firing mid-build is safe to service inline** — it's
+    `git fetch` + `gh` only (read-only on the working tree), so an uncommitted
+    agent/build tree is undisturbed; handle it, then resume.
+  - **Next milestone is EM2 (Context & critique), all pure-implementable:** new
+    `@engine/context` package for #56-#63 (Tailwind v3 `resolveConfig`, v4
+    `@theme` via PostCSS, CSS custom props, tokens.json, component detection,
+    `.designreview.yml`, diff->route, deterministic context-block + content-hash
+    #63 = the prefix-cache anchor), then **#26** (critique interface + per-pass
+    model abstraction against a MOCK model) which unblocks EM0 #36/#68 and the
+    rest of EM2. #56/#57 need `tailwindcss`/`postcss` deps; #58-#63 are
+    dependency-light pure parsers.
+
 - 2026-06-18: EM0 sweep — shipped #2 (CI hardening), #4 (`@engine/db` up/down
   migration runner), #5 (`@engine/redis`), #6 (`@engine/storage` R2/S3 +
   signed-URL), #7 (`@engine/secrets` CMK/DEK envelope), #8 (`@engine/observability`
