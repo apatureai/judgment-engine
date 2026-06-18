@@ -43,6 +43,42 @@ apatureai/gate.
 
 ## Self-improvement log (newest first)
 
+- 2026-06-18: EM0 sweep — shipped #2 (CI hardening), #4 (`@engine/db` up/down
+  migration runner), #5 (`@engine/redis`), #6 (`@engine/storage` R2/S3 +
+  signed-URL), #7 (`@engine/secrets` CMK/DEK envelope), #8 (`@engine/observability`
+  spans+propagation+metrics), #9 (dashboards/alerts), #10 (secret accessor +
+  redaction), #65 (`@engine/jobs` store + pg_notify + idempotency), #64
+  (`@engine/api` async job server), and EM1 #19 (deterministic contrast/overflow/
+  touch-target checks). Skipped #3 (live Fly) + #11 (live browser). 61 tests green.
+  Learnings for next runs:
+  - **Mirror gate, don't reinvent.** gate's `@gate/db|redis|secrets|observability|
+    engine` are the proven templates; adapt names/boundary, keep the structure.
+    The engine's HMAC headers stay `x-gate-*` so gate's existing client works.
+  - **Registering a package = 4 edits:** `packages/<n>/{package.json,tsconfig.json}`
+    (+ `references` if it imports another `@engine/*`), root `tsconfig.json`
+    `references`, and `vitest.config.ts` alias. Miss the alias and tests can't
+    resolve the import.
+  - **Test-only deps must be in that package's `devDependencies`** — a test that
+    imports `@electric-sql/pglite` or `@engine/db` fails to load unless the
+    package declares it (pnpm isolates node_modules). `@engine/api` hit this.
+  - **`tsc` (noUncheckedIndexedAccess) is stricter than vitest/esbuild** — regex
+    captures (`m[1]`) are `string | undefined`; guard before use. Tests can pass
+    while `pnpm typecheck` fails; always run both.
+  - **Async guards for `.rejects`:** a function that `throw`s synchronously before
+    returning a promise won't be caught by `await expect(...).rejects`; make the
+    function `async`.
+  - **PGlite supports plpgsql, triggers, `FOR UPDATE SKIP LOCKED`, and
+    LISTEN/NOTIFY** (`db.listen`) — real Postgres behavior is testable in-process.
+  - **Adding a migration breaks rollback tests that hardcode the last id** — write
+    rollback tests against `listMigrations()` (reverse order / full round-trip),
+    not literal `["0001_init"]`.
+  - **Dependency discipline:** `#36`/`#68` are gated by `#26` (critique model
+    abstraction) and `#66` by `#22` (Firecracker). EM0 is otherwise done. The next
+    high-leverage unblocked seam is **#26** — it unlocks #36/#68 and all of EM2.
+    Many EM1 capture issues have pure-logic cores (#16 pixel-budget/coordinate
+    rescale, #18 geometry serialization, #15 stability-gate logic) implementable
+    without a browser even though #11 is skipped.
+
 - 2026-06-17: EM0 #1 — scaffolded the monorepo + `@engine/types` (critique() +
   captureInSandbox() + Finding/Critique + wire result) consumed by stub capture
   and critique packages; copied Gate's golden fixture as the cross-repo anchor.
