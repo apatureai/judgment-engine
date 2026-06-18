@@ -33,19 +33,31 @@ describe("migration runner", () => {
     expect(await appliedCount(db)).toBe(listMigrations().length);
   });
 
-  it("rolls back deterministically and re-applies to the same schema", async () => {
+  it("rolls back the most-recent migration first (reverse order)", async () => {
     const db = new PGlite();
     const exec = pgliteExecutor(db);
 
     await runMigrations(exec);
+    const all = listMigrations();
     const reverted = await rollbackMigrations(exec, 1);
-    expect(reverted).toEqual(["0001_init"]);
-    expect(await functionExists(db, "touch_updated_at")).toBe(false);
-    expect(await appliedCount(db)).toBe(listMigrations().length - 1);
+    // Reverse-lexical = reverse-application order: the last migration goes first.
+    expect(reverted).toEqual([all[all.length - 1]]);
+    expect(await appliedCount(db)).toBe(all.length - 1);
+  });
 
-    // Forward again restores the identical schema (deterministic round-trip).
+  it("rolls back fully and re-applies to the same schema (deterministic round-trip)", async () => {
+    const db = new PGlite();
+    const exec = pgliteExecutor(db);
+
+    await runMigrations(exec);
+    const reverted = await rollbackMigrations(exec, listMigrations().length);
+    expect(reverted).toEqual([...listMigrations()].reverse());
+    expect(await functionExists(db, "touch_updated_at")).toBe(false);
+    expect(await appliedCount(db)).toBe(0);
+
+    // Forward again restores the identical schema.
     const reapplied = await runMigrations(exec);
-    expect(reapplied).toContain("0001_init");
+    expect(reapplied).toEqual(listMigrations());
     expect(await functionExists(db, "touch_updated_at")).toBe(true);
   });
 

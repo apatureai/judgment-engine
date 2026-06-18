@@ -14,6 +14,7 @@ export default defineConfig({
       "@engine/storage": fromRoot("./packages/storage/src/index.ts"),
       "@engine/secrets": fromRoot("./packages/secrets/src/index.ts"),
       "@engine/observability": fromRoot("./packages/observability/src/index.ts"),
+      "@engine/jobs": fromRoot("./packages/jobs/src/index.ts"),
     },
   },
   test: {
