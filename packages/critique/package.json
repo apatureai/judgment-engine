@@ -1,0 +1,11 @@
+{
+  "name": "@engine/critique",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Critique pipeline (critique()). EM2 implements the Qwen3-VL passes + validation.",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": { "test": "vitest run" },
+  "dependencies": { "@engine/types": "workspace:*" }
+}
