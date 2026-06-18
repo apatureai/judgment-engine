@@ -12,6 +12,7 @@ export default defineConfig({
       "@engine/db": fromRoot("./packages/db/src/index.ts"),
       "@engine/redis": fromRoot("./packages/redis/src/index.ts"),
       "@engine/storage": fromRoot("./packages/storage/src/index.ts"),
+      "@engine/secrets": fromRoot("./packages/secrets/src/index.ts"),
     },
   },
   test: {

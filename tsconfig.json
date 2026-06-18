@@ -6,6 +6,7 @@
     { "path": "packages/critique" },
     { "path": "packages/db" },
     { "path": "packages/redis" },
-    { "path": "packages/storage" }
+    { "path": "packages/storage" },
+    { "path": "packages/secrets" }
   ]
 }
