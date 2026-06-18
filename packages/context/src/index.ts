@@ -5,3 +5,5 @@ export { extractCssCustomProperties } from "./css-vars.js";
 export type { CssCustomProperties } from "./css-vars.js";
 export { detectComponentLibraries } from "./component-detection.js";
 export type { ComponentLibrary } from "./component-detection.js";
+export { extractBrandBlock, brandDimensionEnabled } from "./brand.js";
+export type { BrandBlock } from "./brand.js";
