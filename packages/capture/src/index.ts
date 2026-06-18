@@ -55,6 +55,15 @@ export {
 } from "./stability.js";
 export type { StabilityOptions, StabilitySample, StabilityResult } from "./stability.js";
 
+export { isPrivateOrReservedIp, evaluateEgress, DomainBudget } from "./egress.js";
+export type { EgressPolicyOptions, EgressDecision, DomainCaps } from "./egress.js";
+
+export { buildPageHealth, pageHealthFootnote } from "./page-health.js";
+export type { ConsoleEvent, FailedRequest, PageHealthInput } from "./page-health.js";
+
+export { decideStorageState, scopeCookiesToOrigin, originHost } from "./storage-state.js";
+export type { StorageStateDecisionInput, StorageStateDecision, Cookie } from "./storage-state.js";
+
 /**
  * Capture sandbox seam (TRD §4). This is the EM0 scaffold stub returning a
  * deterministic shape so downstream packages can wire against the interface;
