@@ -7,3 +7,5 @@ export { detectComponentLibraries } from "./component-detection.js";
 export type { ComponentLibrary } from "./component-detection.js";
 export { extractBrandBlock, brandDimensionEnabled } from "./brand.js";
 export type { BrandBlock } from "./brand.js";
+export { pageFileToRoute, mapDiffToRoutes } from "./routes.js";
+export type { RouteConfig } from "./routes.js";
