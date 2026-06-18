@@ -51,7 +51,7 @@ How the loop uses it:
 - [ ] #56 - Context: Tailwind v3 resolveConfig in sandboxed worker
 - [ ] #57 - Context: Tailwind v4 @theme/@config via PostCSS
 - [ ] #58 - Context: CSS custom-properties extraction
-- [ ] #59 - Context: tokens.json (W3C / Style Dictionary) parser
+- [x] #59 - Context: tokens.json (W3C / Style Dictionary) parser -> done: new `@engine/context` package + shared `TokenMap` model (`mergeTokens` later-source-wins, `sortTokens` deterministic) and `parseTokensJson` handling both W3C (`$value`/`$type`) and classic Style Dictionary (`value`) nested shapes, skipping `$`-metadata, dotted-name flattening, composite tokens serialized deterministically. Feeds the context block (#63). Pure + tested.
 - [ ] #60 - Context: component-library detection -> rubric addenda
 - [ ] #61 - Context: .designreview.yml brand block extraction
 - [ ] #62 - Context: diff->route mapping (framework page-files MVP + import-graph v1.5)

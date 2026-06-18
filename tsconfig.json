@@ -10,6 +10,7 @@
     { "path": "packages/secrets" },
     { "path": "packages/observability" },
     { "path": "packages/jobs" },
-    { "path": "packages/api" }
+    { "path": "packages/api" },
+    { "path": "packages/context" }
   ]
 }
