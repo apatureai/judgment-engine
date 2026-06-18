@@ -11,7 +11,7 @@ How the loop uses it:
 ## EM0 · Foundation & ops
 
 - [x] #1 - Infra: monorepo scaffold + shared critique() interface package -> done: pnpm workspace (types/capture/critique) + tsc -b project refs, strict TS, ESLint, Vitest, CI; @engine/types is the single source for critique()/captureInSandbox() + Finding/Critique/version-stamp types; @engine/capture + @engine/critique consume it (stubs; EM1/EM2 implement). Golden wire fixture copied from Gate as the cross-repo contract anchor (x-schema-version=1). typecheck+test(5)+lint green.
-- [ ] #2 - Infra: lint + typecheck CI pipeline
+- [x] #2 - Infra: lint + typecheck CI pipeline -> done: GitHub Actions runs eslint + tsc + vitest on PR/push (all workspaces via `eslint .` + `tsc -b` project refs); pnpm store cached via setup-node; install is `--frozen-lockfile`; added least-privilege `permissions: contents: read`. Any error fails the check.
 - [ ] #3 - Infra: Fly.io app + Machines provisioning
 - [ ] #4 - Infra: Neon Postgres provisioning + migration tooling
 - [ ] #5 - Infra: Redis provisioning for BullMQ + token-bucket

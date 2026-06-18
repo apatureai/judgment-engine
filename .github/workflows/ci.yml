@@ -11,6 +11,10 @@ concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+# Least privilege: CI only needs to read the repo contents.
+permissions:
+  contents: read
+
 jobs:
   build:
     name: lint · typecheck · test
