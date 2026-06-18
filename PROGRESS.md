@@ -48,7 +48,7 @@ How the loop uses it:
 
 ## EM2 · Context & critique
 
-- [ ] #56 - Context: Tailwind v3 resolveConfig in sandboxed worker
+- [x] #56 - Context: Tailwind v3 resolveConfig in sandboxed worker -> done: `resolveTailwindV3Tokens` runs Tailwind's own `resolveConfig` (never static-AST-parse → preset/required defaults preserved) and flattens the resolved theme (colors/spacing/fontSize/fontFamily/fontWeight/lineHeight/borderRadius/screens/boxShadow) into the shared `TokenMap`; returns null on throw so the caller degrades to CSS-property extraction (#58). The untrusted `tailwind.config.{js,ts}` LOAD runs in the capture isolation class (#22 seam, [~]); the resolve+flatten is pure + tested (incl. DEFAULT-collapse, fontFamily stacks, fontSize tuples, throw→null).
 - [ ] #57 - Context: Tailwind v4 @theme/@config via PostCSS
 - [x] #58 - Context: CSS custom-properties extraction -> done: `extractCssCustomProperties` in `@engine/context` parses global stylesheets with PostCSS and collects `--*` declarations from `:root`/`html` (base) + theme-scoped blocks (`[data-theme=...]`, `.dark`/`.light`, `@media (prefers-color-scheme: ...)`), keyed by theme; component-scoped custom props on other selectors are ignored (not design tokens). Feeds the context block (#63). Pure + tested.
 - [x] #59 - Context: tokens.json (W3C / Style Dictionary) parser -> done: new `@engine/context` package + shared `TokenMap` model (`mergeTokens` later-source-wins, `sortTokens` deterministic) and `parseTokensJson` handling both W3C (`$value`/`$type`) and classic Style Dictionary (`value`) nested shapes, skipping `$`-metadata, dotted-name flattening, composite tokens serialized deterministically. Feeds the context block (#63). Pure + tested.

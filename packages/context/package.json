@@ -12,6 +12,7 @@
   "dependencies": {
     "@engine/types": "workspace:*",
     "postcss": "^8.4.49",
+    "tailwindcss": "^3.4.17",
     "yaml": "^2.6.1"
   }
 }
