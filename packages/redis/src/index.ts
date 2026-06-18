@@ -12,3 +12,16 @@ export {
   assertNoEviction,
 } from "./eviction.js";
 export type { RedisConfigClient } from "./eviction.js";
+export {
+  refillAndConsume,
+  InMemoryTokenBucket,
+  RedisTokenBucket,
+  TOKEN_BUCKET_LUA,
+} from "./token-bucket.js";
+export type {
+  TokenBucketOptions,
+  TokenBucketState,
+  ConsumeResult,
+  TokenBucketLimiter,
+  EvalClient,
+} from "./token-bucket.js";
