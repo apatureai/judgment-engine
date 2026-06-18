@@ -1,5 +1,24 @@
 import type { Capture, CaptureInSandbox } from "@engine/types";
 
+export {
+  parseColor,
+  relativeLuminance,
+  contrastRatio,
+  contrastViolations,
+  overflowViolations,
+  touchTargetViolations,
+  deterministicChecks,
+  MIN_TOUCH_TARGET_PX,
+} from "./checks.js";
+export type {
+  Rect,
+  TextNodeStyle,
+  InteractiveElement,
+  CheckKind,
+  DeterministicFinding,
+  DeterministicCheckInput,
+} from "./checks.js";
+
 /**
  * Capture sandbox seam (TRD §4). This is the EM0 scaffold stub returning a
  * deterministic shape so downstream packages can wire against the interface;

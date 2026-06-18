@@ -29,7 +29,7 @@ How the loop uses it:
 
 ## EM1 · Capture core
 
-- [ ] #11 - Capture: Playwright worker — 3 viewports at DSF 2
+- [~] #11 - Capture: Playwright worker — 3 viewports at DSF 2 -> skipped: needs a live Chromium browser (can't run real Playwright capture/screenshots in CI per the no-live-infra rule). The `captureInSandbox` stub remains the seam, and the deterministic post-capture computations the real worker will call are implemented as pure functions (#19 done; #16/#18 pending). Revisit when capture runs on real infra.
 - [ ] #12 - Capture: page-readiness protocol (domcontentloaded -> fonts.ready -> layout-stable -> phash; never networkidle)
 - [ ] #13 - Capture: deterministic animation freeze + reduced-motion (re-inject post-scroll)
 - [ ] #14 - Capture: auto-scroll lazy-load + infinite-scroll detection
@@ -37,7 +37,7 @@ How the loop uses it:
 - [ ] #16 - Capture: screenshot downscale to model pixel budget + coordinate rescale
 - [ ] #17 - Capture: full-page tiling (viewport-height, 15% overlap, labels)
 - [ ] #18 - Capture: DOM geometry map (selector/role/rect)
-- [ ] #19 - Capture: a11y tree + computed-style deterministic checks (contrast/overflow/touch-target)
+- [x] #19 - Capture: a11y tree + computed-style deterministic checks (contrast/overflow/touch-target) -> done: pure `checks.ts` in `@engine/capture` — WCAG relative-luminance contrast ratio + AA threshold (relaxed for large text), horizontal-overflow detection (contentWidth vs container), and sub-44px touch-target detection, over captured computed styles + geometry. Emitted as factual `DeterministicFinding`s for the prompt (facts, not questions); stays silent when a color can't be parsed (no guessing). Browser-side extraction is the #11 worker seam; the computations are pure + fully tested.
 - [ ] #20 - Capture: console-error + failed-request page-health footnote
 - [ ] #21 - Capture: dark-mode capture (fresh context, pre-goto colorScheme)
 - [ ] #22 - Capture: Firecracker-microVM-on-Fly capture sandbox
