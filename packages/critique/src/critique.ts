@@ -2,10 +2,11 @@ import type { CaptureImage, Critique, CritiqueOptions, Grade, RepoContext } from
 import type { ModelImage, ModelRequest } from "./model.js";
 import { defaultModelFactory } from "./mock-model.js";
 import { resolvePassModel, type ModelClientFactory, type PassModelOverrides } from "./registry.js";
+import { buildResultMetadata } from "./version-stamp.js";
 
 export const ENGINE_VERSION = "0.0.0";
 export const PROMPT_VERSION = "stub@0";
-const CAPTURE_VERSION = "stub@0";
+const DEFAULT_CAPTURE_VERSION = "stub@0";
 
 /** Injectable dependencies — the seam that keeps model backends swappable per pass. */
 export interface CritiqueDeps {
@@ -13,6 +14,8 @@ export interface CritiqueDeps {
   modelFactory?: ModelClientFactory;
   /** Per-pass model config overrides (model id / backend / thinking). */
   passModels?: PassModelOverrides;
+  /** Capture version stamped on the result (from the capture that produced the images). */
+  captureVersion?: string;
 }
 
 function toModelImages(images: CaptureImage[]): ModelImage[] {
@@ -70,12 +73,12 @@ export async function critique(
     findings: [],
     notReviewed: [],
     validation: { hallucinationDrops: 0, captureUnstable: false },
-    metadata: {
+    metadata: buildResultMetadata({
       engineVersion: ENGINE_VERSION,
       model: config.model,
       promptVersion: PROMPT_VERSION,
-      captureVersion: CAPTURE_VERSION,
+      captureVersion: deps.captureVersion ?? DEFAULT_CAPTURE_VERSION,
       uiDnaVersion: context.uiDnaVersion,
-    },
+    }),
   };
 }
