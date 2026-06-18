@@ -17,3 +17,10 @@ export { critique, ENGINE_VERSION, PROMPT_VERSION } from "./critique.js";
 export type { CritiqueDeps } from "./critique.js";
 export { buildResultMetadata, assertVersionStamped, versionSpanAttributes } from "./version-stamp.js";
 export type { VersionStampInput } from "./version-stamp.js";
+export {
+  SYSTEM_PROMPT_VERSION,
+  RUBRIC_ORDER,
+  activeDimensions,
+  buildSystemPrompt,
+} from "./prompt.js";
+export type { SystemPromptOptions } from "./prompt.js";

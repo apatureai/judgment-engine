@@ -60,7 +60,7 @@ How the loop uses it:
 - [ ] #27 - Critique: model SDK streaming + Thinking-checkpoint wiring (OpenAI-compatible)
 - [ ] #28 - Critique: triage pass (qwen3-vl-flash) + phash-vs-baseline short-circuit
 - [ ] #29 - Critique: deep pass (qwen3-vl-plus Thinking, <=3 concurrent, two-step JSON)
-- [ ] #30 - Critique: system prompt + 8-dimension rubric + anti-hallucination clause
+- [x] #30 - Critique: system prompt + 8-dimension rubric + anti-hallucination clause -> done: `buildSystemPrompt` in `@engine/critique` emits the frozen, versioned (`SYSTEM_PROMPT_VERSION`) prompt over the 8 `@engine/types` dimensions (visual_hierarchy/spacing/typography/color_contrast/consistency/responsiveness/accessibility/brand); `activeDimensions` suppresses `brand` entirely when no brand block (#61); the anti-hallucination clause requires every finding to cite a captured image segment + element_ref, forbids hover/focus/active/animation findings, and pushes uncertainty into lower confidence; component-library addenda (#60) appended. Pure + tested.
 - [ ] #31 - Critique: Zod output schema + json_object/guided-decoding validation
 - [ ] #32 - Critique: post-parse validation gate + hallucination metric
 - [ ] #33 - Critique: post-filter (>=0.55, dedupe, cap 1 blocker + 6)
