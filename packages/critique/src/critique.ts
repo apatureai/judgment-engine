@@ -2,6 +2,7 @@ import type { CaptureImage, Critique, CritiqueOptions, RepoContext } from "@engi
 import type { ModelImage, ModelRequest } from "./model.js";
 import { defaultModelFactory } from "./mock-model.js";
 import { resolvePassModel, type ModelClientFactory, type PassModelOverrides } from "./registry.js";
+import { hallucinationGate } from "./hallucination-gate.js";
 import { parseCritiqueOutput } from "./schema.js";
 import { buildResultMetadata } from "./version-stamp.js";
 
@@ -17,6 +18,8 @@ export interface CritiqueDeps {
   passModels?: PassModelOverrides;
   /** Capture version stamped on the result (from the capture that produced the images). */
   captureVersion?: string;
+  /** Valid elementRef selectors from the geometry map (#18); enables the element_ref drop (#32). */
+  geometrySelectors?: Iterable<string>;
 }
 
 function toModelImages(images: CaptureImage[]): ModelImage[] {
@@ -62,12 +65,18 @@ export async function critique(
   const parsed = parseCritiqueOutput(response.text);
   const output = parsed.ok ? parsed.value : null;
 
+  // #32: drop-and-count gate — clamp confidence, drop ungrounded findings.
+  const gated = hallucinationGate(output?.findings ?? [], {
+    capturedRoutes: images.map((i) => i.route),
+    geometrySelectors: deps.geometrySelectors,
+  });
+
   return {
     grade: output?.grade ?? "ship",
     overall: output?.overall ?? `critique via ${config.model}`,
-    findings: output?.findings ?? [],
+    findings: gated.findings,
     notReviewed: output?.notReviewed ?? [],
-    validation: { hallucinationDrops: 0, captureUnstable: false },
+    validation: { hallucinationDrops: gated.hallucinationDrops, captureUnstable: false },
     metadata: buildResultMetadata({
       engineVersion: ENGINE_VERSION,
       model: config.model,

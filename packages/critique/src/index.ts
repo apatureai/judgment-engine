@@ -31,3 +31,5 @@ export {
   schemaInstruction,
 } from "./schema.js";
 export type { CritiqueOutput, ModelFinding, ParseResult } from "./schema.js";
+export { hallucinationGate } from "./hallucination-gate.js";
+export type { HallucinationGateInput, HallucinationGateResult } from "./hallucination-gate.js";
