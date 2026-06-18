@@ -11,6 +11,7 @@ export default defineConfig({
       "@engine/critique": fromRoot("./packages/critique/src/index.ts"),
       "@engine/db": fromRoot("./packages/db/src/index.ts"),
       "@engine/redis": fromRoot("./packages/redis/src/index.ts"),
+      "@engine/storage": fromRoot("./packages/storage/src/index.ts"),
     },
   },
   test: {

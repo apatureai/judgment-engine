@@ -1,0 +1,16 @@
+{
+  "name": "@engine/storage",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Engine object storage: R2-primary/S3 dual-write put/get keyed by job id + on-demand short-TTL signed URLs.",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": { ".": { "types": "./dist/index.d.ts", "default": "./dist/index.js" } },
+  "files": ["dist"],
+  "scripts": { "test": "vitest run" },
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.717.0",
+    "@aws-sdk/s3-request-presigner": "^3.717.0"
+  }
+}
