@@ -10,6 +10,7 @@ export default defineConfig({
       "@engine/capture": fromRoot("./packages/capture/src/index.ts"),
       "@engine/critique": fromRoot("./packages/critique/src/index.ts"),
       "@engine/db": fromRoot("./packages/db/src/index.ts"),
+      "@engine/redis": fromRoot("./packages/redis/src/index.ts"),
     },
   },
   test: {
