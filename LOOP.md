@@ -43,6 +43,40 @@ apatureai/gate.
 
 ## Self-improvement log (newest first)
 
+- 2026-06-18 (run 4): EM0 finish + EM2 critique pipeline — closed out EM0 (#36
+  global token-bucket, #66 cooperative cancellation, #67 capacity/fairness, #68
+  version stamping) and built the model-abstraction + validation pipeline (#26
+  per-pass `ModelClient`, #30 frozen prompt/rubric, #31 Zod `json_object`
+  validation, #32 drop-and-count gate, #33 post-filter, #70 confidence ceiling).
+  10 issues, 163 tests. Learnings:
+  - **`critique()` is now a clean pipeline:** model → parse+Zod (#31) →
+    hallucination gate (#32) → confidence ceiling (#70) → post-filter (#33) →
+    version stamp (#68). Each stage is a pure exported fn wired in order, so the
+    remaining model-I/O issues (#27 DashScope client, #28 triage, #29 deep
+    two-step) only need to populate the ModelClient — the output path is done.
+  - **Keep zod enums in sync with `@engine/types` via `as const satisfies
+    readonly Dimension[]`** — compile-time guarantee the schema matches the
+    contract without importing runtime values from the types package.
+  - **Migrations that ALTER a CHECK/serial constraint:** the inline column check
+    is named `<table>_<column>_check` (e.g. `jobs_status_check`) — drop + re-add
+    it by that name; PGlite honors it, so the add-a-status migration is testable.
+    Adding columns mid-stream (#67 `priority`) means updating COLS + the row
+    type + mapRow together or the SELECT silently lacks the field.
+  - **Token-bucket as pure `refillAndConsume` + a Lua mirror** kept #36/#67
+    fully testable with an in-memory clock while the real cross-instance
+    atomicity lives in `TOKEN_BUCKET_LUA` (never run against live Redis in CI).
+  - **Cooperative cancellation invariant is free** if `complete`/`fail` are
+    `WHERE status='running'`: once a job leaves running (cancelling/canceled) a
+    late `processJob` writes nothing — no extra guard needed.
+  - **Next (EM2 critique, model-I/O against a fake transport):** #27 (OpenAI-SDK
+    streaming + thinking split + AbortController — build a DashScope ModelClient
+    behind the #26 interface, test with a fake stream), #28 (triage + phash
+    short-circuit using #15), #29 (deep two-step: thinking call → json_object
+    coercion call, per the 2026-06-18 research the managed path can't collapse),
+    #69 (max_pixels in the adapter, uses #16), #34 (prefix-cache byte-identical
+    test on #63 + cached_tokens telemetry per the #34 research note), #35
+    (free-tier model swap = config). Then EM3 eval (#44-#50) is a fresh package.
+
 - 2026-06-18 (run 3): EM2 Context extraction — shipped the whole context layer as
   a new `@engine/context` package: #59 tokens.json (W3C + Style Dictionary) +
   shared `TokenMap`, #58 CSS custom props (PostCSS), #60 component detection,
