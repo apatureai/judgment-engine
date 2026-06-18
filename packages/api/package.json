@@ -1,0 +1,21 @@
+{
+  "name": "@engine/api",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Engine async job API: POST/GET/DELETE /jobs with HMAC verification, installationId scoping, x-schema-version, and depth routing.",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": { ".": { "types": "./dist/index.d.ts", "default": "./dist/index.js" } },
+  "files": ["dist"],
+  "scripts": { "test": "vitest run" },
+  "dependencies": {
+    "@engine/jobs": "workspace:*",
+    "@engine/storage": "workspace:*",
+    "@engine/types": "workspace:*"
+  },
+  "devDependencies": {
+    "@engine/db": "workspace:*",
+    "@electric-sql/pglite": "^0.2.0"
+  }
+}

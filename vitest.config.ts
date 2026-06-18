@@ -15,6 +15,7 @@ export default defineConfig({
       "@engine/secrets": fromRoot("./packages/secrets/src/index.ts"),
       "@engine/observability": fromRoot("./packages/observability/src/index.ts"),
       "@engine/jobs": fromRoot("./packages/jobs/src/index.ts"),
+      "@engine/api": fromRoot("./packages/api/src/index.ts"),
     },
   },
   test: {
