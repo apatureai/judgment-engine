@@ -2,6 +2,7 @@ import type { CaptureImage, Critique, CritiqueOptions, RepoContext } from "@engi
 import type { ModelImage, ModelRequest } from "./model.js";
 import { defaultModelFactory } from "./mock-model.js";
 import { resolvePassModel, type ModelClientFactory, type PassModelOverrides } from "./registry.js";
+import { applyConfidenceCeiling } from "./confidence-ceiling.js";
 import { hallucinationGate } from "./hallucination-gate.js";
 import { postFilter } from "./post-filter.js";
 import { parseCritiqueOutput } from "./schema.js";
@@ -72,15 +73,22 @@ export async function critique(
     geometrySelectors: deps.geometrySelectors,
   });
 
+  // #70: cap confidence when the capture was unstable, before the post-filter.
+  const ceiling = options.confidenceCeiling;
+  const capped = ceiling !== undefined ? applyConfidenceCeiling(gated.findings, ceiling) : gated.findings;
+
   // #33: trust-budget post-filter (confidence floor, dedupe, cap).
-  const findings = postFilter(gated.findings);
+  const findings = postFilter(capped);
 
   return {
     grade: output?.grade ?? "ship",
     overall: output?.overall ?? `critique via ${config.model}`,
     findings,
     notReviewed: output?.notReviewed ?? [],
-    validation: { hallucinationDrops: gated.hallucinationDrops, captureUnstable: false },
+    validation: {
+      hallucinationDrops: gated.hallucinationDrops,
+      captureUnstable: ceiling !== undefined,
+    },
     metadata: buildResultMetadata({
       engineVersion: ENGINE_VERSION,
       model: config.model,

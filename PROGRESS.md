@@ -67,7 +67,7 @@ How the loop uses it:
 - [ ] #34 - Critique: prefix-cache layout (stable context block) + cache-hit telemetry + byte-identical test
 - [ ] #35 - Critique: free-tier deep-pass model swap (qwen3-vl-flash / Instruct)
 - [ ] #69 - Critique: max_pixels image-token budget enforcement in adapter
-- [ ] #70 - Critique: confidence-ceiling propagation (unstable page caps findings)
+- [x] #70 - Critique: confidence-ceiling propagation (unstable page caps findings) -> done: `applyConfidenceCeiling` caps every finding's confidence at the ceiling when the capture was flagged visually unstable (#15's `UNSTABLE_CONFIDENCE_CEILING`); `critique()` applies it (from `CritiqueOptions.confidenceCeiling`) before the post-filter and sets `validation.captureUnstable = true`. The 0.6 ceiling sits above the 0.55 floor so capped findings still surface, just with lowered trust. Pure + tested.
 
 ## EM3 · Eval & quality gate
 
