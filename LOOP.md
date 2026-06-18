@@ -43,6 +43,43 @@ apatureai/gate.
 
 ## Self-improvement log (newest first)
 
+- 2026-06-18 (run 3): EM2 Context extraction — shipped the whole context layer as
+  a new `@engine/context` package: #59 tokens.json (W3C + Style Dictionary) +
+  shared `TokenMap`, #58 CSS custom props (PostCSS), #60 component detection,
+  #61 `.designreview.yml` brand block (yaml), #62 diff->route (Next.js App +
+  Pages), #56 Tailwind v3 `resolveConfig`, #57 Tailwind v4 `@theme`/`@config`,
+  and #63 the deterministic content-hashed context block (the prefix-cache
+  anchor). 124 tests green. Learnings:
+  - **`*/` inside a JSDoc comment closes the comment** — writing `app/**/page.tsx`
+    in a doc comment silently ends the block and produces a cascade of bogus
+    syntax errors (and made ALL package tests fail to load via esbuild). Use
+    `app/.../page.tsx` in prose. Quick tell: a syntax error on a line far from
+    where you think the problem is, plus every sibling test file "failing."
+  - **NodeNext can't resolve types for some package subpath exports** even when
+    the runtime import works (tailwindcss/resolveConfig): `pnpm test` (esbuild)
+    passes while `pnpm typecheck` errors `TS2307`. Fix with a tiny local ambient
+    `declare module "pkg/subpath"` .d.ts (included via `src/**/*.ts`) rather than
+    fighting the exports map.
+  - **`type === "atrule"` does NOT narrow a `Container | Document` union to
+    AtRule** in postcss's types — cast `parent as AtRule` after the check to read
+    `.name`/`.params`.
+  - **Determinism recipe that passed the byte-identical test:** recursively sort
+    ALL object keys (`canonicalize`), sort arrays the caller controls, never emit
+    a timestamp, then `JSON.stringify`. Hash that string for the cache key.
+  - **`tailwindcss` is the right call for #56** despite its weight — the issue
+    explicitly forbids static-AST-parsing (misses preset defaults); `resolveConfig`
+    on a passed-in config object is pure/testable, and the untrusted-config LOAD
+    stays the #22 sandbox seam.
+  - **Next: EM2 Critique. #26 (critique() interface + per-pass model abstraction
+    against a MOCK model) is the keystone** — deps are all [x], and it unblocks
+    EM0 #36/#68 plus #27-#35/#69/#70. Then #30 (system prompt + 8-dim rubric +
+    anti-hallucination), #31 (Zod schema + json_object — see the 2026-06-18
+    research note: pin VL snapshots + require the literal "JSON" keyword), #32
+    (drop-and-count gate; consumes #18 geometry + #63 routes), #33 (post-filter),
+    #34 (prefix-cache byte-identical test, built on #63), #69 (max_pixels uses
+    #16), #70 (confidence ceiling uses #15's flag). All implementable against a
+    mock model — no live DashScope/GPU in tests.
+
 - 2026-06-18 (run 2): EM1 capture sweep — implemented the pure-logic cores that
   the live-browser worker will call: #16 (`downscale.ts` pixel-budget + coord
   rescale), #17 (`tiling.ts`), #18 (`geometry.ts`), #15 (`stability.ts` phash +
