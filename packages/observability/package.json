@@ -1,0 +1,23 @@
+{
+  "name": "@engine/observability",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Engine OpenTelemetry spans + trace-context propagation + SLO metrics across the capture/context/critique pipeline.",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": { ".": { "types": "./dist/index.d.ts", "default": "./dist/index.js" } },
+  "files": ["dist"],
+  "scripts": { "test": "vitest run" },
+  "dependencies": {
+    "@opentelemetry/api": "^1.9.0",
+    "@opentelemetry/core": "^1.30.0",
+    "@opentelemetry/resources": "^1.30.0",
+    "@opentelemetry/sdk-metrics": "^1.30.0",
+    "@opentelemetry/sdk-trace-node": "^1.30.0",
+    "@opentelemetry/semantic-conventions": "^1.28.0"
+  },
+  "devDependencies": {
+    "@opentelemetry/sdk-trace-base": "^1.30.0"
+  }
+}

@@ -7,6 +7,7 @@
     { "path": "packages/db" },
     { "path": "packages/redis" },
     { "path": "packages/storage" },
-    { "path": "packages/secrets" }
+    { "path": "packages/secrets" },
+    { "path": "packages/observability" }
   ]
 }
