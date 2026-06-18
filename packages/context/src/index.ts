@@ -12,3 +12,5 @@ export type { RouteConfig } from "./routes.js";
 export { extractTailwindTokens, resolveTailwindV3Tokens } from "./tailwind.js";
 export { extractTailwindV4 } from "./tailwind-v4.js";
 export type { TailwindV4Result } from "./tailwind-v4.js";
+export { CONTEXT_VERSION, serializeContextBlock, buildContextBlock } from "./context-block.js";
+export type { ContextBlockInput, ContextBlock } from "./context-block.js";
