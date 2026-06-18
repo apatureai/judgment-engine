@@ -60,6 +60,9 @@ importers:
       '@engine/types':
         specifier: workspace:*
         version: link:../types
+      postcss:
+        specifier: ^8.4.49
+        version: 8.5.15
 
   packages/critique:
     dependencies:
