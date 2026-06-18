@@ -12,8 +12,8 @@ How the loop uses it:
 
 - [x] #1 - Infra: monorepo scaffold + shared critique() interface package -> done: pnpm workspace (types/capture/critique) + tsc -b project refs, strict TS, ESLint, Vitest, CI; @engine/types is the single source for critique()/captureInSandbox() + Finding/Critique/version-stamp types; @engine/capture + @engine/critique consume it (stubs; EM1/EM2 implement). Golden wire fixture copied from Gate as the cross-repo contract anchor (x-schema-version=1). typecheck+test(5)+lint green.
 - [x] #2 - Infra: lint + typecheck CI pipeline -> done: GitHub Actions runs eslint + tsc + vitest on PR/push (all workspaces via `eslint .` + `tsc -b` project refs); pnpm store cached via setup-node; install is `--frozen-lockfile`; added least-privilege `permissions: contents: read`. Any error fails the check.
-- [ ] #3 - Infra: Fly.io app + Machines provisioning
-- [ ] #4 - Infra: Neon Postgres provisioning + migration tooling
+- [~] #3 - Infra: Fly.io app + Machines provisioning -> skipped: needs a live Fly account + Dockerfiles for the orchestrator/capture services that aren't built yet (EM0 #64 / EM1 #22). The deployable seam (db migrate as Fly release command) is in place via `@engine/db` CLI; revisit fly.toml once those services have runnable images.
+- [x] #4 - Infra: Neon Postgres provisioning + migration tooling -> done: `@engine/db` deterministic up/down migration runner (paired `NNNN_name.up.sql`/`.down.sql`, `schema_migrations` tracking, idempotent apply + reverse-order rollback) tested against embedded PGlite (apply/idempotent/rollback round-trip); `migrate` CLI (`up`/`down [n]`) for the Fly release command + ephemeral Neon branch in CI; pgExecutor documents Neon pooled-endpoint usage for serverless pooling. Baseline 0001_init adds the shared `touch_updated_at()` trigger fn. Live Neon project/branch provisioning stays ops.
 - [ ] #5 - Infra: Redis provisioning for BullMQ + token-bucket
 - [ ] #6 - Infra: S3 + R2 buckets + on-demand signed-URL service
 - [ ] #7 - Infra: AWS KMS per-tenant key + per-repo data-key envelope helper

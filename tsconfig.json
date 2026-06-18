@@ -3,6 +3,7 @@
   "references": [
     { "path": "packages/types" },
     { "path": "packages/capture" },
-    { "path": "packages/critique" }
+    { "path": "packages/critique" },
+    { "path": "packages/db" }
   ]
 }

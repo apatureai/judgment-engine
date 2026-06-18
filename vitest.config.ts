@@ -9,6 +9,7 @@ export default defineConfig({
       "@engine/types": fromRoot("./packages/types/src/index.ts"),
       "@engine/capture": fromRoot("./packages/capture/src/index.ts"),
       "@engine/critique": fromRoot("./packages/critique/src/index.ts"),
+      "@engine/db": fromRoot("./packages/db/src/index.ts"),
     },
   },
   test: {
