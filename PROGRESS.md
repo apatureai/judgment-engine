@@ -72,7 +72,7 @@ How the loop uses it:
 ## EM3 · Eval & quality gate
 
 - [x] #44 - Eval: synthetic-canary generator -> done: new `@engine/eval` package + `generateCanaries(baseline, opts)` — a programmatic defect injector (mutated_token→color_contrast, broken_breakpoint→responsiveness/major, swapped_font→typography) producing canary specs across routes × defects × variants with **ground truth known by construction** (dimension/route/minSeverity). Deterministic + stable ids (reproducible frozen set); scales into the hundreds via `variantsPerCombo`. The mutation describes what to change; rendering is the capture worker's job (#11). Pure + tested. (Regression gate #47 asserts recall against these.)
-- [ ] #45 - Eval: 150-PR golden set + labeling tooling
+- [x] #45 - Eval: 150-PR golden set + labeling tooling -> done: golden-set labeling model in `@engine/eval` — `GoldenCase`/`RaterLabel`/`LabeledFinding` capture per-finding labels + a grade from each of 2-3 raters, `findingKey` matches findings, `consensusFindings(minAgreement)` derives ground truth (max severity across agreeing raters), `raterGrades`/`isUsableForKappa` expose the inter-rater data for #46's quadratic-weighted kappa, `parseGoldenSet` ingests a labeling-tool export. The actual 150 own/OSS PR snapshots are a data-collection ops task needing live capture (#11); the tooling/schema that #46 consumes is implemented + tested.
 - [ ] #46 - Eval: metrics (precision/recall, blocker recall, nit precision, weighted-kappa + CIs)
 - [ ] #47 - Eval: regression gate (hard on canary recall, monitor humans, offline batch)
 - [ ] #48 - Eval: quality gate — critique clears §10 golden-set + canary bar on frozen capture set

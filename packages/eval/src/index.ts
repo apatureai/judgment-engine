@@ -6,3 +6,11 @@ export type {
   CanaryBaseline,
   GenerateCanariesOptions,
 } from "./canary.js";
+export {
+  findingKey,
+  isUsableForKappa,
+  consensusFindings,
+  raterGrades,
+  parseGoldenSet,
+} from "./golden-set.js";
+export type { LabeledFinding, RaterLabel, GoldenCase, GoldenSet } from "./golden-set.js";
