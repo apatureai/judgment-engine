@@ -43,6 +43,34 @@ apatureai/gate.
 
 ## Self-improvement log (newest first)
 
+- 2026-06-19 (run 7): EM3 eval-gate chain complete — #47 regression gate (hard
+  canary recall + CI-aware human monitor), #48 go/no-go quality gate on the
+  frozen set, #72 hallucination-drop + capture-instability gated SLOs, #71
+  model_prompt_registry (Postgres) + eval-gated promotion + rollback. 211 tests.
+  EM3 implementable work is essentially done (#44-#48, #71, #72; #45 tooling).
+  Remaining EM3 (#49 weekly prod canary, #50 public benchmark) are ops/data.
+  Learnings:
+  - **The gate stack composes cleanly as pure functions over already-computed
+    batch results:** regressionGate (canary recall hard + human-CI) → qualityGate
+    (frozen-set bars + signoff) → evaluateSlos (drop/instability targets) → the
+    registry's `promote` (refuses without eval_passed). The offline-batch *run* is
+    the only live seam; everything else is unit-tested deterministically.
+  - **Partial unique index = "at most one stable"**: `CREATE UNIQUE INDEX ...
+    (status) WHERE status='stable'` enforces the single-active-version invariant
+    at the DB; `promote` demotes the prior stable first to avoid the conflict.
+  - **Rollback without a separate "superseded" status:** demote current stable →
+    rolled_back, then re-promote the most-recently-promoted rolled_back row
+    (ORDER BY promoted_at DESC) — fits the 3-status enum the issue specified.
+  - **New cross-package dep on @engine/db for a package that needs Postgres**
+    (eval registry): add the workspace dep + pglite devDep + tsconfig reference;
+    test against PGlite (supports the partial unique index + gen_random_uuid).
+  - **Next: EM4 Data (#37 Postgres schema first)** — findings/feedback/
+    rater_permission tables (a migration), then #38 explicit feedback, #39
+    implicit, #40 recheck labeling, #41 per-repo memory digest, #42 rater
+    down-weighting, #43 preference export, #74 consent/PII, #75 DVC export, plus
+    the research-filed #84 (Krippendorff/Gwet AC2) and #85 (KTO binary export).
+    Then EM5 security (#51-#55). #37 is the unblocked starting point.
+
 - 2026-06-19 (run 6): EM3 eval foundation — #45 golden-set labeling tooling
   (GoldenCase/RaterLabel/LabeledFinding + consensus/inter-rater helpers) and #46
   metrics suite (per-dimension P/R, blocker recall, nit precision, quadratic-
