@@ -113,6 +113,9 @@ importers:
       '@engine/db':
         specifier: workspace:*
         version: link:../db
+      '@engine/storage':
+        specifier: workspace:*
+        version: link:../storage
       '@engine/types':
         specifier: workspace:*
         version: link:../types

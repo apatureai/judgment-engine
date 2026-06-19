@@ -45,7 +45,9 @@ export interface WeightedConsensus {
 }
 
 /** Aggregate feedback into a permission-weighted consensus for a finding. */
-export function weightedConsensus(feedback: FeedbackRecord[]): WeightedConsensus {
+export function weightedConsensus(
+  feedback: Pick<FeedbackRecord, "signal" | "raterPermission">[],
+): WeightedConsensus {
   let score = 0;
   let trainingGradeCount = 0;
   for (const f of feedback) {
