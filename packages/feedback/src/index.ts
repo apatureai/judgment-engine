@@ -3,6 +3,7 @@ export type {
   RaterPermission,
   ExplicitSignal,
   ImplicitSignal,
+  RecheckSignal,
   FeedbackSignal,
   FeedbackSource,
   FeedbackRecord,

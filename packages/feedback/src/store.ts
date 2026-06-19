@@ -10,7 +10,8 @@ import type { SqlExecutor } from "@engine/db";
 export type RaterPermission = "owner" | "write" | "read" | "public";
 export type ExplicitSignal = "thumbs_up" | "thumbs_down" | "ignore";
 export type ImplicitSignal = "applied" | "merged_blockers_unresolved";
-export type FeedbackSignal = ExplicitSignal | ImplicitSignal | "recheck";
+export type RecheckSignal = "recheck_resolved" | "recheck_unresolved";
+export type FeedbackSignal = ExplicitSignal | ImplicitSignal | RecheckSignal | "recheck";
 export type FeedbackSource = "explicit" | "implicit";
 
 export interface FeedbackRecord {
@@ -90,6 +91,22 @@ export class FeedbackStore {
        VALUES ($1, NULL, $2, 'implicit', $3)
        RETURNING ${COLS}`,
       [findingId, signal, raterPermission],
+    );
+    return mapRow(rows[0] as FeedbackRow);
+  }
+
+  /**
+   * Record an in-loop recheck label (#40): each design_recheck cycle records
+   * whether the applied fix resolved the finding. Automatic (no human step),
+   * source=implicit. The MCP `design_recheck` tool (cross-repo, mocked) calls this.
+   */
+  async recordRecheck(findingId: string, resolved: boolean): Promise<FeedbackRecord> {
+    const signal: RecheckSignal = resolved ? "recheck_resolved" : "recheck_unresolved";
+    const { rows } = await this.exec.query<FeedbackRow>(
+      `INSERT INTO feedback (finding_id, rater_id, signal, source, rater_permission)
+       VALUES ($1, NULL, $2, 'implicit', 'write')
+       RETURNING ${COLS}`,
+      [findingId, signal],
     );
     return mapRow(rows[0] as FeedbackRow);
   }

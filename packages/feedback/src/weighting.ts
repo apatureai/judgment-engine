@@ -27,6 +27,10 @@ export function isTrainingGrade(permission: RaterPermission): boolean {
 const SIGNAL_POLARITY: Record<FeedbackSignal, number> = {
   thumbs_up: 1,
   applied: 1,
+  // A recheck where the fix resolved the finding = strong positive (real + actionable).
+  // Unresolved is ambiguous (bad finding or bad fix) -> neutral.
+  recheck_resolved: 1,
+  recheck_unresolved: 0,
   thumbs_down: -1,
   ignore: -1,
   merged_blockers_unresolved: -1,
