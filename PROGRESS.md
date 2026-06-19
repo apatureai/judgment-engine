@@ -79,7 +79,7 @@ How the loop uses it:
 - [ ] #49 - Eval: weekly production injected-defect canary
 - [ ] #50 - Eval: public benchmark publication
 - [ ] #71 - Eval: model/prompt registry + CI eval-gated promotion + rollback
-- [ ] #72 - Eval: hallucination-drop + capture-instability SLOs coupled to the gate
+- [x] #72 - Eval: hallucination-drop + capture-instability SLOs coupled to the gate -> done: `@engine/eval` `evaluateSlos` makes the hallucination-drop rate (#32) and capture-instability rate (#15) first-class gated SLOs with configurable targets (`DEFAULT_SLO_TARGETS`: 10% / 5%); a breach is a gate signal (composes with #47/#48) and is the same series already on the Grafana SLO dashboard + alerts (#8/#9). Zero-denominator safe. Pure check over computed rates; tested pass/breach/zero-denominator.
 
 ## EM4 · Data moat & learning
 
