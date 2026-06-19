@@ -51,3 +51,5 @@ export type { DeepPassRoute, DeepPassDeps, DeepPassRouteResult } from "./deep-pa
 export { cachePrefix, cachedInputTokens, isCacheHit } from "./cache.js";
 export { FREE_TIER_PASS_MODELS, passModelsForTier } from "./tier.js";
 export type { BillingTier } from "./tier.js";
+export { TriageOutputSchema, allUnchanged, runTriage } from "./triage.js";
+export type { TriageOutput, TriageRoute, TriageDeps, TriageResult } from "./triage.js";
