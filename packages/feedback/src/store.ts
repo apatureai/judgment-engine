@@ -9,7 +9,8 @@ import type { SqlExecutor } from "@engine/db";
  */
 export type RaterPermission = "owner" | "write" | "read" | "public";
 export type ExplicitSignal = "thumbs_up" | "thumbs_down" | "ignore";
-export type FeedbackSignal = ExplicitSignal | "applied" | "recheck";
+export type ImplicitSignal = "applied" | "merged_blockers_unresolved";
+export type FeedbackSignal = ExplicitSignal | ImplicitSignal | "recheck";
 export type FeedbackSource = "explicit" | "implicit";
 
 export interface FeedbackRecord {
@@ -70,6 +71,25 @@ export class FeedbackStore {
        VALUES ($1, $2, $3, 'explicit', $4)
        RETURNING ${COLS}`,
       [input.findingId, input.raterId, input.signal, input.raterPermission],
+    );
+    return mapRow(rows[0] as FeedbackRow);
+  }
+
+  /**
+   * Record an implicit signal (#39): `applied` (suggestion string-matched a later
+   * diff) or `merged_blockers_unresolved`. No human rater; the permission reflects
+   * the repo actor (push/merge requires write).
+   */
+  async recordImplicit(
+    findingId: string,
+    signal: ImplicitSignal,
+    raterPermission: RaterPermission = "write",
+  ): Promise<FeedbackRecord> {
+    const { rows } = await this.exec.query<FeedbackRow>(
+      `INSERT INTO feedback (finding_id, rater_id, signal, source, rater_permission)
+       VALUES ($1, NULL, $2, 'implicit', $3)
+       RETURNING ${COLS}`,
+      [findingId, signal, raterPermission],
     );
     return mapRow(rows[0] as FeedbackRow);
   }
