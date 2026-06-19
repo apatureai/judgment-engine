@@ -31,3 +31,5 @@ export type {
   RegressionGateInput,
   RegressionGateResult,
 } from "./regression-gate.js";
+export { DEFAULT_QUALITY_BARS, qualityGate } from "./quality-gate.js";
+export type { QualityBars, QualityGateInput, QualityGateResult } from "./quality-gate.js";

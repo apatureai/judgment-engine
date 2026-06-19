@@ -1,0 +1,55 @@
+import { describe, expect, it } from "vitest";
+import {
+  generateCanaries,
+  qualityGate,
+  type CanaryBaseline,
+  type LabeledFinding,
+  type QualityGateInput,
+} from "../src/index.js";
+
+const baseline: CanaryBaseline = {
+  routes: ["/"],
+  tokenNames: ["color.primary"],
+  breakpoints: ["md"],
+  fontNames: ["fontFamily.sans"],
+};
+const canaries = generateCanaries(baseline);
+const allCaught = Object.fromEntries(
+  canaries.map((c) => [
+    c.id,
+    [{ dimension: c.groundTruth.dimension, severity: c.groundTruth.minSeverity, route: c.groundTruth.route, elementRef: null } as LabeledFinding],
+  ]),
+);
+
+const passing: QualityGateInput = {
+  frozenCaptureSetId: "frozen-2026-06-19",
+  canary: { canaries, predicted: allCaught },
+  blockerRecall: 0.9,
+  nitPrecision: 0.8,
+  kappa: 0.7,
+  signoffBy: "design-lead",
+};
+
+describe("qualityGate (#48)", () => {
+  it("passes and records a signed sign-off when all bars clear on the frozen set", () => {
+    const r = qualityGate(passing);
+    expect(r.passed).toBe(true);
+    expect(r.failedBars).toEqual([]);
+    expect(r.signoff).toEqual({ frozenCaptureSetId: "frozen-2026-06-19", by: "design-lead", passed: true });
+  });
+
+  it("fails when a golden-set bar is missed (and records the failing sign-off)", () => {
+    const r = qualityGate({ ...passing, blockerRecall: 0.5, kappa: 0.4, signoffBy: undefined });
+    expect(r.passed).toBe(false);
+    expect(r.failedBars.some((b) => b.includes("blocker recall"))).toBe(true);
+    expect(r.failedBars.some((b) => b.includes("kappa"))).toBe(true);
+    expect(r.signoff).toEqual({ frozenCaptureSetId: "frozen-2026-06-19", by: null, passed: false });
+  });
+
+  it("hard-fails when a canary is missed even if golden-set bars pass", () => {
+    const missingOne = Object.fromEntries(canaries.slice(1).map((c) => [c.id, allCaught[c.id]!]));
+    const r = qualityGate({ ...passing, canary: { canaries, predicted: missingOne } });
+    expect(r.passed).toBe(false);
+    expect(r.failedBars.some((b) => b.includes("canary recall"))).toBe(true);
+  });
+});
