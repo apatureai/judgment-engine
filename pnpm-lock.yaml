@@ -97,9 +97,16 @@ importers:
 
   packages/eval:
     dependencies:
+      '@engine/db':
+        specifier: workspace:*
+        version: link:../db
       '@engine/types':
         specifier: workspace:*
         version: link:../types
+    devDependencies:
+      '@electric-sql/pglite':
+        specifier: ^0.2.0
+        version: 0.2.17
 
   packages/jobs:
     dependencies:
