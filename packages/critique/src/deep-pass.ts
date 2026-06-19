@@ -1,3 +1,4 @@
+import { cachePrefix } from "./cache.js";
 import type { ModelClient, ModelImage, ModelMessage } from "./model.js";
 import { parseCritiqueOutput, schemaInstruction, type CritiqueOutput } from "./schema.js";
 
@@ -44,7 +45,7 @@ function thinkingMessages(deps: DeepPassDeps, route: DeepPassRoute): ModelMessag
   const digest = route.feedbackDigest ? `\nRepo memory:\n${route.feedbackDigest}` : "";
   return [
     // Stable prefix first (context block) so prefix caching reuses it (#34).
-    { role: "system", content: `${deps.systemPrompt}\n\nREPO CONTEXT:\n${deps.contextBlock}` },
+    { role: "system", content: cachePrefix(deps.systemPrompt, deps.contextBlock) },
     {
       role: "user",
       content: `Review route ${route.route}. Cite segment labels + element_ref.${factLines}${digest}`,
