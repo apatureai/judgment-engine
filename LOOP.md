@@ -43,6 +43,36 @@ apatureai/gate.
 
 ## Self-improvement log (newest first)
 
+- 2026-06-18 (run 5): EM2 critique finished + EM3 started — #27 DashScope
+  streaming client (OpenAI-compatible, reasoning/content split, AbortSignal),
+  #69 max_pixels enforcement, #29 deep-pass two-step + ≤3 concurrency, #34
+  prefix-cache layout + cache-hit telemetry, #35 free-tier model swap, #28 triage
+  + phash short-circuit, and #44 synthetic-canary generator (new `@engine/eval`).
+  **EM2 (Context + Critique) is now fully complete.** 184 tests. Learnings:
+  - **Inject the streaming `create` fn, don't import `openai` into the package.**
+    The DashScope client is unit-tested against a fake async-iterable stream;
+    `createOpenAICompatibleCreate(client)` adapts a real OpenAI-SDK client in
+    production and the SAME client reaches self-host vLLM by base URL. Avoids a
+    heavy dep + fragile SDK streaming types while honoring "use the OpenAI SDK".
+  - **The two-step is just two `complete()` calls** with different flags
+    (thinking+no-format, then non-thinking+json_object) — `max_tokens` is never
+    set because `ModelRequest` has no such field (compliant by construction).
+    "Never a partial" = a route whose coercion fails Zod returns `output: null`.
+  - **`mapWithConcurrency` (a tiny worker-pool over a shared index)** is enough
+    for the ≤3-concurrent cap; assert `maxInFlight` with an instrumented mock.
+  - **Cross-package dep added cleanly:** critique→capture (for #16 PIXEL_BUDGETS,
+    #15 hashesWithin) — acyclic, so add the workspace dep + tsconfig reference.
+  - **A new package is still the 4-edit ritual** (pkg/tsconfig + root tsconfig
+    references + vitest alias); `@engine/eval` for EM3.
+  - **Next (EM3 eval, mostly a chained set in `@engine/eval`):** #45 (150-PR
+    golden set + labeling tooling), #46 (metrics: precision/recall, blocker
+    recall, nit precision, quadratic-weighted-kappa + bootstrap CIs — pure
+    stats), then #47 (regression gate on canary recall, uses #44+#46), #48
+    (quality gate on the frozen set), #71 (model_prompt_registry + CI eval-gate +
+    rollback — Postgres migration, builds on #68/#48/#47), #72 (hallucination-
+    drop + capture-instability SLOs, needs #46). #46 is the highest-leverage
+    pure starting point. Then EM4 data (#37 schema first) and EM5 security.
+
 - 2026-06-18 (run 4): EM0 finish + EM2 critique pipeline — closed out EM0 (#36
   global token-bucket, #66 cooperative cancellation, #67 capacity/fairness, #68
   version stamping) and built the model-abstraction + validation pipeline (#26
