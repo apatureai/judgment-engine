@@ -13,3 +13,5 @@ export {
   suggestionMatchesDiff,
   mergedWithBlockersUnresolved,
 } from "./implicit.js";
+export { RATER_WEIGHTS, raterWeight, isTrainingGrade, weightedConsensus } from "./weighting.js";
+export type { WeightedConsensus } from "./weighting.js";

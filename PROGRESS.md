@@ -88,7 +88,7 @@ How the loop uses it:
 - [x] #39 - Data: implicit signal — suggestion string-match (drop touched-element heuristic) -> done: `@engine/feedback` `implicit.ts` — `suggestionMatchesDiff` records an implicit-positive ONLY when a *significant* suggestion token (CSS class, hex color, sized value, quoted string, hyphenated utility — via `extractSuggestionTokens`) string-matches the later diff's added text; generic prose can't false-positive; the touched-element heuristic is deliberately not implemented. `mergedWithBlockersUnresolved` is the implicit-negative; `FeedbackStore.recordImplicit` persists `applied` / `merged_blockers_unresolved` (source=implicit, no rater). Migration `0008` adds the `merged_blockers_unresolved` signal. PGlite + pure-logic tested.
 - [ ] #40 - Data: in-loop recheck labeling
 - [ ] #41 - Data: per-repo memory digest (<=600 tok) -> deep-pass suffix
-- [ ] #42 - Data: rater-permission down-weighting
+- [x] #42 - Data: rater-permission down-weighting -> done: `@engine/feedback` `weighting.ts` — `isTrainingGrade` (owner/write = collaborators = training-grade), `raterWeight` (`RATER_WEIGHTS`: collaborators 1.0, read/public 0.1 drive-by), and `weightedConsensus` (permission-weighted net score over signal polarity — thumbs_up/applied +, thumbs_down/ignore/merged-blockers −, recheck neutral — plus a training-grade count). Rater permission is already stored per signal (#37/#38). Pure + tested.
 - [ ] #43 - Data: preference-dataset export (image/context/finding/verdict tuples)
 - [ ] #74 - Data: tenant training-consent + PII scan for training data
 - [ ] #75 - Data: DVC-versioned preference-dataset export on R2
