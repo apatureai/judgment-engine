@@ -18,3 +18,6 @@ export { RATER_WEIGHTS, raterWeight, isTrainingGrade, weightedConsensus } from "
 export type { WeightedConsensus } from "./weighting.js";
 export { buildMemoryDigest, computeRepoPatterns } from "./memory-digest.js";
 export type { MemoryPattern, MemoryDigestOptions } from "./memory-digest.js";
+export { scanForPii, isPiiClean, trainingEligible } from "./pii.js";
+export type { PiiMatch } from "./pii.js";
+export { TrainingConsentStore } from "./consent.js";
