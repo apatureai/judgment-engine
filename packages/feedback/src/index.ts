@@ -16,3 +16,5 @@ export {
 } from "./implicit.js";
 export { RATER_WEIGHTS, raterWeight, isTrainingGrade, weightedConsensus } from "./weighting.js";
 export type { WeightedConsensus } from "./weighting.js";
+export { buildMemoryDigest, computeRepoPatterns } from "./memory-digest.js";
+export type { MemoryPattern, MemoryDigestOptions } from "./memory-digest.js";
