@@ -14,3 +14,13 @@ export {
   parseGoldenSet,
 } from "./golden-set.js";
 export type { LabeledFinding, RaterLabel, GoldenCase, GoldenSet } from "./golden-set.js";
+export {
+  precisionRecall,
+  perDimensionPR,
+  blockerRecall,
+  nitPrecision,
+  GRADE_SCALE,
+  quadraticWeightedKappa,
+  bootstrapKappaCI,
+} from "./metrics.js";
+export type { PrecisionRecall, KappaCI, BootstrapOptions } from "./metrics.js";
