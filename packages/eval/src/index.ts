@@ -24,3 +24,10 @@ export {
   bootstrapKappaCI,
 } from "./metrics.js";
 export type { PrecisionRecall, KappaCI, BootstrapOptions } from "./metrics.js";
+export { canaryRecall, humanRegressionBeyondCI, regressionGate } from "./regression-gate.js";
+export type {
+  CanaryEvalInput,
+  HumanMonitorInput,
+  RegressionGateInput,
+  RegressionGateResult,
+} from "./regression-gate.js";
