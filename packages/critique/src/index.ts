@@ -49,3 +49,5 @@ export { applyConfidenceCeiling } from "./confidence-ceiling.js";
 export { critiqueRouteTwoStep, runDeepPass, mapWithConcurrency } from "./deep-pass.js";
 export type { DeepPassRoute, DeepPassDeps, DeepPassRouteResult } from "./deep-pass.js";
 export { cachePrefix, cachedInputTokens, isCacheHit } from "./cache.js";
+export { FREE_TIER_PASS_MODELS, passModelsForTier } from "./tier.js";
+export type { BillingTier } from "./tier.js";
