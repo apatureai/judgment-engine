@@ -43,6 +43,32 @@ apatureai/gate.
 
 ## Self-improvement log (newest first)
 
+- 2026-06-19 (run 6): EM3 eval foundation — #45 golden-set labeling tooling
+  (GoldenCase/RaterLabel/LabeledFinding + consensus/inter-rater helpers) and #46
+  metrics suite (per-dimension P/R, blocker recall, nit precision, quadratic-
+  weighted kappa + seeded bootstrap CI). 194 tests. Learnings:
+  - **`@typescript-eslint/consistent-type-imports` forbids inline `import()` type
+    annotations in tests too** — `Partial<import("...").Foo>` fails lint though it
+    typechecks. Import the type at the top. (Tests pass + typecheck pass while
+    `pnpm lint` fails — the run that "succeeded with 188 tests" was actually the
+    lint step erroring; always read which of the 3 gates failed.)
+  - **`noUncheckedIndexedAccess` + `++` on an indexed element doesn't compile**
+    (`arr[i]++` where `arr[i]: number|undefined`). Use `arr[i] = (arr[i] ?? 0) + 1`
+    for confusion-matrix / histogram builds; same for the kappa marginals.
+  - **Recall denominators: pass `fn = total - tp`, not `total`.** A blockerRecall
+    bug (`prFromCounts(tp,0,blockers.length)`) gave 1/3 instead of 1/2 — for a
+    "recall over a set" just return `caught / total` directly and skip the P/R
+    helper. Caught only because the test asserted the exact 0.5.
+  - **Seed every bootstrap** (mulberry32) so CIs are deterministic and testable;
+    skip non-finite kappa resamples (degenerate single-category draws).
+  - **Next (EM3 chain in `@engine/eval`):** #47 regression gate (hard on canary
+    recall ~100% via #44, monitor human set within #46's CIs, offline batch
+    path), #48 quality gate (clears golden-set + canary bar on the frozen set),
+    #72 SLOs (hallucination-drop + capture-instability targets, needs #46), then
+    #71 model_prompt_registry (Postgres migration + CI eval-gate, builds on #68/
+    #48/#47). #50 (public benchmark) + #49 (weekly prod canary) are ops/data.
+    Then EM4 data (#37 Postgres schema first) and EM5 security.
+
 - 2026-06-18 (run 5): EM2 critique finished + EM3 started — #27 DashScope
   streaming client (OpenAI-compatible, reasoning/content split, AbortSignal),
   #69 max_pixels enforcement, #29 deep-pass two-step + ≤3 concurrency, #34
