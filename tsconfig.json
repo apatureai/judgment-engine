@@ -12,6 +12,7 @@
     { "path": "packages/jobs" },
     { "path": "packages/api" },
     { "path": "packages/context" },
-    { "path": "packages/eval" }
+    { "path": "packages/eval" },
+    { "path": "packages/feedback" }
   ]
 }

@@ -18,6 +18,7 @@ export default defineConfig({
       "@engine/api": fromRoot("./packages/api/src/index.ts"),
       "@engine/context": fromRoot("./packages/context/src/index.ts"),
       "@engine/eval": fromRoot("./packages/eval/src/index.ts"),
+      "@engine/feedback": fromRoot("./packages/feedback/src/index.ts"),
     },
   },
   test: {

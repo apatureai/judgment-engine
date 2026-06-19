@@ -84,7 +84,7 @@ How the loop uses it:
 ## EM4 · Data moat & learning
 
 - [x] #37 - Data: Postgres schema (findings / feedback / rater_permission) -> done: migration `0006_findings_feedback` — `findings` (dimension, severity, confidence, route, viewport, element_ref, model, prompt_version, engine_version, capture_version, installation_id, job_id; version-stamped #68) + `feedback` (finding_id FK ON DELETE CASCADE, signal {thumbs_up/thumbs_down/ignore/applied/recheck}, source {explicit/implicit}, rater_permission {owner/write/read/public} for #42, created_at). Indices on findings(prompt_version), findings(installation_id), feedback(finding_id) for the export queries (#43). PGlite-tested: insert, FK cascade, check constraints, indices.
-- [ ] #38 - Data: explicit feedback signals (thumbs + /ignore)
+- [x] #38 - Data: explicit feedback signals (thumbs + /ignore) -> done: new `@engine/feedback` package + `FeedbackStore.recordExplicit` persists thumbs_up/thumbs_down/ignore with `source='explicit'` + `rater_permission`, linked to the finding (#37); **latest per (finding, rater) wins** (prior explicit signal from the same rater is superseded). Migration `0007` adds `rater_id` + `(finding_id, rater_id)` index. The POST ingestion endpoint (reaction API / slash command + HMAC) is Gate delivery; the engine owns persistence. PGlite-tested: persist, latest-wins, multi-rater.
 - [ ] #39 - Data: implicit signal — suggestion string-match (drop touched-element heuristic)
 - [ ] #40 - Data: in-loop recheck labeling
 - [ ] #41 - Data: per-repo memory digest (<=600 tok) -> deep-pass suffix
