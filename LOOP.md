@@ -43,6 +43,36 @@ apatureai/gate.
 
 ## Self-improvement log (newest first)
 
+- 2026-06-19 (run 9): EM4 data moat complete — #40 in-loop recheck labeling
+  (migration 0009), #41 per-repo memory digest (salience = evidence × recency,
+  deterministic extractive facts ≤600 tok, after the stable prefix), #74
+  training-consent gate (migration 0010) + PII scan, #43 preference-dataset export
+  (migration 0011 context_hash; pairwise verdict + KTO binary label #85; consent-
+  gated; prompt_version-filtered). 238 tests. EM4 implementable work done (#75 DVC
+  is ops). Learnings:
+  - **`@engine/feedback` became the data-moat hub** — store (explicit/implicit/
+    recheck) + weighting (#42) + memory digest (#41) + consent/PII (#74) + export
+    (#43) compose cleanly; `weightedConsensus` was widened to
+    `Pick<FeedbackRecord,"signal"|"raterPermission">[]` so the exporter reuses it.
+  - **Research notes pay off at implementation time:** #41 built directly from the
+    2026-06-19 salience/recency note; #43 exports the KTO binary shape from the
+    #85 note — no rework.
+  - **Export revealed real schema gaps** filled with small additive migrations:
+    0011 `context_hash` on findings (the #63 cache key) so the (image, context,
+    finding, verdict) tuple is joinable; image bytes ref via #6 `objectKey`,
+    context/image bytes are object-storage artifacts (DVC #75).
+  - **Each new @engine/feedback cross-pkg import = add the workspace dep +
+    tsconfig reference** (hit it for @engine/types and @engine/storage); typecheck
+    catches the missing dep even when vitest passes.
+  - **Next: EM5 security.** #51 (SSE-KMS at rest + retention 0/30d — the retention
+    expiry/prune logic is pure; KMS-at-rest config is ops via #7+#6), #52 (SSRF
+    hardening tests — policy is in #24/egress; the nftables/live-rebind part is #73
+    [~]), #53 (defenses — noted; #86 filed). #54 (GDPR/DPA) + #55 (SOC2) are
+    ops/legal. #51's retention logic is the next unblocked implementable.
+  - **PR #82 is now very large (~80 commits, ~50 issues closed)** — it's the single
+    agent PR left for human review per the loop rules; a human may want to split it
+    by milestone at review time. Not an agent action.
+
 - 2026-06-19 (run 8): EM4 data/feedback foundation — #37 findings+feedback schema
   (migration 0006), #38 explicit signals (new `@engine/feedback`, latest-per-rater
   wins, migration 0007 rater_id), #39 implicit suggestion-string-match + merged-
