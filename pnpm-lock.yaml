@@ -72,6 +72,9 @@ importers:
 
   packages/critique:
     dependencies:
+      '@engine/capture':
+        specifier: workspace:*
+        version: link:../capture
       '@engine/types':
         specifier: workspace:*
         version: link:../types

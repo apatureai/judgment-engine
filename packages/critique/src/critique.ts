@@ -1,3 +1,4 @@
+import { PIXEL_BUDGETS } from "@engine/capture";
 import type { CaptureImage, Critique, CritiqueOptions, RepoContext } from "@engine/types";
 import type { ModelImage, ModelRequest } from "./model.js";
 import { defaultModelFactory } from "./mock-model.js";
@@ -33,10 +34,14 @@ function buildRequest(
   thinking: boolean,
   images: CaptureImage[],
   context: RepoContext,
+  maxPixels: number,
 ): ModelRequest {
   return {
     model,
     thinking,
+    // #69: per-tier max_pixels enforced in the adapter (Qwen3-VL patch-16 budget,
+    // not Claude's 2576px/4784-token constants); the cost lever.
+    maxPixels,
     responseFormat: "json_object",
     messages: [
       { role: "system", content: "Apature design reviewer (stub prompt; #30 replaces this)." },
@@ -61,7 +66,10 @@ export async function critique(
 ): Promise<Critique> {
   const config = resolvePassModel(options.depth, deps.passModels);
   const client = (deps.modelFactory ?? defaultModelFactory)(config);
-  const response = await client.complete(buildRequest(config.model, config.thinking, images, context));
+  const maxPixels = PIXEL_BUDGETS[options.depth];
+  const response = await client.complete(
+    buildRequest(config.model, config.thinking, images, context, maxPixels),
+  );
 
   // #31: parse + Zod-validate; never hand prose downstream.
   const parsed = parseCritiqueOutput(response.text);

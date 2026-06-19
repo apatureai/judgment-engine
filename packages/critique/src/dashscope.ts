@@ -43,6 +43,8 @@ export interface ChatCreateParams {
   response_format?: { type: "json_object" };
   /** DashScope passes `enable_thinking` via extra_body on the OpenAI-compatible path. */
   enable_thinking?: boolean;
+  /** Per-tile Qwen3-VL image-token budget (#69); forwarded via extra_body. */
+  max_pixels?: number;
 }
 
 /** OpenAI-compatible streaming create (chat.completions.create with stream:true). */
@@ -100,6 +102,7 @@ export class DashScopeModelClient implements ModelClient {
         stream_options: { include_usage: true },
         temperature: request.thinking ? this.thinkingTemperature : undefined,
         enable_thinking: request.thinking,
+        max_pixels: request.maxPixels,
         response_format: wantsJson ? { type: "json_object" } : undefined,
       },
       { signal: options?.signal },
@@ -146,8 +149,11 @@ export interface OpenAILikeClient {
  */
 export function createOpenAICompatibleCreate(client: OpenAILikeClient): ChatCompletionsCreate {
   return (params, options) => {
-    const { enable_thinking, ...rest } = params;
-    const body = { ...rest, ...(enable_thinking !== undefined ? { extra_body: { enable_thinking } } : {}) };
+    const { enable_thinking, max_pixels, ...rest } = params;
+    const extra: Record<string, unknown> = {};
+    if (enable_thinking !== undefined) extra.enable_thinking = enable_thinking;
+    if (max_pixels !== undefined) extra.max_pixels = max_pixels;
+    const body = { ...rest, ...(Object.keys(extra).length > 0 ? { extra_body: extra } : {}) };
     return client.chat.completions.create(body as ChatCreateParams, options);
   };
 }

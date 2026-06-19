@@ -8,6 +8,7 @@
   "types": "./dist/index.d.ts",
   "scripts": { "test": "vitest run" },
   "dependencies": {
+    "@engine/capture": "workspace:*",
     "@engine/types": "workspace:*",
     "zod": "^3.24.1"
   }
