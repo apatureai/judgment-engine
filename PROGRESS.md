@@ -71,7 +71,7 @@ How the loop uses it:
 
 ## EM3 · Eval & quality gate
 
-- [ ] #44 - Eval: synthetic-canary generator
+- [x] #44 - Eval: synthetic-canary generator -> done: new `@engine/eval` package + `generateCanaries(baseline, opts)` — a programmatic defect injector (mutated_token→color_contrast, broken_breakpoint→responsiveness/major, swapped_font→typography) producing canary specs across routes × defects × variants with **ground truth known by construction** (dimension/route/minSeverity). Deterministic + stable ids (reproducible frozen set); scales into the hundreds via `variantsPerCombo`. The mutation describes what to change; rendering is the capture worker's job (#11). Pure + tested. (Regression gate #47 asserts recall against these.)
 - [ ] #45 - Eval: 150-PR golden set + labeling tooling
 - [ ] #46 - Eval: metrics (precision/recall, blocker recall, nit precision, weighted-kappa + CIs)
 - [ ] #47 - Eval: regression gate (hard on canary recall, monitor humans, offline batch)
