@@ -49,8 +49,13 @@ export interface ModelResponse {
   finishReason: string;
 }
 
+/** Per-call options — an AbortSignal is threaded into every stream call (#27, supersession #66). */
+export interface ModelCallOptions {
+  signal?: AbortSignal;
+}
+
 /** The swappable model adapter. Implementations: MockModelClient (here), DashScope (#27), vLLM (#76). */
 export interface ModelClient {
   readonly backend: ModelBackend;
-  complete(request: ModelRequest): Promise<ModelResponse>;
+  complete(request: ModelRequest, options?: ModelCallOptions): Promise<ModelResponse>;
 }

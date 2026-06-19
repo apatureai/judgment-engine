@@ -6,7 +6,17 @@ export type {
   ModelUsage,
   ModelResponse,
   ModelClient,
+  ModelCallOptions,
 } from "./model.js";
+export { DashScopeModelClient, createOpenAICompatibleCreate } from "./dashscope.js";
+export type {
+  ChatChunk,
+  ChatCreateParams,
+  ChatCompletionsCreate,
+  ImageUrlResolver,
+  DashScopeOptions,
+  OpenAILikeClient,
+} from "./dashscope.js";
 export {
   DEFAULT_PASS_MODELS,
   resolvePassModel,

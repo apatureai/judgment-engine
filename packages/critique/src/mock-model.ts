@@ -1,4 +1,10 @@
-import type { ModelBackend, ModelClient, ModelRequest, ModelResponse } from "./model.js";
+import type {
+  ModelBackend,
+  ModelCallOptions,
+  ModelClient,
+  ModelRequest,
+  ModelResponse,
+} from "./model.js";
 
 /**
  * Deterministic in-memory model client. It is the default stand-in until the
@@ -16,7 +22,8 @@ export class MockModelClient implements ModelClient {
     this.backend = backend;
   }
 
-  async complete(request: ModelRequest): Promise<ModelResponse> {
+  async complete(request: ModelRequest, options?: ModelCallOptions): Promise<ModelResponse> {
+    if (options?.signal?.aborted) throw new Error("aborted");
     this.calls.push(request);
     const body = JSON.stringify({ grade: "ship", overall: `mock(${request.model})`, findings: [] });
     return {
