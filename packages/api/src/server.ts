@@ -118,6 +118,12 @@ export function createJobApi(options: JobApiOptions) {
         return { state: "failed", error: job.error ?? "engine job failed" };
       case "canceled":
         return { state: "failed", error: "canceled" };
+      default: {
+        // Exhaustiveness guard: adding a JobStatus without a case here is a
+        // compile error, not a silent `undefined` state on the GET response.
+        const _never: never = job.status;
+        return { state: "failed", error: `unknown status ${String(_never)}` };
+      }
     }
   }
 
