@@ -67,6 +67,27 @@ describe("DashScopeModelClient (#27)", () => {
     expect(seen?.temperature).toBeUndefined();
   });
 
+  it("sets json_schema guided decoding together with thinking (self-host path, #76)", async () => {
+    let seen: ChatCreateParams | undefined;
+    const create = async (params: ChatCreateParams) => {
+      seen = params;
+      return fakeStream([{ choices: [{ delta: { content: "{}" }, finish_reason: "stop" }] }]);
+    };
+    const client = new DashScopeModelClient(create, {}, "self-host");
+    await client.complete({
+      ...deepRequest,
+      thinking: true,
+      responseFormat: "json_schema",
+      jsonSchema: { type: "object", required: ["grade"] },
+    });
+    // Unlike json_object, json_schema is NOT gated on !thinking.
+    expect(seen?.enable_thinking).toBe(true);
+    expect(seen?.response_format).toEqual({
+      type: "json_schema",
+      json_schema: { name: "critique", schema: { type: "object", required: ["grade"] }, strict: true },
+    });
+  });
+
   it("threads the AbortSignal into the stream call", async () => {
     let seenSignal: AbortSignal | undefined;
     const controller = new AbortController();

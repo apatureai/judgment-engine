@@ -74,4 +74,26 @@ describe("runTriage", () => {
     expect(result.obviousBreakage).toContain("content overflow on /pricing");
     expect(result.needsDeepReview).toBe(true); // deterministic breakage forces it
   });
+
+  it("omits json_object on the triage call when structuredOutput is false (#87 qwen3.5 caveat)", async () => {
+    const seen: Array<string | undefined> = [];
+    const client: ModelClient = {
+      backend: "mock",
+      async complete(req): Promise<ModelResponse> {
+        seen.push(req.responseFormat);
+        return {
+          text: JSON.stringify({ needsDeepReview: true, suspectRoutes: [], obviousBreakage: [] }),
+          usage: { inputTokens: 0, outputTokens: 0, cachedTokens: 0 },
+          finishReason: "stop",
+        };
+      },
+    };
+    const changed = [route({ baselinePhash: "0000", currentPhash: "ffff" })];
+
+    await runTriage({ client, model: "qwen3.5-flash-2026-02-23", structuredOutput: false }, changed);
+    expect(seen[0]).toBeUndefined(); // no response_format requested
+
+    await runTriage({ client, model: "qwen3-vl-flash" }, changed); // default keeps json_object
+    expect(seen[1]).toBe("json_object");
+  });
 });

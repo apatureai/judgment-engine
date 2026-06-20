@@ -66,6 +66,52 @@ export function parseCritiqueOutput(text: string): ParseResult {
 }
 
 /**
+ * JSON Schema for self-host vLLM **guided decoding** (#76, xgrammar/outlines).
+ * Mirrors `CritiqueOutputSchema` so a single guided-decoding call yields output
+ * that already passes the Zod validator (the drop-and-count gate #32 still runs).
+ * `additionalProperties:false` + `required` make the grammar strict.
+ */
+export function critiqueJsonSchema(): Record<string, unknown> {
+  const finding = {
+    type: "object",
+    additionalProperties: false,
+    required: [
+      "dimension",
+      "severity",
+      "confidence",
+      "route",
+      "viewport",
+      "elementRef",
+      "evidence",
+      "suggestion",
+      "introducedByThisPr",
+    ],
+    properties: {
+      dimension: { type: "string", enum: [...DIMENSIONS] },
+      severity: { type: "string", enum: [...SEVERITIES] },
+      confidence: { type: "number" },
+      route: { type: "string" },
+      viewport: { type: "string", enum: [...VIEWPORTS] },
+      elementRef: { type: ["string", "null"] },
+      evidence: { type: "string" },
+      suggestion: { type: ["string", "null"] },
+      introducedByThisPr: { type: "boolean" },
+    },
+  };
+  return {
+    type: "object",
+    additionalProperties: false,
+    required: ["grade", "overall", "findings", "notReviewed"],
+    properties: {
+      grade: { type: "string", enum: [...GRADES] },
+      overall: { type: "string" },
+      findings: { type: "array", items: finding },
+      notReviewed: { type: "array", items: { type: "string" } },
+    },
+  };
+}
+
+/**
  * The in-prompt schema description for the DashScope `json_object` path. Contains
  * the literal word "JSON" (required) and the exact field contract.
  */

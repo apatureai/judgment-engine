@@ -40,7 +40,9 @@ export interface ChatCreateParams {
   stream: true;
   stream_options?: { include_usage: boolean };
   temperature?: number;
-  response_format?: { type: "json_object" };
+  response_format?:
+    | { type: "json_object" }
+    | { type: "json_schema"; json_schema: { name: string; schema: Record<string, unknown>; strict?: boolean } };
   /** DashScope passes `enable_thinking` via extra_body on the OpenAI-compatible path. */
   enable_thinking?: boolean;
   /** Per-tile Qwen3-VL image-token budget (#69); forwarded via extra_body. */
@@ -90,10 +92,22 @@ export class DashScopeModelClient implements ModelClient {
     this.thinkingTemperature = options.thinkingTemperature ?? 0.6;
   }
 
+  /** Resolve the OpenAI-compatible `response_format` for a request. */
+  private resolveResponseFormat(request: ModelRequest): ChatCreateParams["response_format"] {
+    if (request.responseFormat === "json_schema" && request.jsonSchema) {
+      return { type: "json_schema", json_schema: { name: "critique", schema: request.jsonSchema, strict: true } };
+    }
+    if (request.responseFormat === "json_object" && !request.thinking) {
+      return { type: "json_object" };
+    }
+    return undefined;
+  }
+
   async complete(request: ModelRequest, options?: ModelCallOptions): Promise<ModelResponse> {
     // Thinking and json_object are mutually exclusive (#29 two-step); only set
-    // json_object on the non-thinking coercion call.
-    const wantsJson = request.responseFormat === "json_object" && !request.thinking;
+    // json_object on the non-thinking coercion call. json_schema (self-host vLLM
+    // guided decoding, #76) CAN combine with thinking, so it is not gated on it.
+    const responseFormat = this.resolveResponseFormat(request);
     const stream = await this.create(
       {
         model: request.model,
@@ -103,7 +117,7 @@ export class DashScopeModelClient implements ModelClient {
         temperature: request.thinking ? this.thinkingTemperature : undefined,
         enable_thinking: request.thinking,
         max_pixels: request.maxPixels,
-        response_format: wantsJson ? { type: "json_object" } : undefined,
+        response_format: responseFormat,
       },
       { signal: options?.signal },
     );

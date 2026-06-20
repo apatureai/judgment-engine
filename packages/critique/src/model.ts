@@ -30,8 +30,15 @@ export interface ModelRequest {
   thinking: boolean;
   /** Image-token budget enforced in the adapter (#69); undefined = backend default. */
   maxPixels?: number;
-  /** Output mode: prose Thinking critique, or JSON coercion (#31). */
-  responseFormat?: "text" | "json_object";
+  /**
+   * Output mode. `text` = prose Thinking critique; `json_object` = DashScope
+   * coercion (#31, thinking ⊥ json so it rides the second step of the two-step);
+   * `json_schema` = self-host vLLM guided decoding (#76), which CAN combine with
+   * thinking in a single call.
+   */
+  responseFormat?: "text" | "json_object" | "json_schema";
+  /** JSON Schema for `json_schema` guided decoding (self-host #76). */
+  jsonSchema?: Record<string, unknown>;
 }
 
 export interface ModelUsage {

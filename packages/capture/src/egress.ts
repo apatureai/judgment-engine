@@ -51,13 +51,30 @@ export function isPrivateOrReservedIp(ip: string): boolean {
 
   // IPv6
   if (host === "::" || host === "::1") return true; // unspecified / loopback
-  // v4-mapped (::ffff:a.b.c.d) — check the embedded v4.
-  const mapped = /^::ffff:(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})$/.exec(host);
-  if (mapped?.[1]) return isPrivateOrReservedIp(mapped[1]);
+  // v4-mapped/compat — check the embedded v4 in EITHER form:
+  //   dotted  (::ffff:169.254.169.254, ::169.254.169.254)
+  //   hex     (::ffff:a9fe:a9fe)  ← the metadata-SSRF bypass if only dotted is checked
+  const embedded = embeddedV4(host);
+  if (embedded !== null) return PRIVATE_V4_CIDRS.some((cidr) => inCidrV4(embedded, cidr));
   // ULA fc00::/7 (fc/fd) and link-local fe80::/10 (fe8-feb).
   if (/^f[cd]/.test(host)) return true;
   if (/^fe[89ab]/.test(host)) return true;
   return false;
+}
+
+/** Extract the embedded IPv4 (as a uint32) from a v4-mapped/compat IPv6, or null. */
+function embeddedV4(host: string): number | null {
+  // Dotted forms: ::ffff:a.b.c.d  or  ::a.b.c.d
+  const dotted = /^::(?:ffff:)?(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})$/.exec(host);
+  if (dotted?.[1]) return ipv4ToInt(dotted[1]);
+  // Hex form: ::ffff:HHHH:HHHH  (the two trailing 16-bit groups are the v4).
+  const hex = /^::ffff:([0-9a-f]{1,4}):([0-9a-f]{1,4})$/.exec(host);
+  if (hex?.[1] && hex[2]) {
+    const high = parseInt(hex[1], 16);
+    const low = parseInt(hex[2], 16);
+    return (((high << 16) >>> 0) + low) >>> 0;
+  }
+  return null;
 }
 
 export interface EgressPolicyOptions {
@@ -93,6 +110,41 @@ export function evaluateEgress(
   }
   if (opts.allowedDomains && host && !hostAllowed(host.toLowerCase(), opts.allowedDomains)) {
     return { allowed: false, reason: `domain not allowlisted: ${host}` };
+  }
+  return { allowed: true };
+}
+
+/** Resolve a hostname to its current A/AAAA addresses (injected; node `dns` in prod). */
+export type Resolver = (host: string) => Promise<string[]>;
+
+/**
+ * Connect-time egress check for a hostname (TRD §4.4/§11). Re-resolves `host`
+ * RIGHT BEFORE connect and applies {@link evaluateEgress} to EVERY resolved
+ * address, so a DNS-rebind that flips a name from a public record (at
+ * validation) to an internal one (at connect) is caught here and fails closed.
+ * Denies if resolution is empty/throws or ANY address is internal — a name that
+ * round-robins a public and a private record never passes. The worker must pin
+ * the socket to an address this approved (no third resolution before connect).
+ */
+export async function checkEgressForHost(
+  host: string,
+  resolve: Resolver,
+  opts: EgressPolicyOptions = {},
+): Promise<EgressDecision> {
+  const lower = host.toLowerCase();
+  if (opts.allowedDomains && !hostAllowed(lower, opts.allowedDomains)) {
+    return { allowed: false, reason: `domain not allowlisted: ${host}` };
+  }
+  let addresses: string[];
+  try {
+    addresses = await resolve(host);
+  } catch {
+    return { allowed: false, reason: `dns resolution failed for ${host}` };
+  }
+  if (addresses.length === 0) return { allowed: false, reason: `no DNS resolution for ${host}` };
+  for (const ip of addresses) {
+    const decision = evaluateEgress(ip, host, opts);
+    if (!decision.allowed) return decision; // fail closed on any internal address
   }
   return { allowed: true };
 }

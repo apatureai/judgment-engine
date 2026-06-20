@@ -1,7 +1,7 @@
 import type { SqlExecutor } from "@engine/db";
 import type { Dimension } from "@engine/types";
 import type { FeedbackSignal, RaterPermission } from "./store.js";
-import { raterWeight } from "./weighting.js";
+import { raterWeight, SIGNAL_POLARITY } from "./weighting.js";
 
 /**
  * Per-repo memory digest (TRD §8/§16, #41). Condenses a repo's accepted/rejected
@@ -30,17 +30,6 @@ export interface MemoryDigestOptions {
   /** Recency decay per day (default ~0.02 ≈ 35-day half-life). */
   lambdaPerDay?: number;
 }
-
-const SIGNAL_POLARITY: Record<FeedbackSignal, number> = {
-  thumbs_up: 1,
-  applied: 1,
-  recheck_resolved: 1,
-  recheck_unresolved: 0,
-  thumbs_down: -1,
-  ignore: -1,
-  merged_blockers_unresolved: -1,
-  recheck: 0,
-};
 
 /** ~4 chars/token estimate (good enough for a 600-token budget guardrail). */
 function estimateTokens(text: string): number {

@@ -7,6 +7,19 @@ export type {
   GenerateCanariesOptions,
 } from "./canary.js";
 export {
+  INJECTION_VECTORS,
+  INJECTION_PAYLOADS,
+  generateInjectionCanaries,
+  injectionResisted,
+} from "./injection-canary.js";
+export type {
+  InjectionVector,
+  InjectionCanarySpec,
+  GenerateInjectionCanariesOptions,
+  CleanReview,
+  ObservedReview,
+} from "./injection-canary.js";
+export {
   findingKey,
   isUsableForKappa,
   consensusFindings,
@@ -37,3 +50,14 @@ export { DEFAULT_SLO_TARGETS, evaluateSlos } from "./slo.js";
 export type { SloTargets, SloCounts, SloResult } from "./slo.js";
 export { ModelPromptRegistry } from "./registry.js";
 export type { RegistryStatus, RegistryStamp, RegistryEntry } from "./registry.js";
+export {
+  DEFAULT_PROMOTION_TOLERANCES,
+  beatsCurrentJudge,
+  shadowPromotionDecision,
+} from "./shadow-promotion.js";
+export type {
+  JudgeScorecard,
+  PromotionTolerances,
+  ShadowPromotionInput,
+  ShadowPromotionDecision,
+} from "./shadow-promotion.js";

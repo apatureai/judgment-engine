@@ -152,3 +152,37 @@ describe("DELETE /jobs/:id (cooperative cancel)", () => {
     expect((await api.handle(signed("DELETE", `/jobs/${jobId}`, "2"))).status).toBe(404);
   });
 });
+
+describe("hardening (gstack /review fixes)", () => {
+  it("a succeeded job whose result artifact is gone returns failed, not completed+null", async () => {
+    const post = await api.handle(signed("POST", "/jobs", "1", submission("k6")));
+    const jobId = (post.body as { jobId: string }).jobId;
+    await store.claimNext();
+    // Mark succeeded with a pointer to an object that was never written (expired/missing).
+    await store.complete(jobId, "jobs/missing/critique/result.json");
+
+    const got = await api.handle(signed("GET", `/jobs/${jobId}`, "1"));
+    const body = got.body as { state: string; error?: string; result?: unknown };
+    expect(body.state).toBe("failed");
+    expect(body.error).toBe("result_unavailable");
+    expect(body.result).toBeUndefined(); // never completed+null
+  });
+
+  it("rejects a stale timestamp by default (replay protection on without config)", async () => {
+    const body = JSON.stringify(submission("k7"));
+    const stale = signEngineRequest({ body, installationId: "1", secret: SECRET, timestamp: Date.now() - 10 * 60_000 });
+    const res = await api.handle({ method: "POST", path: "/jobs", headers: stale, body });
+    expect(res.status).toBe(401);
+    expect((res.body as { error: string }).error).toBe("timestamp_skew");
+  });
+
+  it("rejects a non-numeric timestamp instead of silently bypassing the skew check", async () => {
+    const body = JSON.stringify(submission("k8"));
+    const headers = signEngineRequest({ body, installationId: "1", secret: SECRET });
+    headers["x-gate-timestamp"] = "not-a-number";
+    const res = await api.handle({ method: "POST", path: "/jobs", headers, body });
+    // signature was computed over the real ts, so swapping the header also breaks the sig;
+    // either way it must NOT be accepted.
+    expect(res.status).toBe(401);
+  });
+});

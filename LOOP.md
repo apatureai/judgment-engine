@@ -43,6 +43,71 @@ apatureai/gate.
 
 ## Self-improvement log (newest first)
 
+- 2026-06-20 (run 11): #87 model-anchor currency core (Qwen3-VL → Qwen3.5,
+  eval-gated). The research loop had filed #87; the build loop picked it up even
+  though it wasn't yet a line in PROGRESS.md (deps #26/#48/#71/#78 all satisfied).
+  Shipped `generations.ts` — `ModelGeneration` selector + `MODEL_GENERATIONS`
+  pinning the qwen3.5 DashScope snapshot ids + `passModelsForGeneration` (config
+  swap composing with `passModelsForTier`/`resolvePassModel`), `DEFAULT_MODEL_
+  GENERATION = "qwen3-vl"` (no blind swap), and a `runTriage` `structuredOutput`
+  toggle for the qwen3.5 multimodal-json caveat. 291 tests, green. Learnings:
+  - **A research-filed issue is build-pickable even if not yet in PROGRESS.md.**
+    The two loops are async; gate on whether the deps are `[x]`, not on whether a
+    PROGRESS line exists. Add the line when you implement it.
+  - **"Config swap, eval-gated" is the safe shape for a model change.** The whole
+    migration reduced to a `PassModelOverrides` factory + pinned snapshot ids; the
+    default stays the incumbent and the new anchor is opt-in until #48/#71/#78
+    promote it on a measured win. Never default-flip a judge model in code.
+  - **Pin model snapshots, don't use floating aliases.** `qwen3.5-plus-2026-02-15`
+    not `qwen3.5-plus` — a floating alias silently changes the judge under the
+    version stamp and contaminates the preference dataset across generations.
+  - **Audit the wiring before adding a fix.** `triageStructuredOutput` looked like
+    it might be orphaned in `critique()`, but `critique()` is the single-pass seam
+    while `runTriage` is the worker's triage seam that consumes it — correct as is.
+    Reading the call graph avoided a churn "fix".
+  - **Honest exhaustion:** after #87 the only `[ ]` left are #77/#79 (deps still
+    `[~]` live infra) and #80 (triggered tracking issue, triggers unfired — incl.
+    DashScope multimodal json_schema, which research confirmed is NOT yet GA). The
+    right move is to stop, not invent churn.
+
+- 2026-06-20 (run 10): EM5 security complete + EM6 codeable cores. Shipped #75
+  (DVC content-addressed preference export on R2 — md5 tuples + `.dir` version,
+  lineage, push/pull dedup, GDPR `removeSubject`), #51 (per-tenant SSE-KMS at rest
+  + tier retention 0/30d + `reapExpired`), #52 (connect-time DNS-rebind egress
+  recheck + SSRF regression tests), #53 (prompt-injection: instruction hierarchy +
+  `wrapUntrustedPageContent` delimiter + rendered-text injection canaries), #54
+  (GDPR deletion workflow `eraseTenant` + `ObjectStore.delete` + `docs/COMPLIANCE.md`
+  ROPA/DPA). Plus the codeable cores of three deferred EM6 issues: #76 (self-host
+  single-call `json_schema` guided decoding), #78 (eval-gated shadow-promotion
+  `beatsCurrentJudge`/`shadowPromotionDecision`), and the partial #55
+  (`docs/SOC2-CONTROLS.md` controls map). Started the run by fixing 5 issues an
+  independent multi-specialist review (gstack) found (crash-safe migrations,
+  terminal-state-with-missing-artifact, NaN-skew, v4-mapped SSRF, contract
+  field-guard). 285 tests, all green. Learnings:
+  - **"Live-deferred" is per-AC, not per-issue.** #51/#52/#76/#78 each had a real
+    engine-codeable core under a live-infra headline. Split the ACs: implement the
+    decision/policy/adapter seam (testable with stubs), mark only the GPU/Fly/Vanta
+    AC `[~]`, and say which is which in the PROGRESS note + issue comment. Don't
+    skip a whole issue because its title says "GPU".
+  - **Respect the dependency gate literally.** #77 (dep #22 `[~]`) and #79 (dep #76
+    `[~]`) are NOT pickable even though they look next — a `[~]` dep is not `[x]`.
+    This stopped me from half-building on an unbuilt Firecracker/serving base.
+  - **Adding a primitive to an interface ripples to every impl + needs a use site.**
+    `ObjectStore.delete` (#54) meant memory/dual/s3 (+`DeleteObjectCommand`) AND it
+    unlocked both erasure (`eraseTenant`) and retention (`reapExpired`) — one
+    primitive, two features. Look for that leverage before adding narrow helpers.
+  - **A prompt-version bump is safe because the wire stamp is independent.** Bumping
+    `SYSTEM_PROMPT_VERSION` v1→v2 (#53) did NOT touch the golden fixture: the wire
+    `promptVersion` comes from `PROMPT_VERSION` (`critique.ts`), a separate constant.
+    Verify which constant feeds the wire before fearing a contract break.
+  - **Don't invent churn at exhaustion.** After EM5, the only `[ ]` left are
+    live-infra (#77/#79) or a triggered tracking issue (#80, whose triggers haven't
+    fired). The honest move is to stop picking and wrap up, not to speculatively
+    build #80's webhook/json_schema-GA before the trigger.
+  - **Research notes keep paying off:** #53 built straight from the 2026-06-19
+    OWASP/arXiv injection note (delimiter is partial; #31/#32 are load-bearing;
+    rendered-text is the real vector → canaries cover it), no rework.
+
 - 2026-06-19 (run 9): EM4 data moat complete — #40 in-loop recheck labeling
   (migration 0009), #41 per-repo memory digest (salience = evidence × recency,
   deterministic extractive facts ≤600 tok, after the stable prefix), #74
@@ -331,3 +396,33 @@ apatureai/gate.
   Mirrors gate's #30. Next: #2 CI is effectively in place (ci.yml copied); then
   #64 async /jobs server is the highest-leverage seam (HMAC verify + x-schema-
   version + depth) — Gate's `@gate/engine` defines the client side to build to.
+
+- 2026-06-19: ran an independent multi-specialist review (gstack /review) across
+  the plan + the shipped code to verify, not just extend. It surfaced 5 real
+  issues my own incremental passes had missed; all fixed + locked with tests
+  (242 green). Learnings:
+  - **A fresh adversarial pass beats more of the same author's passes.** The
+    misses clustered at *failure paths*, not happy paths — exactly where the
+    implementer's mental model is thinnest. Periodically review the whole surface
+    with a different lens, not just the new diff.
+  - **"Idempotent" ≠ "crash-safe".** `runMigrations` skipped already-applied ids
+    but applied each migration body and its tracking row as *separate* execs — a
+    mid-file failure left the schema half-applied yet untracked. Fix: emit the
+    DDL **and** the `INSERT INTO schema_migrations` in one simple-query so PG's
+    implicit per-query txn rolls the unit back together. (id is filename-derived
+    and charset-guarded before inlining.) Same pattern for rollback.
+  - **A terminal "success" state with a missing artifact must degrade to a
+    failure, not `completed` + `null`.** A succeeded job whose result object
+    expired (retention) was returning `{state:"completed", result:null}` — the
+    Gate poller would deref null and crash. Return `failed`/`result_unavailable`.
+  - **`Number(x)` skew checks silently pass on NaN** (all NaN comparisons are
+    false). Guard with `Number.isFinite` *before* the `Math.abs` window. And make
+    replay protection **default-on** (300s) so a caller can't ship it off by
+    omission.
+  - **SSRF v4-mapped IPv6 must deny every textual form**, not just dotted:
+    `::ffff:a9fe:a9fe` and `::169.254.169.254` are the metadata IP too. Decode
+    the embedded v4 (dotted, hex, compat) to an int and run it through the same
+    private-CIDR check.
+  - **A golden-fixture contract test should assert field *names + types*, not
+    just `Array.isArray`.** Added an exact-key-set + per-field-type guard so the
+    wire type can't drift from Gate without a red test.

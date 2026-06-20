@@ -23,6 +23,10 @@ export class InMemoryObjectStore implements ObjectStore {
     return this.objects.get(key)?.body ?? null;
   }
 
+  async delete(key: string): Promise<void> {
+    this.objects.delete(key);
+  }
+
   async signedGetUrl(key: string, ttlSeconds: number): Promise<string> {
     const expires = Date.now() + ttlSeconds * 1000;
     return `${this.scheme}://${key}?expires=${expires}`;

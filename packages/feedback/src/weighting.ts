@@ -23,8 +23,12 @@ export function isTrainingGrade(permission: RaterPermission): boolean {
   return permission === "owner" || permission === "write";
 }
 
-/** Signal polarity: +1 endorses the finding, -1 dismisses it, 0 neutral. */
-const SIGNAL_POLARITY: Record<FeedbackSignal, number> = {
+/**
+ * Signal polarity: +1 endorses the finding, -1 dismisses it, 0 neutral. Single
+ * source of truth — consumed by `weightedConsensus` here and the memory digest
+ * (#41) so the two can't silently disagree on how a signal scores.
+ */
+export const SIGNAL_POLARITY: Record<FeedbackSignal, number> = {
   thumbs_up: 1,
   applied: 1,
   // A recheck where the fix resolved the finding = strong positive (real + actionable).
