@@ -114,6 +114,41 @@ export function evaluateEgress(
   return { allowed: true };
 }
 
+/** Resolve a hostname to its current A/AAAA addresses (injected; node `dns` in prod). */
+export type Resolver = (host: string) => Promise<string[]>;
+
+/**
+ * Connect-time egress check for a hostname (TRD §4.4/§11). Re-resolves `host`
+ * RIGHT BEFORE connect and applies {@link evaluateEgress} to EVERY resolved
+ * address, so a DNS-rebind that flips a name from a public record (at
+ * validation) to an internal one (at connect) is caught here and fails closed.
+ * Denies if resolution is empty/throws or ANY address is internal — a name that
+ * round-robins a public and a private record never passes. The worker must pin
+ * the socket to an address this approved (no third resolution before connect).
+ */
+export async function checkEgressForHost(
+  host: string,
+  resolve: Resolver,
+  opts: EgressPolicyOptions = {},
+): Promise<EgressDecision> {
+  const lower = host.toLowerCase();
+  if (opts.allowedDomains && !hostAllowed(lower, opts.allowedDomains)) {
+    return { allowed: false, reason: `domain not allowlisted: ${host}` };
+  }
+  let addresses: string[];
+  try {
+    addresses = await resolve(host);
+  } catch {
+    return { allowed: false, reason: `dns resolution failed for ${host}` };
+  }
+  if (addresses.length === 0) return { allowed: false, reason: `no DNS resolution for ${host}` };
+  for (const ip of addresses) {
+    const decision = evaluateEgress(ip, host, opts);
+    if (!decision.allowed) return decision; // fail closed on any internal address
+  }
+  return { allowed: true };
+}
+
 export interface DomainCaps {
   /** Max requests per domain for one capture. */
   maxRequests: number;

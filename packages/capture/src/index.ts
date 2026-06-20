@@ -55,8 +55,8 @@ export {
 } from "./stability.js";
 export type { StabilityOptions, StabilitySample, StabilityResult } from "./stability.js";
 
-export { isPrivateOrReservedIp, evaluateEgress, DomainBudget } from "./egress.js";
-export type { EgressPolicyOptions, EgressDecision, DomainCaps } from "./egress.js";
+export { isPrivateOrReservedIp, evaluateEgress, checkEgressForHost, DomainBudget } from "./egress.js";
+export type { EgressPolicyOptions, EgressDecision, DomainCaps, Resolver } from "./egress.js";
 
 export { buildPageHealth, pageHealthFootnote } from "./page-health.js";
 export type { ConsoleEvent, FailedRequest, PageHealthInput } from "./page-health.js";
