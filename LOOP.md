@@ -15,9 +15,17 @@ apatureai/gate.
    `[~] -> skipped: <reason>`, **stub the model/sandbox and keep going**.
 4. Verify green: `pnpm install` (if deps changed) → `pnpm typecheck` → `pnpm test`
    → `pnpm lint`. Never commit red.
-5. Flip `PROGRESS.md`, commit (plain message, **no AI attribution**), push, keep
-   ONE PR `agent/build -> main` updated with `Closes #<N>` lines (open a new PR if
-   the current one is merged/closed). Don't merge it; leave for human review.
+5. Flip `PROGRESS.md`, commit (plain message, **no AI attribution**), push.
+   **PR scope: one PR per milestone, not one ever-growing PR.** Keep a single
+   open build PR for the *current* milestone (EM0/EM1/…) with `Closes #<N>` per
+   issue landed; when that milestone's issues are all done, leave it for human
+   review/merge and open a fresh PR for the next milestone (base `main`). Don't
+   merge it yourself. Milestone-sized PRs (~10–25 commits) actually get reviewed
+   and merged, which keeps `agent/build` close to `main`; a giant 80-commit PR is
+   unreviewable. (Learned 2026-06-20: the one rolling PR had to be split into
+   stacked review PRs after the fact — do it incrementally instead.)
+   - Any post-hoc review branches must be cut from an `agent/build` that has
+     ALREADY merged latest `main`, or early snapshots conflict on the lockfile.
 6. Comment 2-3 lines on the issue. Update this log before ending.
 
 ## Conventions (from gate; don't rediscover)
