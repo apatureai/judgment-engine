@@ -23,3 +23,11 @@ export type { PiiMatch } from "./pii.js";
 export { TrainingConsentStore } from "./consent.js";
 export { exportPreferenceDataset } from "./preference-export.js";
 export type { PreferenceExample, PreferenceExportOptions } from "./preference-export.js";
+export {
+  buildDvcDataset,
+  removeSubject,
+  pushDataset,
+  pullDataset,
+  dvcCachePath,
+} from "./dvc-export.js";
+export type { DvcDataset, DvcObject, DvcDirEntry, DvcLineage } from "./dvc-export.js";
