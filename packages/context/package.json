@@ -1,0 +1,18 @@
+{
+  "name": "@engine/context",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Repo-context extraction: design tokens (Tailwind/CSS vars/tokens.json), brand, component detection, diff->route, deterministic content-hashed context block.",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": { ".": { "types": "./dist/index.d.ts", "default": "./dist/index.js" } },
+  "files": ["dist"],
+  "scripts": { "test": "vitest run" },
+  "dependencies": {
+    "@engine/types": "workspace:*",
+    "postcss": "^8.4.49",
+    "tailwindcss": "^3.4.17",
+    "yaml": "^2.6.1"
+  }
+}

@@ -16,6 +16,7 @@ export default defineConfig({
       "@engine/observability": fromRoot("./packages/observability/src/index.ts"),
       "@engine/jobs": fromRoot("./packages/jobs/src/index.ts"),
       "@engine/api": fromRoot("./packages/api/src/index.ts"),
+      "@engine/context": fromRoot("./packages/context/src/index.ts"),
     },
   },
   test: {

@@ -19,6 +19,51 @@ export type {
   DeterministicCheckInput,
 } from "./checks.js";
 
+export {
+  PATCH_SIZE,
+  DIMENSION_MULTIPLE,
+  PIXEL_BUDGETS,
+  fitToPixelBudget,
+  fitForDepth,
+  rescalePoint,
+  rescaleRect,
+} from "./downscale.js";
+export type { ScaledDimensions, Point } from "./downscale.js";
+
+export {
+  CHROMIUM_MAX_DEVICE_PX,
+  DEFAULT_TILE_OVERLAP,
+  planCaptureSegments,
+  planTiles,
+} from "./tiling.js";
+export type { CaptureSegment, Tile } from "./tiling.js";
+
+export {
+  normalizeRole,
+  isLandmark,
+  stableSelector,
+  serializeGeometry,
+  animatedExclusions,
+} from "./geometry.js";
+export type { RawGeometryElement, GeometryEntry } from "./geometry.js";
+
+export {
+  UNSTABLE_CONFIDENCE_CEILING,
+  hammingDistance,
+  hashesWithin,
+  runStabilityGate,
+} from "./stability.js";
+export type { StabilityOptions, StabilitySample, StabilityResult } from "./stability.js";
+
+export { isPrivateOrReservedIp, evaluateEgress, DomainBudget } from "./egress.js";
+export type { EgressPolicyOptions, EgressDecision, DomainCaps } from "./egress.js";
+
+export { buildPageHealth, pageHealthFootnote } from "./page-health.js";
+export type { ConsoleEvent, FailedRequest, PageHealthInput } from "./page-health.js";
+
+export { decideStorageState, scopeCookiesToOrigin, originHost } from "./storage-state.js";
+export type { StorageStateDecisionInput, StorageStateDecision, Cookie } from "./storage-state.js";
+
 /**
  * Capture sandbox seam (TRD §4). This is the EM0 scaffold stub returning a
  * deterministic shape so downstream packages can wire against the interface;
