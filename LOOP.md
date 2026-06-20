@@ -43,6 +43,33 @@ apatureai/gate.
 
 ## Self-improvement log (newest first)
 
+- 2026-06-20 (run 11): #87 model-anchor currency core (Qwen3-VL → Qwen3.5,
+  eval-gated). The research loop had filed #87; the build loop picked it up even
+  though it wasn't yet a line in PROGRESS.md (deps #26/#48/#71/#78 all satisfied).
+  Shipped `generations.ts` — `ModelGeneration` selector + `MODEL_GENERATIONS`
+  pinning the qwen3.5 DashScope snapshot ids + `passModelsForGeneration` (config
+  swap composing with `passModelsForTier`/`resolvePassModel`), `DEFAULT_MODEL_
+  GENERATION = "qwen3-vl"` (no blind swap), and a `runTriage` `structuredOutput`
+  toggle for the qwen3.5 multimodal-json caveat. 291 tests, green. Learnings:
+  - **A research-filed issue is build-pickable even if not yet in PROGRESS.md.**
+    The two loops are async; gate on whether the deps are `[x]`, not on whether a
+    PROGRESS line exists. Add the line when you implement it.
+  - **"Config swap, eval-gated" is the safe shape for a model change.** The whole
+    migration reduced to a `PassModelOverrides` factory + pinned snapshot ids; the
+    default stays the incumbent and the new anchor is opt-in until #48/#71/#78
+    promote it on a measured win. Never default-flip a judge model in code.
+  - **Pin model snapshots, don't use floating aliases.** `qwen3.5-plus-2026-02-15`
+    not `qwen3.5-plus` — a floating alias silently changes the judge under the
+    version stamp and contaminates the preference dataset across generations.
+  - **Audit the wiring before adding a fix.** `triageStructuredOutput` looked like
+    it might be orphaned in `critique()`, but `critique()` is the single-pass seam
+    while `runTriage` is the worker's triage seam that consumes it — correct as is.
+    Reading the call graph avoided a churn "fix".
+  - **Honest exhaustion:** after #87 the only `[ ]` left are #77/#79 (deps still
+    `[~]` live infra) and #80 (triggered tracking issue, triggers unfired — incl.
+    DashScope multimodal json_schema, which research confirmed is NOT yet GA). The
+    right move is to stop, not invent churn.
+
 - 2026-06-20 (run 10): EM5 security complete + EM6 codeable cores. Shipped #75
   (DVC content-addressed preference export on R2 — md5 tuples + `.dir` version,
   lineage, push/pull dedup, GDPR `removeSubject`), #51 (per-tenant SSE-KMS at rest
