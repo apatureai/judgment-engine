@@ -43,6 +43,62 @@ apatureai/gate.
 
 ## Self-improvement log (newest first)
 
+- 2026-06-19 (run 9): EM4 data moat complete — #40 in-loop recheck labeling
+  (migration 0009), #41 per-repo memory digest (salience = evidence × recency,
+  deterministic extractive facts ≤600 tok, after the stable prefix), #74
+  training-consent gate (migration 0010) + PII scan, #43 preference-dataset export
+  (migration 0011 context_hash; pairwise verdict + KTO binary label #85; consent-
+  gated; prompt_version-filtered). 238 tests. EM4 implementable work done (#75 DVC
+  is ops). Learnings:
+  - **`@engine/feedback` became the data-moat hub** — store (explicit/implicit/
+    recheck) + weighting (#42) + memory digest (#41) + consent/PII (#74) + export
+    (#43) compose cleanly; `weightedConsensus` was widened to
+    `Pick<FeedbackRecord,"signal"|"raterPermission">[]` so the exporter reuses it.
+  - **Research notes pay off at implementation time:** #41 built directly from the
+    2026-06-19 salience/recency note; #43 exports the KTO binary shape from the
+    #85 note — no rework.
+  - **Export revealed real schema gaps** filled with small additive migrations:
+    0011 `context_hash` on findings (the #63 cache key) so the (image, context,
+    finding, verdict) tuple is joinable; image bytes ref via #6 `objectKey`,
+    context/image bytes are object-storage artifacts (DVC #75).
+  - **Each new @engine/feedback cross-pkg import = add the workspace dep +
+    tsconfig reference** (hit it for @engine/types and @engine/storage); typecheck
+    catches the missing dep even when vitest passes.
+  - **Next: EM5 security.** #51 (SSE-KMS at rest + retention 0/30d — the retention
+    expiry/prune logic is pure; KMS-at-rest config is ops via #7+#6), #52 (SSRF
+    hardening tests — policy is in #24/egress; the nftables/live-rebind part is #73
+    [~]), #53 (defenses — noted; #86 filed). #54 (GDPR/DPA) + #55 (SOC2) are
+    ops/legal. #51's retention logic is the next unblocked implementable.
+  - **PR #82 is now very large (~80 commits, ~50 issues closed)** — it's the single
+    agent PR left for human review per the loop rules; a human may want to split it
+    by milestone at review time. Not an agent action.
+
+- 2026-06-19 (run 8): EM4 data/feedback foundation — #37 findings+feedback schema
+  (migration 0006), #38 explicit signals (new `@engine/feedback`, latest-per-rater
+  wins, migration 0007 rater_id), #39 implicit suggestion-string-match + merged-
+  with-blockers (migration 0008 signal), #42 rater-permission down-weighting.
+  Skipped #49 (weekly prod canary — needs hosted GTM App + scheduler) and #50
+  (public benchmark — publication/GTM). 226 tests. Learnings:
+  - **Migrations stack additively across runs** — 0006 (findings/feedback), 0007
+    (rater_id col + index), 0008 (extend the signal CHECK). Extending a CHECK =
+    DROP CONSTRAINT `<table>_<col>_check` + re-ADD with the wider set; the down
+    migration must `DELETE` rows holding the new value before narrowing back.
+  - **"latest per (finding, rater) wins" without a hard unique constraint:**
+    delete prior explicit rows for (finding_id, rater_id, source='explicit') then
+    insert — a DB unique constraint would wrongly collide with implicit/recheck
+    rows for the same finding. Needed a nullable `rater_id` (implicit has none).
+  - **Conservative string-match beats heuristics (#39):** only count *structured*
+    suggestion tokens (CSS class / hex / sized value / quoted / hyphenated
+    utility) so generic prose ("make it nicer") can't false-positive; the
+    touched-element heuristic is deliberately not built (conflates rebases).
+  - **`@engine/feedback` is the home for #40-#43** (recheck labeling, per-repo
+    memory digest, preference export) — they extend FeedbackStore + the implicit/
+    weighting modules; #43/#85 consume `weightedConsensus` + `isTrainingGrade`.
+  - **Next: EM4 remainder** — #40 (in-loop recheck labeling), #41 (per-repo memory
+    digest ≤600 tok → deep-pass suffix, pure summarizer), #43 (preference export +
+    #85 KTO binary shape), #74 (consent/PII gate), #75 (DVC export — ops). Then
+    EM5 security (#51-#55), plus research-filed #84/#86. #40 is the next unblocked.
+
 - 2026-06-19 (run 7): EM3 eval-gate chain complete — #47 regression gate (hard
   canary recall + CI-aware human monitor), #48 go/no-go quality gate on the
   frozen set, #72 hallucination-drop + capture-instability gated SLOs, #71
