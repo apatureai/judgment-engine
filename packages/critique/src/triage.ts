@@ -35,6 +35,13 @@ export interface TriageDeps {
   /** Max phash hamming distance counted as unchanged (default 5, matches #15). */
   phashThreshold?: number;
   maxPixels?: number;
+  /**
+   * Request multimodal `json_object` on the triage call (default true). Set false
+   * on generations whose multimodal structured-output support is unconfirmed
+   * (e.g. qwen3.5, #87) — the output is still defensively JSON-parsed and the pass
+   * fails open, so disabling the hint never weakens correctness.
+   */
+  structuredOutput?: boolean;
   signal?: AbortSignal;
 }
 
@@ -85,7 +92,7 @@ export async function runTriage(deps: TriageDeps, routes: TriageRoute[]): Promis
     {
       model: deps.model,
       thinking: false,
-      responseFormat: "json_object",
+      responseFormat: deps.structuredOutput === false ? undefined : "json_object",
       maxPixels: deps.maxPixels,
       messages: [
         { role: "system", content: triageInstruction },
