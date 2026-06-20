@@ -331,3 +331,33 @@ apatureai/gate.
   Mirrors gate's #30. Next: #2 CI is effectively in place (ci.yml copied); then
   #64 async /jobs server is the highest-leverage seam (HMAC verify + x-schema-
   version + depth) — Gate's `@gate/engine` defines the client side to build to.
+
+- 2026-06-19: ran an independent multi-specialist review (gstack /review) across
+  the plan + the shipped code to verify, not just extend. It surfaced 5 real
+  issues my own incremental passes had missed; all fixed + locked with tests
+  (242 green). Learnings:
+  - **A fresh adversarial pass beats more of the same author's passes.** The
+    misses clustered at *failure paths*, not happy paths — exactly where the
+    implementer's mental model is thinnest. Periodically review the whole surface
+    with a different lens, not just the new diff.
+  - **"Idempotent" ≠ "crash-safe".** `runMigrations` skipped already-applied ids
+    but applied each migration body and its tracking row as *separate* execs — a
+    mid-file failure left the schema half-applied yet untracked. Fix: emit the
+    DDL **and** the `INSERT INTO schema_migrations` in one simple-query so PG's
+    implicit per-query txn rolls the unit back together. (id is filename-derived
+    and charset-guarded before inlining.) Same pattern for rollback.
+  - **A terminal "success" state with a missing artifact must degrade to a
+    failure, not `completed` + `null`.** A succeeded job whose result object
+    expired (retention) was returning `{state:"completed", result:null}` — the
+    Gate poller would deref null and crash. Return `failed`/`result_unavailable`.
+  - **`Number(x)` skew checks silently pass on NaN** (all NaN comparisons are
+    false). Guard with `Number.isFinite` *before* the `Math.abs` window. And make
+    replay protection **default-on** (300s) so a caller can't ship it off by
+    omission.
+  - **SSRF v4-mapped IPv6 must deny every textual form**, not just dotted:
+    `::ffff:a9fe:a9fe` and `::169.254.169.254` are the metadata IP too. Decode
+    the embedded v4 (dotted, hex, compat) to an int and run it through the same
+    private-CIDR check.
+  - **A golden-fixture contract test should assert field *names + types*, not
+    just `Array.isArray`.** Added an exact-key-set + per-field-type guard so the
+    wire type can't drift from Gate without a red test.
