@@ -25,12 +25,19 @@ export class S3ObjectStore implements ObjectStore {
   ) {}
 
   async put(key: string, body: Uint8Array | string, opts?: PutOptions): Promise<void> {
+    // Per-tenant SSE-KMS at rest (§11, #51): when a key id is supplied, S3
+    // encrypts under `aws:kms` and a signed GET transparently decrypts, so the
+    // artifact is ciphertext at rest without changing the read path.
+    const sse = opts?.kmsKeyId
+      ? { ServerSideEncryption: "aws:kms" as const, SSEKMSKeyId: opts.kmsKeyId }
+      : {};
     await this.client.send(
       new PutObjectCommand({
         Bucket: this.bucket,
         Key: key,
         Body: body,
         ContentType: opts?.contentType,
+        ...sse,
       }),
     );
   }

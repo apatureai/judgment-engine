@@ -95,7 +95,7 @@ How the loop uses it:
 
 ## EM5 · Security & residency
 
-- [ ] #51 - Security: SSE-KMS at rest + retention (0 default / 30d paid)
+- [x] #51 - Security: SSE-KMS at rest + retention (0 default / 30d paid) -> done: `@engine/storage` SSE-KMS at rest + tier retention. `PutOptions.kmsKeyId` makes `S3ObjectStore.put` send `ServerSideEncryption: aws:kms` + `SSEKMSKeyId` (per-tenant); a signed GET transparently decrypts, so the read path + signed-URL-only access is unchanged (R2 falls back to the #7 envelope path). `at-rest.ts`: `tenantKmsKeyId(tier,...)` resolves the §11 hierarchy (paid → per-tenant CMK, free/public → shared CMK, safe fallback), `RETENTION_SECONDS`/`retentionSecondsForTier` set 0 on free/public + 30d on paid, and `isExpired`/`expiredKeys` are the engine-owned retention sweep (the S3/R2 lifecycle + delete is the ops edge). +5 tests (256 total).
 - [ ] #52 - Security: SSRF hardening + tests (DNS rebind, metadata)
 - [ ] #53 - Security: prompt-injection defenses (delimiter + rendered-text canaries + schema)
 - [ ] #54 - Security: GDPR/DPA + data-processor artifacts

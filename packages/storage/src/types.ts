@@ -2,6 +2,15 @@
 export interface PutOptions {
   /** MIME type stored as object metadata (e.g. `image/png`, `application/json`). */
   contentType?: string;
+  /**
+   * Per-tenant SSE-KMS key id (§11, #51). When set, the artifact is encrypted at
+   * rest under this key (`aws:kms`); a signed GET still serves decrypted bytes,
+   * so the at-rest encryption is transparent to consumers. Resolve it from the
+   * tenant's tier with `tenantKmsKeyId` (paid → per-tenant CMK, free/public →
+   * shared CMK). Backends without native SSE-KMS (R2) ignore it and rely on the
+   * envelope path (`@engine/secrets`).
+   */
+  kmsKeyId?: string;
 }
 
 /**
