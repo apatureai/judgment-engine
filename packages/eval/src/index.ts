@@ -7,6 +7,19 @@ export type {
   GenerateCanariesOptions,
 } from "./canary.js";
 export {
+  INJECTION_VECTORS,
+  INJECTION_PAYLOADS,
+  generateInjectionCanaries,
+  injectionResisted,
+} from "./injection-canary.js";
+export type {
+  InjectionVector,
+  InjectionCanarySpec,
+  GenerateInjectionCanariesOptions,
+  CleanReview,
+  ObservedReview,
+} from "./injection-canary.js";
+export {
   findingKey,
   isUsableForKappa,
   consensusFindings,

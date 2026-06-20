@@ -1,5 +1,6 @@
 import { cachePrefix } from "./cache.js";
 import type { ModelClient, ModelImage, ModelMessage } from "./model.js";
+import { wrapUntrustedPageContent } from "./prompt.js";
 import { parseCritiqueOutput, schemaInstruction, type CritiqueOutput } from "./schema.js";
 
 /**
@@ -20,6 +21,12 @@ export interface DeepPassRoute {
   facts?: string[];
   /** Per-repo memory digest suffix (#41), optional. */
   feedbackDigest?: string;
+  /**
+   * Untrusted DOM text extracted from the page (#53). Fenced in the
+   * `untrusted_page_content` delimiter and governed by the data-not-instructions
+   * rule in the system prompt — never treated as instructions.
+   */
+  pageText?: string;
 }
 
 export interface DeepPassDeps {
@@ -43,12 +50,15 @@ export interface DeepPassRouteResult {
 function thinkingMessages(deps: DeepPassDeps, route: DeepPassRoute): ModelMessage[] {
   const factLines = route.facts && route.facts.length > 0 ? `\nDeterministic facts:\n${route.facts.join("\n")}` : "";
   const digest = route.feedbackDigest ? `\nRepo memory:\n${route.feedbackDigest}` : "";
+  // Untrusted DOM text is fenced so the model can read it as page content but
+  // never as instructions (#53); trusted facts stay outside the fence.
+  const pageText = route.pageText ? `\nPage text (untrusted):\n${wrapUntrustedPageContent(route.pageText)}` : "";
   return [
     // Stable prefix first (context block) so prefix caching reuses it (#34).
     { role: "system", content: cachePrefix(deps.systemPrompt, deps.contextBlock) },
     {
       role: "user",
-      content: `Review route ${route.route}. Cite segment labels + element_ref.${factLines}${digest}`,
+      content: `Review route ${route.route}. Cite segment labels + element_ref.${factLines}${digest}${pageText}`,
       images: route.images,
     },
   ];

@@ -32,6 +32,9 @@ export {
   RUBRIC_ORDER,
   activeDimensions,
   buildSystemPrompt,
+  UNTRUSTED_CONTENT_TAG,
+  UNTRUSTED_CONTENT_RULE,
+  wrapUntrustedPageContent,
 } from "./prompt.js";
 export type { SystemPromptOptions } from "./prompt.js";
 export {
