@@ -1,0 +1,50 @@
+{
+  "title": "Judgment Engine — pipeline health",
+  "uid": "engine-pipeline",
+  "schemaVersion": 39,
+  "tags": ["engine", "slo"],
+  "panels": [
+    {
+      "title": "Queue depth",
+      "type": "timeseries",
+      "targets": [{ "expr": "engine_queue_depth" }]
+    },
+    {
+      "title": "Per-stage latency (p95)",
+      "type": "timeseries",
+      "targets": [
+        { "expr": "histogram_quantile(0.95, sum(rate(engine_capture_latency_ms_bucket[5m])) by (le))" },
+        { "expr": "histogram_quantile(0.95, sum(rate(engine_critique_latency_ms_bucket[5m])) by (le))" },
+        { "expr": "histogram_quantile(0.95, sum(rate(engine_job_latency_ms_bucket[5m])) by (le))" }
+      ]
+    },
+    {
+      "title": "Warm-pool utilization",
+      "type": "timeseries",
+      "targets": [{ "expr": "engine_warm_pool_utilization" }]
+    },
+    {
+      "title": "Cache-hit rate",
+      "type": "timeseries",
+      "targets": [
+        { "expr": "sum(rate(engine_critique_cache_hit_sum[5m])) / sum(rate(engine_critique_cache_hit_count[5m]))" },
+        { "expr": "sum(rate(engine_model_cache_read_input_tokens_sum[5m]))" }
+      ]
+    },
+    {
+      "title": "Hallucination-drop rate",
+      "type": "timeseries",
+      "targets": [{ "expr": "sum(rate(engine_critique_hallucination_drops_total[5m]))" }]
+    },
+    {
+      "title": "Capture instability",
+      "type": "timeseries",
+      "targets": [{ "expr": "histogram_quantile(0.95, sum(rate(engine_capture_instability_bucket[5m])) by (le))" }]
+    },
+    {
+      "title": "Model rate-limiting",
+      "type": "timeseries",
+      "targets": [{ "expr": "sum(rate(engine_model_rate_limited_total[5m]))" }]
+    }
+  ]
+}

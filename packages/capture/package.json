@@ -1,0 +1,11 @@
+{
+  "name": "@engine/capture",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Capture sandbox (captureInSandbox). EM1 implements the Firecracker + Playwright worker.",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": { "test": "vitest run" },
+  "dependencies": { "@engine/types": "workspace:*" }
+}

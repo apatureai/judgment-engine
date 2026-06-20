@@ -1,0 +1,22 @@
+{
+  "name": "@engine/db",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Judgment Engine durable state: deterministic up/down migration runner + schema.",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": { ".": { "types": "./dist/index.d.ts", "default": "./dist/index.js" } },
+  "files": ["dist", "migrations"],
+  "scripts": {
+    "migrate": "node ./dist/cli/migrate.js",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@types/pg": "^8.11.10",
+    "pg": "^8.13.1"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "^0.2.0"
+  }
+}

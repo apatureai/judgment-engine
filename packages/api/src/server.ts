@@ -1,0 +1,199 @@
+import type { JobRecord, JobStore, ReviewDepth } from "@engine/jobs";
+import { objectKey, type ObjectStore } from "@engine/storage";
+import { SCHEMA_VERSION, type EngineReviewResult } from "@engine/types";
+import {
+  INSTALLATION_HEADER,
+  SIGNATURE_HEADER,
+  TIMESTAMP_HEADER,
+  verifyEngineRequest,
+} from "./hmac.js";
+import { modelForDepth } from "./routing.js";
+
+/** Produces the wire result for a job (the worker step). */
+export type JobProcessor = (job: JobRecord) => Promise<EngineReviewResult>;
+
+export interface JobApiOptions {
+  store: JobStore;
+  objectStore: ObjectStore;
+  /** HMAC secret (engineHmacSecret from the KMS-backed store). */
+  secret: string;
+  /** Consuming surface label for the dedup key (default "gate"). */
+  consumer?: string;
+  /** Intent label for the dedup key (default "pr_review"). */
+  intentType?: string;
+  /** Anti-replay window; omit to disable skew checking. */
+  maxSkewMs?: number;
+  now?: () => number;
+  /** Worker step; defaults to a version-stamped stub result. */
+  processor?: JobProcessor;
+}
+
+/** Transport-agnostic request (a thin HTTP adapter maps Node/Fastify onto this). */
+export interface ApiRequest {
+  method: string;
+  /** Path only, e.g. "/jobs" or "/jobs/<id>". */
+  path: string;
+  headers: Record<string, string | undefined>;
+  /** Raw request body (signed verbatim); "" for GET/DELETE. */
+  body: string;
+}
+
+export interface ApiResponse {
+  status: number;
+  headers: Record<string, string>;
+  body: unknown;
+}
+
+interface SubmitBody {
+  idempotencyKey?: unknown;
+  depth?: unknown;
+  request?: unknown;
+}
+
+const json = (status: number, body: unknown, headers: Record<string, string> = {}): ApiResponse => ({
+  status,
+  headers: { "content-type": "application/json", ...headers },
+  body,
+});
+
+function defaultProcessor(job: JobRecord): Promise<EngineReviewResult> {
+  // EM0 stub: version-stamped result with the depth-routed model. EM2 replaces
+  // this with the real capture + critique pipeline.
+  return Promise.resolve({
+    grade: "ship",
+    overall: "stub result (EM0 scaffold)",
+    findings: [],
+    notReviewed: [],
+    artifacts: { annotatedScreenshots: [] },
+    screenshotRetentionSeconds: 0,
+    metadata: {
+      engineVersion: "0.0.0",
+      model: modelForDepth(job.depth),
+      promptVersion: "stub@0",
+      captureVersion: "stub@0",
+      uiDnaVersion: null,
+    },
+  });
+}
+
+/**
+ * Async job API: `POST /jobs` -> 202 {jobId} (409 on duplicate idempotency key),
+ * `GET /jobs/:id` polls, `DELETE /jobs/:id` cancels. Every request is HMAC-
+ * verified and scoped to the verified installationId; results carry the
+ * `x-schema-version` header + version metadata.
+ */
+export function createJobApi(options: JobApiOptions) {
+  const consumer = options.consumer ?? "gate";
+  const intentType = options.intentType ?? "pr_review";
+  const processor = options.processor ?? defaultProcessor;
+
+  function verify(req: ApiRequest): { ok: true; installationId: string } | { ok: false; res: ApiResponse } {
+    const installationId = req.headers[INSTALLATION_HEADER] ?? "";
+    const result = verifyEngineRequest({
+      body: req.body,
+      installationId,
+      timestamp: req.headers[TIMESTAMP_HEADER] ?? "",
+      signature: req.headers[SIGNATURE_HEADER] ?? "",
+      secret: options.secret,
+      maxSkewMs: options.maxSkewMs,
+      now: options.now?.(),
+    });
+    if (!result.ok) return { ok: false, res: json(401, { error: result.reason }) };
+    return { ok: true, installationId };
+  }
+
+  function toJobState(job: JobRecord): { state: string; error?: string } {
+    switch (job.status) {
+      case "queued":
+        return { state: "pending" };
+      case "running":
+        return { state: "running" };
+      case "succeeded":
+        return { state: "completed" };
+      case "failed":
+        return { state: "failed", error: job.error ?? "engine job failed" };
+      case "canceled":
+        return { state: "failed", error: "canceled" };
+    }
+  }
+
+  async function handlePost(req: ApiRequest, installationId: string): Promise<ApiResponse> {
+    let parsed: SubmitBody;
+    try {
+      parsed = JSON.parse(req.body) as SubmitBody;
+    } catch {
+      return json(400, { error: "invalid_json" });
+    }
+    const { idempotencyKey, depth } = parsed;
+    if (typeof idempotencyKey !== "string" || (depth !== "triage" && depth !== "deep")) {
+      return json(400, { error: "invalid_submission" });
+    }
+
+    const { job, created } = await options.store.enqueue({
+      consumer,
+      installationId,
+      intentType,
+      idempotencyKey: `${consumer}:${installationId}:${intentType}:${idempotencyKey}`,
+      depth: depth as ReviewDepth,
+      input: parsed.request,
+    });
+    // 202 created, or 409 duplicate -> consumer polls the existing job.
+    return json(created ? 202 : 409, { jobId: job.id });
+  }
+
+  async function handleGet(id: string, installationId: string): Promise<ApiResponse> {
+    const job = await options.store.get(id);
+    // 404 (not 403) when the job is missing or owned by another tenant — no
+    // existence disclosure across tenants.
+    if (!job || job.installationId !== installationId) return json(404, { error: "not_found" });
+
+    const mapped = toJobState(job);
+    const headers = { "x-schema-version": SCHEMA_VERSION };
+    if (job.status === "succeeded" && job.resultPointer) {
+      const bytes = await options.objectStore.get(job.resultPointer);
+      const result = bytes ? (JSON.parse(new TextDecoder().decode(bytes)) as EngineReviewResult) : null;
+      return json(200, { jobId: id, state: "completed", result }, headers);
+    }
+    return json(200, { jobId: id, ...mapped }, headers);
+  }
+
+  async function handleDelete(id: string, installationId: string): Promise<ApiResponse> {
+    const job = await options.store.get(id);
+    if (!job || job.installationId !== installationId) return json(404, { error: "not_found" });
+    const canceled = await options.store.cancel(id);
+    return json(200, { jobId: id, canceled: canceled !== null });
+  }
+
+  async function handle(req: ApiRequest): Promise<ApiResponse> {
+    const verified = verify(req);
+    if (!verified.ok) return verified.res;
+    const { installationId } = verified;
+
+    const segments = req.path.split("/").filter(Boolean); // ["jobs"] or ["jobs", "<id>"]
+    if (segments[0] !== "jobs") return json(404, { error: "not_found" });
+    const id = segments[1];
+
+    if (req.method === "POST" && !id) return handlePost(req, installationId);
+    if (req.method === "GET" && id) return handleGet(id, installationId);
+    if (req.method === "DELETE" && id) return handleDelete(id, installationId);
+    return json(405, { error: "method_not_allowed" });
+  }
+
+  /**
+   * Worker step: run the processor for a *running* job, persist the result to
+   * object storage, and mark the job succeeded. Returns the wire result.
+   */
+  async function processJob(jobId: string): Promise<EngineReviewResult> {
+    const job = await options.store.get(jobId);
+    if (!job) throw new Error(`job ${jobId} not found`);
+    const result = await processor(job);
+    const pointer = objectKey(jobId, "critique", "result.json");
+    await options.objectStore.put(pointer, JSON.stringify(result), {
+      contentType: "application/json",
+    });
+    await options.store.complete(jobId, pointer);
+    return result;
+  }
+
+  return { handle, processJob };
+}

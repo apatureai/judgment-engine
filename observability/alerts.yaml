@@ -1,0 +1,71 @@
+# Prometheus alerting rules for the Judgment Engine (TRD §14; spec §6.6/§15).
+#
+# OTel instrument names map to Prometheus series as follows:
+#   engine.queue.depth (gauge)                      -> engine_queue_depth
+#   engine.capture.latency_ms (hist)                -> engine_capture_latency_ms_bucket
+#   engine.critique.latency_ms (hist)               -> engine_critique_latency_ms_bucket
+#   engine.critique.hallucination_drops (counter)   -> engine_critique_hallucination_drops_total
+#   engine.capture.instability (hist)               -> engine_capture_instability_bucket
+#   engine.critique.cache_hit (hist)                -> engine_critique_cache_hit_bucket
+#   engine.model.cache_read_input_tokens (hist)     -> engine_model_cache_read_input_tokens_*
+#   engine.model.rate_limited (counter)             -> engine_model_rate_limited_total
+groups:
+  - name: engine-cache
+    rules:
+      # Body-mandated alert: a repo's prefix-cache hit-rate has dropped, which
+      # usually means the stable context block changed and broke the cache (#34).
+      - alert: EngineRepoCacheHitRateDrop
+        expr: >-
+          (sum(rate(engine_critique_cache_hit_sum[30m])) by (repo)
+            / sum(rate(engine_critique_cache_hit_count[30m])) by (repo)) < 0.5
+        for: 15m
+        labels:
+          severity: warn
+        annotations:
+          summary: "Per-repo critique cache-hit rate dropped below 50% ({{ $labels.repo }})"
+          runbook: >-
+            The stable context block likely changed and invalidated the prefix
+            cache. Check context-block serialization + content-hash (#34, #63).
+
+      # Body-mandated alert: the model reports zero cached input tokens, i.e. the
+      # prefix cache is not being read at all.
+      - alert: EngineCacheReadInputTokensZero
+        expr: >-
+          max_over_time(engine_model_cache_read_input_tokens_sum[15m]) == 0
+        for: 15m
+        labels:
+          severity: page
+        annotations:
+          summary: "Model cache_read_input_tokens is 0 — prefix cache not being hit"
+          runbook: >-
+            Prefix caching is disabled or the prompt prefix is unstable; verify
+            the cached context layout and model endpoint caching (#34).
+
+  - name: engine-slo
+    rules:
+      - alert: EngineCritiqueLatencyP95High
+        expr: >-
+          histogram_quantile(0.95,
+            sum(rate(engine_critique_latency_ms_bucket[5m])) by (le)) > 60000
+        for: 10m
+        labels:
+          severity: warn
+        annotations:
+          summary: "Critique p95 latency above 60s"
+
+      - alert: EngineHallucinationDropSpike
+        expr: increase(engine_critique_hallucination_drops_total[1h]) > 50
+        for: 0m
+        labels:
+          severity: warn
+        annotations:
+          summary: "Hallucination-drop count spiked (model/prompt regression?)"
+          runbook: "Check the post-parse validation gate and recent prompt/model changes (#32, #71)."
+
+      - alert: EngineQueueDepthHigh
+        expr: engine_queue_depth > 200
+        for: 10m
+        labels:
+          severity: warn
+        annotations:
+          summary: "Engine job queue depth is high (capacity/fairness pressure)"
