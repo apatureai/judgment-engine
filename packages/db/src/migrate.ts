@@ -47,9 +47,14 @@ export async function runMigrations(
   const applied: string[] = [];
   for (const id of listMigrations(dir)) {
     if (done.has(id)) continue;
+    assertSafeId(id);
     const sql = readFileSync(join(dir, `${id}${UP_SUFFIX}`), "utf8");
-    await exec.exec(sql);
-    await exec.query("INSERT INTO schema_migrations (id) VALUES ($1)", [id]);
+    // Apply the migration AND record it in one simple-query, so a statement that
+    // fails mid-file rolls the whole unit back (incl. the tracking row) under
+    // Postgres'/PGlite's implicit per-query transaction — the runner stays
+    // crash-idempotent, not just skip-idempotent. (id is filename-derived and
+    // charset-guarded, so inlining it is safe.)
+    await exec.exec(`${sql};\nINSERT INTO schema_migrations (id) VALUES ('${id}');`);
     applied.push(id);
   }
   return applied;
@@ -79,10 +84,18 @@ export async function rollbackMigrations(
 
   const reverted: string[] = [];
   for (const id of toRevert) {
+    assertSafeId(id);
     const sql = readFileSync(join(dir, `${id}.down.sql`), "utf8");
-    await exec.exec(sql);
-    await exec.query("DELETE FROM schema_migrations WHERE id = $1", [id]);
+    // Revert AND clear the tracking row atomically (see runMigrations).
+    await exec.exec(`${sql};\nDELETE FROM schema_migrations WHERE id = '${id}';`);
     reverted.push(id);
   }
   return reverted;
+}
+
+/** Guard the filename-derived id before inlining it into SQL. */
+function assertSafeId(id: string): void {
+  if (!/^[0-9A-Za-z_]+$/.test(id)) {
+    throw new Error(`unsafe migration id: ${id}`);
+  }
 }

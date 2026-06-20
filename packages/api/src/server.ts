@@ -88,6 +88,9 @@ export function createJobApi(options: JobApiOptions) {
   const consumer = options.consumer ?? "gate";
   const intentType = options.intentType ?? "pr_review";
   const processor = options.processor ?? defaultProcessor;
+  // Replay protection is on by default (signers send Date.now()); a caller can
+  // widen/narrow the window but not silently ship with it off.
+  const maxSkewMs = options.maxSkewMs ?? 300_000;
 
   function verify(req: ApiRequest): { ok: true; installationId: string } | { ok: false; res: ApiResponse } {
     const installationId = req.headers[INSTALLATION_HEADER] ?? "";
@@ -97,7 +100,7 @@ export function createJobApi(options: JobApiOptions) {
       timestamp: req.headers[TIMESTAMP_HEADER] ?? "",
       signature: req.headers[SIGNATURE_HEADER] ?? "",
       secret: options.secret,
-      maxSkewMs: options.maxSkewMs,
+      maxSkewMs,
       now: options.now?.(),
     });
     if (!result.ok) return { ok: false, res: json(401, { error: result.reason }) };
@@ -161,7 +164,11 @@ export function createJobApi(options: JobApiOptions) {
     const headers = { "x-schema-version": SCHEMA_VERSION };
     if (job.status === "succeeded" && job.resultPointer) {
       const bytes = await options.objectStore.get(job.resultPointer);
-      const result = bytes ? (JSON.parse(new TextDecoder().decode(bytes)) as EngineReviewResult) : null;
+      // A succeeded job whose result artifact is missing/expired (retention) must
+      // NOT report `completed` with a null result — a poller would deref it and
+      // crash. Report a terminal failure with a reason instead.
+      if (!bytes) return json(200, { jobId: id, state: "failed", error: "result_unavailable" }, headers);
+      const result = JSON.parse(new TextDecoder().decode(bytes)) as EngineReviewResult;
       return json(200, { jobId: id, state: "completed", result }, headers);
     }
     return json(200, { jobId: id, ...mapped }, headers);

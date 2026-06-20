@@ -53,7 +53,10 @@ export function verifyEngineRequest(params: {
 
   if (params.maxSkewMs !== undefined) {
     const now = params.now ?? Date.now();
-    if (Math.abs(now - Number(params.timestamp)) > params.maxSkewMs) {
+    const ts = Number(params.timestamp);
+    // A non-numeric/empty timestamp must FAIL the skew check, not silently pass
+    // it (NaN comparisons are always false).
+    if (!Number.isFinite(ts) || Math.abs(now - ts) > params.maxSkewMs) {
       return { ok: false, reason: "timestamp_skew" };
     }
   }

@@ -51,13 +51,30 @@ export function isPrivateOrReservedIp(ip: string): boolean {
 
   // IPv6
   if (host === "::" || host === "::1") return true; // unspecified / loopback
-  // v4-mapped (::ffff:a.b.c.d) — check the embedded v4.
-  const mapped = /^::ffff:(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})$/.exec(host);
-  if (mapped?.[1]) return isPrivateOrReservedIp(mapped[1]);
+  // v4-mapped/compat — check the embedded v4 in EITHER form:
+  //   dotted  (::ffff:169.254.169.254, ::169.254.169.254)
+  //   hex     (::ffff:a9fe:a9fe)  ← the metadata-SSRF bypass if only dotted is checked
+  const embedded = embeddedV4(host);
+  if (embedded !== null) return PRIVATE_V4_CIDRS.some((cidr) => inCidrV4(embedded, cidr));
   // ULA fc00::/7 (fc/fd) and link-local fe80::/10 (fe8-feb).
   if (/^f[cd]/.test(host)) return true;
   if (/^fe[89ab]/.test(host)) return true;
   return false;
+}
+
+/** Extract the embedded IPv4 (as a uint32) from a v4-mapped/compat IPv6, or null. */
+function embeddedV4(host: string): number | null {
+  // Dotted forms: ::ffff:a.b.c.d  or  ::a.b.c.d
+  const dotted = /^::(?:ffff:)?(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})$/.exec(host);
+  if (dotted?.[1]) return ipv4ToInt(dotted[1]);
+  // Hex form: ::ffff:HHHH:HHHH  (the two trailing 16-bit groups are the v4).
+  const hex = /^::ffff:([0-9a-f]{1,4}):([0-9a-f]{1,4})$/.exec(host);
+  if (hex?.[1] && hex[2]) {
+    const high = parseInt(hex[1], 16);
+    const low = parseInt(hex[2], 16);
+    return (((high << 16) >>> 0) + low) >>> 0;
+  }
+  return null;
 }
 
 export interface EgressPolicyOptions {

@@ -17,11 +17,18 @@ describe("isPrivateOrReservedIp", () => {
     expect(isPrivateOrReservedIp("1.1.1.1")).toBe(false);
   });
 
-  it("handles IPv6 loopback, ULA, link-local, and v4-mapped", () => {
+  it("handles IPv6 loopback, ULA, link-local, and v4-mapped (dotted, hex, and compat forms)", () => {
     expect(isPrivateOrReservedIp("::1")).toBe(true);
     expect(isPrivateOrReservedIp("fd00::1")).toBe(true);
     expect(isPrivateOrReservedIp("fe80::1")).toBe(true);
     expect(isPrivateOrReservedIp("::ffff:169.254.169.254")).toBe(true);
+    // Hex-form v4-mapped of the cloud-metadata IP (169.254.169.254 = a9fe:a9fe)
+    // must be denied too — the SSRF bypass if only dotted form is checked.
+    expect(isPrivateOrReservedIp("::ffff:a9fe:a9fe")).toBe(true);
+    expect(isPrivateOrReservedIp("::ffff:0a00:0001")).toBe(true); // 10.0.0.1
+    expect(isPrivateOrReservedIp("::169.254.169.254")).toBe(true); // IPv4-compat form
+    // A public v4-mapped address is still allowed.
+    expect(isPrivateOrReservedIp("::ffff:0808:0808")).toBe(false); // 8.8.8.8
     expect(isPrivateOrReservedIp("2606:4700::1111")).toBe(false);
   });
 });
