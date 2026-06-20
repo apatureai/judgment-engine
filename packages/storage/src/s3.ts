@@ -1,4 +1,9 @@
-import { GetObjectCommand, PutObjectCommand, type S3Client } from "@aws-sdk/client-s3";
+import {
+  DeleteObjectCommand,
+  GetObjectCommand,
+  PutObjectCommand,
+  type S3Client,
+} from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import type { ObjectStore, PutOptions } from "./types.js";
 
@@ -47,6 +52,11 @@ export class S3ObjectStore implements ObjectStore {
     const body = res.Body;
     if (!body) return null;
     return body.transformToByteArray();
+  }
+
+  async delete(key: string): Promise<void> {
+    // S3/R2 DeleteObject is idempotent (deleting a missing key succeeds).
+    await this.client.send(new DeleteObjectCommand({ Bucket: this.bucket, Key: key }));
   }
 
   async signedGetUrl(key: string, ttlSeconds: number): Promise<string> {

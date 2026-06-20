@@ -11,5 +11,6 @@ export {
   tenantKmsKeyId,
   isExpired,
   expiredKeys,
+  reapExpired,
 } from "./at-rest.js";
 export type { RetentionTier, RetainedObject } from "./at-rest.js";

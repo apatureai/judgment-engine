@@ -19,6 +19,11 @@ export class DualWriteObjectStore implements ObjectStore {
     return this.primary.get(key);
   }
 
+  async delete(key: string): Promise<void> {
+    // Erasure/retention must purge BOTH copies, or the secondary keeps the data.
+    await Promise.all([this.primary.delete(key), this.secondary.delete(key)]);
+  }
+
   async signedGetUrl(key: string, ttlSeconds: number): Promise<string> {
     return this.primary.signedGetUrl(key, ttlSeconds);
   }

@@ -2,8 +2,10 @@ import { GetObjectCommand, type PutObjectCommand, type S3Client } from "@aws-sdk
 import { describe, expect, it } from "vitest";
 import {
   expiredKeys,
+  InMemoryObjectStore,
   isExpired,
   objectKey,
+  reapExpired,
   RETENTION_SECONDS,
   retentionSecondsForTier,
   S3ObjectStore,
@@ -38,6 +40,41 @@ describe("retention policy (§11, #51)", () => {
       now,
     );
     expect(keys).toEqual(["free.png", "stale-paid.png"]);
+  });
+});
+
+describe("reapExpired (retention sweep ties policy -> deletion, #51)", () => {
+  it("deletes only the expired objects and leaves retained ones", async () => {
+    const now = 3_000_000_000_000;
+    const store = new InMemoryObjectStore();
+    await store.put("free.png", "a");
+    await store.put("fresh.png", "b");
+    await store.put("stale.png", "c");
+
+    const reaped = await reapExpired(
+      store,
+      [
+        { key: "free.png", uploadedAt: now, retentionSeconds: 0 },
+        { key: "fresh.png", uploadedAt: now - 86_400_000, retentionSeconds: 30 * 86_400 },
+        { key: "stale.png", uploadedAt: now - 40 * 86_400_000, retentionSeconds: 30 * 86_400 },
+      ],
+      now,
+    );
+
+    expect(reaped.sort()).toEqual(["free.png", "stale.png"]);
+    expect(await store.get("free.png")).toBeNull();
+    expect(await store.get("stale.png")).toBeNull();
+    expect(await store.get("fresh.png")).not.toBeNull();
+  });
+});
+
+describe("ObjectStore.delete", () => {
+  it("removes an object and is idempotent on a missing key", async () => {
+    const store = new InMemoryObjectStore();
+    await store.put("k", "v");
+    await store.delete("k");
+    expect(await store.get("k")).toBeNull();
+    await expect(store.delete("k")).resolves.toBeUndefined(); // no throw
   });
 });
 

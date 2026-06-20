@@ -31,3 +31,5 @@ export {
   dvcCachePath,
 } from "./dvc-export.js";
 export type { DvcDataset, DvcObject, DvcDirEntry, DvcLineage } from "./dvc-export.js";
+export { eraseInstallationData, purgeObjects, eraseTenant } from "./erasure.js";
+export type { EraseResult, KeyLister } from "./erasure.js";

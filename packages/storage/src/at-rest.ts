@@ -1,3 +1,5 @@
+import type { ObjectStore } from "./types.js";
+
 /**
  * At-rest policy for artifacts (§11, #51): per-tenant SSE-KMS key selection and
  * tenant-tier retention. Screenshots, DOM snapshots, and critique JSON are
@@ -71,4 +73,20 @@ export function expiredKeys(objects: readonly RetainedObject[], now: number = Da
   return objects
     .filter((o) => isExpired({ uploadedAt: o.uploadedAt, retentionSeconds: o.retentionSeconds, now }))
     .map((o) => o.key);
+}
+
+/**
+ * Retention sweep: delete every object past its retention from `store` and
+ * return the keys reaped. Ties the retention policy (#51) to the deletion
+ * primitive; S3/R2 bucket lifecycle rules are the bulk mechanism, this is the
+ * engine-driven sweep for targeted/immediate reaping.
+ */
+export async function reapExpired(
+  store: Pick<ObjectStore, "delete">,
+  objects: readonly RetainedObject[],
+  now: number = Date.now(),
+): Promise<string[]> {
+  const keys = expiredKeys(objects, now);
+  for (const key of keys) await store.delete(key);
+  return keys;
 }
