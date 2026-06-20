@@ -42,6 +42,7 @@ export {
   CritiqueOutputSchema,
   parseCritiqueOutput,
   schemaInstruction,
+  critiqueJsonSchema,
 } from "./schema.js";
 export type { CritiqueOutput, ModelFinding, ParseResult } from "./schema.js";
 export { hallucinationGate } from "./hallucination-gate.js";
@@ -49,7 +50,7 @@ export type { HallucinationGateInput, HallucinationGateResult } from "./hallucin
 export { postFilter } from "./post-filter.js";
 export type { PostFilterOptions } from "./post-filter.js";
 export { applyConfidenceCeiling } from "./confidence-ceiling.js";
-export { critiqueRouteTwoStep, runDeepPass, mapWithConcurrency } from "./deep-pass.js";
+export { critiqueRouteTwoStep, critiqueRouteSingleCall, runDeepPass, mapWithConcurrency } from "./deep-pass.js";
 export type { DeepPassRoute, DeepPassDeps, DeepPassRouteResult } from "./deep-pass.js";
 export { cachePrefix, cachedInputTokens, isCacheHit } from "./cache.js";
 export { FREE_TIER_PASS_MODELS, passModelsForTier } from "./tier.js";

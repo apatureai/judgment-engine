@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  critiqueRouteSingleCall,
   critiqueRouteTwoStep,
   mapWithConcurrency,
   runDeepPass,
@@ -90,5 +91,55 @@ describe("mapWithConcurrency", () => {
   it("preserves order and respects the limit", async () => {
     const out = await mapWithConcurrency([1, 2, 3, 4], 2, async (n) => n * 10);
     expect(out).toEqual([10, 20, 30, 40]);
+  });
+});
+
+/** Self-host vLLM mock: ONE call returns thinking + schema-valid JSON together. */
+class GuidedMock implements ModelClient {
+  readonly backend = "self-host" as const;
+  readonly calls: ModelRequest[] = [];
+  async complete(request: ModelRequest): Promise<ModelResponse> {
+    this.calls.push(request);
+    return {
+      text: JSON.stringify({ grade: "needs_work", overall: "spacing", findings: [], notReviewed: [] }),
+      thinkingText: "reasoned about spacing",
+      usage: { inputTokens: 0, outputTokens: 0, cachedTokens: 0 },
+      finishReason: "stop",
+    };
+  }
+}
+
+describe("critiqueRouteSingleCall — self-host guided decoding (#76)", () => {
+  it("does ONE call combining thinking + json_schema and yields schema-valid output", async () => {
+    const mock = new GuidedMock();
+    const result = await critiqueRouteSingleCall(deps(mock), route("/pricing"));
+
+    expect(result.output?.grade).toBe("needs_work");
+    expect(mock.calls).toHaveLength(1); // not the two-step
+    expect(mock.calls[0]?.thinking).toBe(true);
+    expect(mock.calls[0]?.responseFormat).toBe("json_schema");
+    expect(mock.calls[0]?.jsonSchema).toMatchObject({ type: "object", required: expect.arrayContaining(["grade"]) });
+  });
+
+  it("runDeepPass routes to the single call when guidedDecoding is set", async () => {
+    const mock = new GuidedMock();
+    const results = await runDeepPass({ ...deps(mock), guidedDecoding: true }, ["/a", "/b"].map(route));
+    expect(results.map((r) => r.route)).toEqual(["/a", "/b"]);
+    expect(mock.calls).toHaveLength(2); // one call per route, not two
+  });
+
+  it("keeps the no-partial contract when guided output fails Zod", async () => {
+    const bad: ModelClient = {
+      backend: "self-host",
+      async complete() {
+        return {
+          text: JSON.stringify({ grade: "not-a-grade" }),
+          usage: { inputTokens: 0, outputTokens: 0, cachedTokens: 0 },
+          finishReason: "stop",
+        };
+      },
+    };
+    const result = await critiqueRouteSingleCall(deps(bad), route("/x"));
+    expect(result.output).toBeNull();
   });
 });

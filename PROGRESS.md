@@ -103,7 +103,7 @@ How the loop uses it:
 
 ## EM6 · Scale & owned model (deferred)
 
-- [ ] #76 - Scale: self-host vLLM/SGLang serving + GPU warm-pool autoscale (act-2)
+- [~] #76 - Scale: self-host vLLM/SGLang serving + GPU warm-pool autoscale (act-2) -> codeable core done; autoscale live-deferred. AC#1 (serving path selectable via the adapter, config swap): the same `DashScopeModelClient` + `createOpenAICompatibleCreate` already serves a self-host vLLM/SGLang endpoint by pointing the create fn at it (#27). AC#2 (single-call guided decoding replaces the two-step): added `responseFormat: "json_schema"` + `jsonSchema` to `ModelRequest`, `critiqueJsonSchema()` (strict JSON Schema mirroring the Zod contract), DashScope client now forwards `json_schema` guided decoding AND lets it combine with thinking (unlike `json_object`), and `critiqueRouteSingleCall` + `runDeepPass({guidedDecoding:true})` do ONE thinking+json_schema call per route (no-partial preserved). AC#3 (GPU warm-pool autoscale + idle-COGS monitoring) stays [~] — live GPU infra/ops. +4 tests (278 total). Unblocks the in-VPC inference path (#79).
 - [ ] #77 - Capture: warm-pool manager (snapshot/UFFD)
 - [ ] #78 - Owned model (act-3): ORPO fine-tune training + eval-gated shadow promotion
 - [ ] #79 - Enterprise: in-VPC self-hosted engine + capture residency path

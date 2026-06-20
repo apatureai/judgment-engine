@@ -1,7 +1,12 @@
 import { cachePrefix } from "./cache.js";
 import type { ModelClient, ModelImage, ModelMessage } from "./model.js";
 import { wrapUntrustedPageContent } from "./prompt.js";
-import { parseCritiqueOutput, schemaInstruction, type CritiqueOutput } from "./schema.js";
+import {
+  critiqueJsonSchema,
+  parseCritiqueOutput,
+  schemaInstruction,
+  type CritiqueOutput,
+} from "./schema.js";
 
 /**
  * Deep critique pass (TRD §6.2/§6.5, #29): one request per route, capped at 3
@@ -39,6 +44,12 @@ export interface DeepPassDeps {
   maxPixels: number;
   concurrency?: number;
   signal?: AbortSignal;
+  /**
+   * Serving path (#76). DashScope can't combine thinking + structured output, so
+   * it uses the two-step (default). Self-host vLLM does single-call guided
+   * decoding (thinking + json_schema in ONE request) — set `guidedDecoding: true`.
+   */
+  guidedDecoding?: boolean;
 }
 
 export interface DeepPassRouteResult {
@@ -94,6 +105,37 @@ export async function critiqueRouteTwoStep(
   return { route: route.route, output: parsed.ok ? parsed.value : null };
 }
 
+/**
+ * Single-call critique for one route on the self-host vLLM path (#76): ONE
+ * request that combines the Thinking checkpoint with json_schema guided decoding,
+ * so the output is schema-valid without the DashScope two-step. Same no-partial
+ * contract: an output that fails Zod yields no findings rather than malformed JSON.
+ */
+export async function critiqueRouteSingleCall(
+  deps: DeepPassDeps,
+  route: DeepPassRoute,
+): Promise<DeepPassRouteResult> {
+  const opts = deps.signal ? { signal: deps.signal } : undefined;
+  const res = await deps.client.complete(
+    {
+      model: deps.model,
+      thinking: true,
+      maxPixels: deps.maxPixels,
+      responseFormat: "json_schema",
+      jsonSchema: critiqueJsonSchema(),
+      messages: thinkingMessages(deps, route),
+    },
+    opts,
+  );
+  const parsed = parseCritiqueOutput(res.text);
+  return { route: route.route, output: parsed.ok ? parsed.value : null };
+}
+
+/** Dispatch one route to the configured serving path (two-step vs guided decoding). */
+function critiqueRoute(deps: DeepPassDeps, route: DeepPassRoute): Promise<DeepPassRouteResult> {
+  return deps.guidedDecoding ? critiqueRouteSingleCall(deps, route) : critiqueRouteTwoStep(deps, route);
+}
+
 /** Run `fn` over `items` with at most `limit` in flight, preserving input order. */
 export async function mapWithConcurrency<T, R>(
   items: T[],
@@ -113,7 +155,7 @@ export async function mapWithConcurrency<T, R>(
   return results;
 }
 
-/** Deep pass over all routes: one two-step request per route, <=3 concurrent. */
+/** Deep pass over all routes: one request per route (two-step or guided), <=3 concurrent. */
 export function runDeepPass(deps: DeepPassDeps, routes: DeepPassRoute[]): Promise<DeepPassRouteResult[]> {
-  return mapWithConcurrency(routes, deps.concurrency ?? 3, (route) => critiqueRouteTwoStep(deps, route));
+  return mapWithConcurrency(routes, deps.concurrency ?? 3, (route) => critiqueRoute(deps, route));
 }
