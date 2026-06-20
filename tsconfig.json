@@ -11,6 +11,7 @@
     { "path": "packages/observability" },
     { "path": "packages/jobs" },
     { "path": "packages/api" },
-    { "path": "packages/context" }
+    { "path": "packages/context" },
+    { "path": "packages/eval" }
   ]
 }

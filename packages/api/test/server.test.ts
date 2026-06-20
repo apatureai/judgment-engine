@@ -1,5 +1,5 @@
 import { pgliteExecutor, runMigrations } from "@engine/db";
-import { JobStore } from "@engine/jobs";
+import { CancellationCoordinator, JobStore } from "@engine/jobs";
 import { InMemoryObjectStore } from "@engine/storage";
 import { PGlite } from "@electric-sql/pglite";
 import { beforeEach, describe, expect, it } from "vitest";
@@ -110,16 +110,45 @@ describe("GET /jobs/:id", () => {
   });
 });
 
-describe("DELETE /jobs/:id", () => {
-  it("cancels a job for its owning tenant", async () => {
+describe("DELETE /jobs/:id (cooperative cancel)", () => {
+  it("flips to cancelling immediately, aborts via the coordinator, and writes no result", async () => {
+    const killed: string[] = [];
+    const coordinator = new CancellationCoordinator(async (id) => {
+      killed.push(id);
+    });
+    api = createJobApi({ store, objectStore, secret: SECRET, coordinator });
+
     const post = await api.handle(signed("POST", "/jobs", "1", submission("k4")));
     const jobId = (post.body as { jobId: string }).jobId;
+    coordinator.register(jobId);
+    await store.claimNext(); // job is running
 
     const del = await api.handle(signed("DELETE", `/jobs/${jobId}`, "1"));
     expect(del.status).toBe(200);
-    expect((del.body as { canceled: boolean }).canceled).toBe(true);
+    expect((del.body as { cancelling: boolean }).cancelling).toBe(true);
 
+    // Consumer sees the intent immediately.
     const got = await api.handle(signed("GET", `/jobs/${jobId}`, "1"));
-    expect((got.body as { state: string }).state).toBe("failed"); // canceled -> failed state
+    expect((got.body as { state: string }).state).toBe("cancelling");
+    // Inference aborted + microVM kill invoked.
+    expect(coordinator.isAborted(jobId)).toBe(true);
+    expect(killed).toEqual([jobId]);
+
+    // A late processJob writes NO result for a job that left `running`.
+    await api.processJob(jobId);
+    const afterProcess = await store.get(jobId);
+    expect(afterProcess?.status).toBe("cancelling");
+    expect(afterProcess?.resultPointer).toBeNull();
+
+    // Worker finalizes -> canceled -> consumer sees terminal failed.
+    await store.markCanceled(jobId);
+    const final = await api.handle(signed("GET", `/jobs/${jobId}`, "1"));
+    expect((final.body as { state: string }).state).toBe("failed");
+  });
+
+  it("does not disclose another tenant's job on cancel", async () => {
+    const post = await api.handle(signed("POST", "/jobs", "1", submission("k5")));
+    const jobId = (post.body as { jobId: string }).jobId;
+    expect((await api.handle(signed("DELETE", `/jobs/${jobId}`, "2"))).status).toBe(404);
   });
 });

@@ -1,6 +1,13 @@
 import type { SqlExecutor } from "@engine/db";
+import { jobPriority } from "./priority.js";
 
-export type JobStatus = "queued" | "running" | "succeeded" | "failed" | "canceled";
+export type JobStatus =
+  | "queued"
+  | "running"
+  | "cancelling"
+  | "succeeded"
+  | "failed"
+  | "canceled";
 export type ReviewDepth = "triage" | "deep";
 
 /** Postgres NOTIFY channel workers LISTEN on; payload is the new job id. */
@@ -28,6 +35,8 @@ export interface JobRecord {
   depth: ReviewDepth;
   status: JobStatus;
   input: unknown;
+  /** Scheduling priority (lower = higher); the claim serves lowest first (#67). */
+  priority: number;
   resultPointer: string | null;
   error: string | null;
   attempts: number;
@@ -46,6 +55,7 @@ interface JobRow {
   depth: ReviewDepth;
   status: JobStatus;
   input: unknown;
+  priority: number;
   result_pointer: string | null;
   error: string | null;
   attempts: number;
@@ -56,7 +66,7 @@ interface JobRow {
 }
 
 const COLS = `id, consumer, installation_id, intent_type, idempotency_key, depth, status, input,
-  result_pointer, error, attempts, created_at, updated_at, started_at, finished_at`;
+  priority, result_pointer, error, attempts, created_at, updated_at, started_at, finished_at`;
 
 function mapRow(r: JobRow): JobRecord {
   return {
@@ -68,6 +78,7 @@ function mapRow(r: JobRow): JobRecord {
     depth: r.depth,
     status: r.status,
     input: r.input,
+    priority: r.priority,
     resultPointer: r.result_pointer,
     error: r.error,
     attempts: r.attempts,
@@ -94,8 +105,8 @@ export class JobStore {
    */
   async enqueue(input: EnqueueJobInput): Promise<{ job: JobRecord; created: boolean }> {
     const { rows } = await this.exec.query<JobRow>(
-      `INSERT INTO jobs (consumer, installation_id, intent_type, idempotency_key, depth, input)
-       VALUES ($1, $2, $3, $4, $5, $6::jsonb)
+      `INSERT INTO jobs (consumer, installation_id, intent_type, idempotency_key, depth, input, priority)
+       VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7)
        ON CONFLICT (idempotency_key) DO NOTHING
        RETURNING ${COLS}`,
       [
@@ -105,6 +116,7 @@ export class JobStore {
         input.idempotencyKey,
         input.depth,
         JSON.stringify(input.input ?? {}),
+        jobPriority(input.consumer, input.intentType),
       ],
     );
 
@@ -142,7 +154,7 @@ export class JobStore {
        WHERE id = (
          SELECT id FROM jobs
          WHERE status = 'queued'
-         ORDER BY created_at
+         ORDER BY priority, created_at
          FOR UPDATE SKIP LOCKED
          LIMIT 1
        )
@@ -177,6 +189,34 @@ export class JobStore {
     const { rows } = await this.exec.query<JobRow>(
       `UPDATE jobs SET status = 'canceled', finished_at = now()
        WHERE id = $1 AND status IN ('queued', 'running')
+       RETURNING ${COLS}`,
+      [id],
+    );
+    return rows[0] ? mapRow(rows[0]) : null;
+  }
+
+  /**
+   * Cooperative-cancel step 1 (#66): move a non-terminal job to `cancelling`
+   * immediately so consumers see the intent at once. Returns the record, or null
+   * if already terminal/cancelling. Teardown (microVM kill + inference abort)
+   * happens after; `markCanceled` finalizes. Because `complete`/`fail` only act
+   * on `running` rows, no result is written for a job once it leaves `running`.
+   */
+  async requestCancel(id: string): Promise<JobRecord | null> {
+    const { rows } = await this.exec.query<JobRow>(
+      `UPDATE jobs SET status = 'cancelling'
+       WHERE id = $1 AND status IN ('queued', 'running')
+       RETURNING ${COLS}`,
+      [id],
+    );
+    return rows[0] ? mapRow(rows[0]) : null;
+  }
+
+  /** Cooperative-cancel step 2 (#66): finalize a `cancelling` job to `canceled`. */
+  async markCanceled(id: string): Promise<JobRecord | null> {
+    const { rows } = await this.exec.query<JobRow>(
+      `UPDATE jobs SET status = 'canceled', finished_at = now()
+       WHERE id = $1 AND status = 'cancelling'
        RETURNING ${COLS}`,
       [id],
     );

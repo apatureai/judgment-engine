@@ -17,6 +17,7 @@ export default defineConfig({
       "@engine/jobs": fromRoot("./packages/jobs/src/index.ts"),
       "@engine/api": fromRoot("./packages/api/src/index.ts"),
       "@engine/context": fromRoot("./packages/context/src/index.ts"),
+      "@engine/eval": fromRoot("./packages/eval/src/index.ts"),
     },
   },
   test: {

@@ -1,7 +1,12 @@
 import { pgliteExecutor, runMigrations } from "@engine/db";
 import { PGlite } from "@electric-sql/pglite";
 import { beforeEach, describe, expect, it } from "vitest";
-import { JOB_NOTIFY_CHANNEL, JobStore, type EnqueueJobInput } from "../src/index.js";
+import {
+  CancellationCoordinator,
+  JOB_NOTIFY_CHANNEL,
+  JobStore,
+  type EnqueueJobInput,
+} from "../src/index.js";
 
 let db: PGlite;
 let store: JobStore;
@@ -91,5 +96,81 @@ describe("pg_notify dispatch", () => {
     await new Promise((resolve) => setTimeout(resolve, 50));
 
     expect(received).toContain(job.id);
+  });
+});
+
+describe("priority scheduling (#67)", () => {
+  it("claims higher-priority work first (gate-blocking before other consumers)", async () => {
+    // Enqueue a low-priority other-consumer job first, then a gate-blocking one.
+    await store.enqueue({
+      consumer: "mcp",
+      installationId: "1",
+      intentType: "pr_review",
+      idempotencyKey: "mcp:1:pr_review:a",
+      depth: "deep",
+    });
+    const { job: gateJob } = await store.enqueue({
+      consumer: "gate",
+      installationId: "1",
+      intentType: "pr_review",
+      idempotencyKey: "gate:1:pr_review:b",
+      depth: "deep",
+    });
+
+    // Despite being enqueued second, the gate-blocking job is claimed first.
+    const claimed = await store.claimNext();
+    expect(claimed?.id).toBe(gateJob.id);
+    expect(claimed?.priority).toBe(0);
+  });
+});
+
+describe("cooperative cancellation (#66)", () => {
+  it("requestCancel -> cancelling (immediately), then markCanceled -> canceled", async () => {
+    const { job } = await store.enqueue(baseInput);
+    await store.claimNext(); // running
+
+    const cancelling = await store.requestCancel(job.id);
+    expect(cancelling?.status).toBe("cancelling");
+
+    // complete/fail are no-ops once the job left `running` (no result written).
+    await store.complete(job.id, "jobs/x/critique/result.json");
+    const mid = await store.get(job.id);
+    expect(mid?.status).toBe("cancelling");
+    expect(mid?.resultPointer).toBeNull();
+
+    const finalized = await store.markCanceled(job.id);
+    expect(finalized?.status).toBe("canceled");
+  });
+
+  it("requestCancel returns null for an already-terminal job", async () => {
+    const { job } = await store.enqueue(baseInput);
+    await store.claimNext();
+    await store.complete(job.id, "jobs/x/r.json"); // succeeded
+    expect(await store.requestCancel(job.id)).toBeNull();
+  });
+});
+
+describe("CancellationCoordinator", () => {
+  it("registers an abortable signal and runs the kill seam on cancel", async () => {
+    const killed: string[] = [];
+    const coordinator = new CancellationCoordinator(async (id) => {
+      killed.push(id);
+    });
+    const signal = coordinator.register("job_1");
+    expect(signal.aborted).toBe(false);
+
+    await coordinator.cancel("job_1");
+    expect(signal.aborted).toBe(true);
+    expect(coordinator.isAborted("job_1")).toBe(true);
+    expect(killed).toEqual(["job_1"]);
+  });
+
+  it("swallows kill-seam errors (teardown is best-effort)", async () => {
+    const coordinator = new CancellationCoordinator(async () => {
+      throw new Error("microVM stop failed");
+    });
+    coordinator.register("job_2");
+    await expect(coordinator.cancel("job_2")).resolves.toBeUndefined();
+    expect(coordinator.isAborted("job_2")).toBe(true);
   });
 });

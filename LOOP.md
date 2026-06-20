@@ -43,6 +43,70 @@ apatureai/gate.
 
 ## Self-improvement log (newest first)
 
+- 2026-06-18 (run 5): EM2 critique finished + EM3 started — #27 DashScope
+  streaming client (OpenAI-compatible, reasoning/content split, AbortSignal),
+  #69 max_pixels enforcement, #29 deep-pass two-step + ≤3 concurrency, #34
+  prefix-cache layout + cache-hit telemetry, #35 free-tier model swap, #28 triage
+  + phash short-circuit, and #44 synthetic-canary generator (new `@engine/eval`).
+  **EM2 (Context + Critique) is now fully complete.** 184 tests. Learnings:
+  - **Inject the streaming `create` fn, don't import `openai` into the package.**
+    The DashScope client is unit-tested against a fake async-iterable stream;
+    `createOpenAICompatibleCreate(client)` adapts a real OpenAI-SDK client in
+    production and the SAME client reaches self-host vLLM by base URL. Avoids a
+    heavy dep + fragile SDK streaming types while honoring "use the OpenAI SDK".
+  - **The two-step is just two `complete()` calls** with different flags
+    (thinking+no-format, then non-thinking+json_object) — `max_tokens` is never
+    set because `ModelRequest` has no such field (compliant by construction).
+    "Never a partial" = a route whose coercion fails Zod returns `output: null`.
+  - **`mapWithConcurrency` (a tiny worker-pool over a shared index)** is enough
+    for the ≤3-concurrent cap; assert `maxInFlight` with an instrumented mock.
+  - **Cross-package dep added cleanly:** critique→capture (for #16 PIXEL_BUDGETS,
+    #15 hashesWithin) — acyclic, so add the workspace dep + tsconfig reference.
+  - **A new package is still the 4-edit ritual** (pkg/tsconfig + root tsconfig
+    references + vitest alias); `@engine/eval` for EM3.
+  - **Next (EM3 eval, mostly a chained set in `@engine/eval`):** #45 (150-PR
+    golden set + labeling tooling), #46 (metrics: precision/recall, blocker
+    recall, nit precision, quadratic-weighted-kappa + bootstrap CIs — pure
+    stats), then #47 (regression gate on canary recall, uses #44+#46), #48
+    (quality gate on the frozen set), #71 (model_prompt_registry + CI eval-gate +
+    rollback — Postgres migration, builds on #68/#48/#47), #72 (hallucination-
+    drop + capture-instability SLOs, needs #46). #46 is the highest-leverage
+    pure starting point. Then EM4 data (#37 schema first) and EM5 security.
+
+- 2026-06-18 (run 4): EM0 finish + EM2 critique pipeline — closed out EM0 (#36
+  global token-bucket, #66 cooperative cancellation, #67 capacity/fairness, #68
+  version stamping) and built the model-abstraction + validation pipeline (#26
+  per-pass `ModelClient`, #30 frozen prompt/rubric, #31 Zod `json_object`
+  validation, #32 drop-and-count gate, #33 post-filter, #70 confidence ceiling).
+  10 issues, 163 tests. Learnings:
+  - **`critique()` is now a clean pipeline:** model → parse+Zod (#31) →
+    hallucination gate (#32) → confidence ceiling (#70) → post-filter (#33) →
+    version stamp (#68). Each stage is a pure exported fn wired in order, so the
+    remaining model-I/O issues (#27 DashScope client, #28 triage, #29 deep
+    two-step) only need to populate the ModelClient — the output path is done.
+  - **Keep zod enums in sync with `@engine/types` via `as const satisfies
+    readonly Dimension[]`** — compile-time guarantee the schema matches the
+    contract without importing runtime values from the types package.
+  - **Migrations that ALTER a CHECK/serial constraint:** the inline column check
+    is named `<table>_<column>_check` (e.g. `jobs_status_check`) — drop + re-add
+    it by that name; PGlite honors it, so the add-a-status migration is testable.
+    Adding columns mid-stream (#67 `priority`) means updating COLS + the row
+    type + mapRow together or the SELECT silently lacks the field.
+  - **Token-bucket as pure `refillAndConsume` + a Lua mirror** kept #36/#67
+    fully testable with an in-memory clock while the real cross-instance
+    atomicity lives in `TOKEN_BUCKET_LUA` (never run against live Redis in CI).
+  - **Cooperative cancellation invariant is free** if `complete`/`fail` are
+    `WHERE status='running'`: once a job leaves running (cancelling/canceled) a
+    late `processJob` writes nothing — no extra guard needed.
+  - **Next (EM2 critique, model-I/O against a fake transport):** #27 (OpenAI-SDK
+    streaming + thinking split + AbortController — build a DashScope ModelClient
+    behind the #26 interface, test with a fake stream), #28 (triage + phash
+    short-circuit using #15), #29 (deep two-step: thinking call → json_object
+    coercion call, per the 2026-06-18 research the managed path can't collapse),
+    #69 (max_pixels in the adapter, uses #16), #34 (prefix-cache byte-identical
+    test on #63 + cached_tokens telemetry per the #34 research note), #35
+    (free-tier model swap = config). Then EM3 eval (#44-#50) is a fresh package.
+
 - 2026-06-18 (run 3): EM2 Context extraction — shipped the whole context layer as
   a new `@engine/context` package: #59 tokens.json (W3C + Style Dictionary) +
   shared `TokenMap`, #58 CSS custom props (PostCSS), #60 component detection,
