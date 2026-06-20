@@ -43,6 +43,44 @@ apatureai/gate.
 
 ## Self-improvement log (newest first)
 
+- 2026-06-20 (run 10): EM5 security complete + EM6 codeable cores. Shipped #75
+  (DVC content-addressed preference export on R2 — md5 tuples + `.dir` version,
+  lineage, push/pull dedup, GDPR `removeSubject`), #51 (per-tenant SSE-KMS at rest
+  + tier retention 0/30d + `reapExpired`), #52 (connect-time DNS-rebind egress
+  recheck + SSRF regression tests), #53 (prompt-injection: instruction hierarchy +
+  `wrapUntrustedPageContent` delimiter + rendered-text injection canaries), #54
+  (GDPR deletion workflow `eraseTenant` + `ObjectStore.delete` + `docs/COMPLIANCE.md`
+  ROPA/DPA). Plus the codeable cores of three deferred EM6 issues: #76 (self-host
+  single-call `json_schema` guided decoding), #78 (eval-gated shadow-promotion
+  `beatsCurrentJudge`/`shadowPromotionDecision`), and the partial #55
+  (`docs/SOC2-CONTROLS.md` controls map). Started the run by fixing 5 issues an
+  independent multi-specialist review (gstack) found (crash-safe migrations,
+  terminal-state-with-missing-artifact, NaN-skew, v4-mapped SSRF, contract
+  field-guard). 285 tests, all green. Learnings:
+  - **"Live-deferred" is per-AC, not per-issue.** #51/#52/#76/#78 each had a real
+    engine-codeable core under a live-infra headline. Split the ACs: implement the
+    decision/policy/adapter seam (testable with stubs), mark only the GPU/Fly/Vanta
+    AC `[~]`, and say which is which in the PROGRESS note + issue comment. Don't
+    skip a whole issue because its title says "GPU".
+  - **Respect the dependency gate literally.** #77 (dep #22 `[~]`) and #79 (dep #76
+    `[~]`) are NOT pickable even though they look next — a `[~]` dep is not `[x]`.
+    This stopped me from half-building on an unbuilt Firecracker/serving base.
+  - **Adding a primitive to an interface ripples to every impl + needs a use site.**
+    `ObjectStore.delete` (#54) meant memory/dual/s3 (+`DeleteObjectCommand`) AND it
+    unlocked both erasure (`eraseTenant`) and retention (`reapExpired`) — one
+    primitive, two features. Look for that leverage before adding narrow helpers.
+  - **A prompt-version bump is safe because the wire stamp is independent.** Bumping
+    `SYSTEM_PROMPT_VERSION` v1→v2 (#53) did NOT touch the golden fixture: the wire
+    `promptVersion` comes from `PROMPT_VERSION` (`critique.ts`), a separate constant.
+    Verify which constant feeds the wire before fearing a contract break.
+  - **Don't invent churn at exhaustion.** After EM5, the only `[ ]` left are
+    live-infra (#77/#79) or a triggered tracking issue (#80, whose triggers haven't
+    fired). The honest move is to stop picking and wrap up, not to speculatively
+    build #80's webhook/json_schema-GA before the trigger.
+  - **Research notes keep paying off:** #53 built straight from the 2026-06-19
+    OWASP/arXiv injection note (delimiter is partial; #31/#32 are load-bearing;
+    rendered-text is the real vector → canaries cover it), no rework.
+
 - 2026-06-19 (run 9): EM4 data moat complete — #40 in-loop recheck labeling
   (migration 0009), #41 per-repo memory digest (salience = evidence × recency,
   deterministic extractive facts ≤600 tok, after the stable prefix), #74
