@@ -103,7 +103,7 @@ flowchart LR
   F --> G["Stamp versions -> Findings"]
 ```
 
-- **Structured output:** DashScope is a two-step path (Thinking critique → non-thinking `json_object` coercion → Zod) because thinking and JSON mode are mutually exclusive and `max_tokens` cannot be set with `json_object`. Self-host vLLM uses single-call guided decoding (xgrammar/outlines) — the better path, deferred to act-2.
+- **Structured output:** DashScope is a two-step path (Thinking critique → non-thinking `json_object` coercion → Zod) because thinking and JSON mode are mutually exclusive and `max_tokens` cannot be set with `json_object`. Self-host uses single-call guided decoding (SGLang + XGrammar) — the better path, deferred to act-2. SGLang is the primary self-host recommendation: RadixAttention prefix reuse fits the byte-identical context block, and SGLang overlaps grammar-mask generation with inference so guided decoding stays cheap (vLLM degrades at batch >=8). See TRD §7 (2026-06-20 research note, #76).
 - **Image budget:** Qwen3-VL patch-16 + `min_pixels`/`max_pixels` (not Claude's `⌈w/28⌉`/2576px/4784-token constants); `max_pixels` enforced in the adapter and is the cost lever. Prefix caching keyed on the byte-identical context block.
 - **Hallucination gate:** findings whose `route`/`element_ref` are not in the captured set / DOM geometry map are dropped and counted; the drop rate is an SLO that feeds eval.
 
