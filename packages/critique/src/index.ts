@@ -60,6 +60,8 @@ export {
   MAX_BUILD_FACTS,
 } from "./deep-pass.js";
 export type { DeepPassRoute, DeepPassDeps, DeepPassRouteResult } from "./deep-pass.js";
+export { assembleCritique } from "./assemble.js";
+export type { AssembleCritiqueDeps } from "./assemble.js";
 export { cachePrefix, cachedInputTokens, isCacheHit } from "./cache.js";
 export { FREE_TIER_PASS_MODELS, passModelsForTier } from "./tier.js";
 export type { BillingTier } from "./tier.js";
