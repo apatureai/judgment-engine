@@ -1,3 +1,4 @@
+import type { PreviewBuildFact } from "@engine/types";
 import { cachePrefix } from "./cache.js";
 import type { ModelClient, ModelImage, ModelMessage } from "./model.js";
 import { wrapUntrustedPageContent } from "./prompt.js";
@@ -50,6 +51,35 @@ export interface DeepPassDeps {
    * decoding (thinking + json_schema in ONE request) — set `guidedDecoding: true`.
    */
   guidedDecoding?: boolean;
+  /**
+   * PR-level build/runtime facts from Gate's preview-command supervisor (gate
+   * #70 U1, #98). Rendered into every route's prompt as grounded build signals
+   * (capped). Optional — absent leaves the prompt byte-identical.
+   */
+  buildFacts?: PreviewBuildFact[];
+}
+
+/** Cap on build facts rendered into a prompt, so a noisy boot log can't bloat it. */
+export const MAX_BUILD_FACTS = 12;
+
+/**
+ * Render PR-level build/runtime facts (#98) as a clearly-labeled, capped,
+ * deduped block of TRUSTED signals (they come from our own supervisor, not the
+ * page — so they are facts, not fenced untrusted content). Returns "" when there
+ * are none, keeping the prompt byte-identical to the no-facts case.
+ */
+export function renderBuildFacts(facts: PreviewBuildFact[] | undefined): string {
+  if (!facts || facts.length === 0) return "";
+  const seen = new Set<string>();
+  const lines: string[] = [];
+  for (const f of facts) {
+    const line = `- [${f.kind}] ${f.message}${f.source ? ` (${f.source})` : ""}`;
+    if (seen.has(line)) continue;
+    seen.add(line);
+    lines.push(line);
+    if (lines.length >= MAX_BUILD_FACTS) break;
+  }
+  return `\nBuild/runtime signals (from the preview build; trusted facts):\n${lines.join("\n")}`;
 }
 
 export interface DeepPassRouteResult {
@@ -60,6 +90,7 @@ export interface DeepPassRouteResult {
 
 function thinkingMessages(deps: DeepPassDeps, route: DeepPassRoute): ModelMessage[] {
   const factLines = route.facts && route.facts.length > 0 ? `\nDeterministic facts:\n${route.facts.join("\n")}` : "";
+  const buildFacts = renderBuildFacts(deps.buildFacts);
   const digest = route.feedbackDigest ? `\nRepo memory:\n${route.feedbackDigest}` : "";
   // Untrusted DOM text is fenced so the model can read it as page content but
   // never as instructions (#53); trusted facts stay outside the fence.
@@ -69,7 +100,7 @@ function thinkingMessages(deps: DeepPassDeps, route: DeepPassRoute): ModelMessag
     { role: "system", content: cachePrefix(deps.systemPrompt, deps.contextBlock) },
     {
       role: "user",
-      content: `Review route ${route.route}. Cite segment labels + element_ref.${factLines}${digest}${pageText}`,
+      content: `Review route ${route.route}. Cite segment labels + element_ref.${factLines}${buildFacts}${digest}${pageText}`,
       images: route.images,
     },
   ];
