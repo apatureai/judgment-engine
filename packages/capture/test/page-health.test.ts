@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { buildPageHealth, pageHealthFootnote } from "../src/index.js";
+import {
+  DETERMINISTIC_FONTS,
+  FONT_RENDER_HINTING_FLAG,
+  blockedFonts,
+  buildPageHealth,
+  fontStabilityLaunchFlags,
+  pageHealthFootnote,
+} from "../src/index.js";
 
 describe("buildPageHealth", () => {
   it("counts console errors (not warnings/logs) and failed requests", () => {
@@ -25,5 +32,42 @@ describe("pageHealthFootnote", () => {
     expect(note).toContain("1 console error(s)");
     expect(note).toContain("2 failed request(s)");
     expect(note).toContain("visually unstable");
+  });
+});
+
+describe("blocked web-font detection (#83)", () => {
+  it("flags any document.fonts entry not 'loaded' after fonts.ready", () => {
+    const blocked = blockedFonts([
+      { family: "Inter", status: "loaded" },
+      { family: "Roboto", status: "error" }, // egress-blocked / CDN outage -> silent fallback
+      { family: "Lato", status: "unloaded" },
+    ]);
+    expect(blocked.map((f) => f.family)).toEqual(["Roboto", "Lato"]);
+  });
+
+  it("records blocked fonts on the health summary and footnotes the silent substitution", () => {
+    const health = buildPageHealth({
+      console: [],
+      failedRequests: [],
+      fonts: [
+        { family: "Inter", status: "loaded" },
+        { family: "Roboto", status: "error" },
+      ],
+    });
+    expect(health.blockedFonts).toBe(1);
+    expect(pageHealthFootnote(health)).toContain("1 web font(s) blocked/substituted");
+  });
+
+  it("defaults blockedFonts to 0 when no font statuses were collected", () => {
+    expect(buildPageHealth({ console: [], failedRequests: [] }).blockedFonts).toBe(0);
+  });
+});
+
+describe("deterministic font policy (#83)", () => {
+  it("pins the CJK/emoji-covering font set and the headless hinting flag", () => {
+    expect(DETERMINISTIC_FONTS).toContain("Noto Sans CJK");
+    expect(DETERMINISTIC_FONTS).toContain("Noto Color Emoji");
+    expect(fontStabilityLaunchFlags()).toContain(FONT_RENDER_HINTING_FLAG);
+    expect(FONT_RENDER_HINTING_FLAG).toBe("--font-render-hinting=none");
   });
 });

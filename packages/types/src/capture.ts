@@ -44,6 +44,13 @@ export interface PageHealth {
   failedRequests: number;
   /** True when perceptual + structural hashes flag the page as unstable. */
   unstable: boolean;
+  /**
+   * Web fonts that did not finish loading after `document.fonts.ready` (#83) —
+   * the browser silently substituted a fallback, which `fonts.ready` can't
+   * distinguish from a real font bug. Recorded so a substituted font is a
+   * footnote, not a hallucinated "broken text" finding. Defaults to 0.
+   */
+  blockedFonts?: number;
 }
 
 export interface Capture {

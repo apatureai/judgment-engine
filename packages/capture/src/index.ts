@@ -73,8 +73,15 @@ export type {
 export { isPrivateOrReservedIp, evaluateEgress, checkEgressForHost, DomainBudget } from "./egress.js";
 export type { EgressPolicyOptions, EgressDecision, DomainCaps, Resolver } from "./egress.js";
 
-export { buildPageHealth, pageHealthFootnote } from "./page-health.js";
-export type { ConsoleEvent, FailedRequest, PageHealthInput } from "./page-health.js";
+export { buildPageHealth, pageHealthFootnote, blockedFonts } from "./page-health.js";
+export type { ConsoleEvent, FailedRequest, PageHealthInput, FontFaceStatus } from "./page-health.js";
+
+export {
+  DETERMINISTIC_FONTS,
+  FONTCONFIG_FALLBACK_ORDER,
+  FONT_RENDER_HINTING_FLAG,
+  fontStabilityLaunchFlags,
+} from "./font-policy.js";
 
 export { decideStorageState, scopeCookiesToOrigin, originHost } from "./storage-state.js";
 export type { StorageStateDecisionInput, StorageStateDecision, Cookie } from "./storage-state.js";
