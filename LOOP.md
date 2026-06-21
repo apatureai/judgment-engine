@@ -51,6 +51,45 @@ apatureai/gate.
 
 ## Self-improvement log (newest first)
 
+- 2026-06-21 (run 17): shipped #109 — the **end-to-end review orchestrator**, the
+  keystone that finally SEQUENCES the engine's pieces. New `@engine/review`
+  package: `runReview` composes context→capture→triage→deep-pass→assemble→project
+  with every live I/O injected; `createJobReviewProcessor` is the API seam that
+  replaces the EM0 `defaultProcessor` stub. +7 e2e tests (373 total), golden
+  unchanged. Learnings + **priority re-pointing**:
+  - **INTEGRATION / KEYSTONE / TRUNK work OUTRANKS leaf research-filed micro-
+    issues.** Runs 14/15/16 shipped per-piece polish (#100/#104, then hardening
+    glue #106/assemble), but for several runs the single highest-value codeable
+    thing was *assembling the pipeline nobody had wired* — the API still shipped
+    the EM0 stub whose own comment said "EM2 replaces this with the real
+    capture + critique pipeline". When choosing work, prefer the seam that turns
+    N tested-in-isolation pieces into one running flow over the N+1th leaf rule.
+    Trace the whole pipeline end to end; the gap is the stage nobody composed.
+  - **The orchestrator is the LAST big codeable trunk slice. The engine is now at
+    ARCHITECTURE-LEVEL EXHAUSTION.** Every remaining product step is genuinely
+    blocked on HUMAN-PROVIDED LIVE INFRA: the capture sandbox (#11 Playwright /
+    #22 Firecracker-on-Fly), the model serving (#27 DashScope keys / #76 self-host
+    GPUs / #3 Fly provisioning). Those are `[~]` for a reason — they can't run in
+    CI and there is no pure core left to extract behind them; the seams are all
+    built and injected. **Future runs must NOT mistake an endless stream of
+    research-filed polish for real progress.** If the only remaining codeable work
+    is the (N+2)th grounding block or a micro-refinement to an already-tested pure
+    fn, the honest status is "blocked on live infra" — say so and stop, don't
+    churn. Re-pointing: trunk > leaves; and after the trunk is composed, declare
+    the live-infra block rather than manufacturing busywork.
+  - **A pure orchestrator with N injected seams is the right shape for a pipeline
+    whose every external dependency is deferred.** Capture, model factory, and the
+    genome embedder are all injected into `runReview`; tests pass a stub capture +
+    a scripted mock model + a bag-of-tokens fake embedder and assert the full
+    assembled wire result — zero live infra, fully deterministic. This is the same
+    inject-the-I/O / test-the-logic pattern every prior seam used, now applied to
+    the composition itself.
+  - **Wire the keystone SEAM-FIRST, don't rip out the stub.** `createJobApi` still
+    defaults to `defaultProcessor`; the real pipeline is opt-in via
+    `createJobReviewProcessor(...)`. This kept all existing API tests green and
+    left a clean, reviewable diff — the production binding is a one-line change a
+    deployment makes, not a destabilizing rewrite of the API package's tests.
+
 - 2026-06-21 (run 16): backlog exhausted (all open issues pending-merge `[x]` or
   live-infra `[~]`) → hardening protocol, found TWO real gaps in the pipeline's
   composition. 366 tests, golden unchanged. Learnings:

@@ -35,6 +35,9 @@ importers:
       '@engine/jobs':
         specifier: workspace:*
         version: link:../jobs
+      '@engine/review':
+        specifier: workspace:*
+        version: link:../review
       '@engine/storage':
         specifier: workspace:*
         version: link:../storage
@@ -164,6 +167,21 @@ importers:
       ioredis:
         specifier: ^5.11.1
         version: 5.11.1
+
+  packages/review:
+    dependencies:
+      '@engine/capture':
+        specifier: workspace:*
+        version: link:../capture
+      '@engine/context':
+        specifier: workspace:*
+        version: link:../context
+      '@engine/critique':
+        specifier: workspace:*
+        version: link:../critique
+      '@engine/types':
+        specifier: workspace:*
+        version: link:../types
 
   packages/secrets: {}
 
