@@ -47,6 +47,8 @@ Job store and dispatch:
 
 `domcontentloaded` then explicit readiness; never `networkidle`; wait for fonts; freeze animations + reduced motion (re-inject post-scroll); scroll once for lazy-load. Stability via perceptual-hash plus an orthogonal structural-diff hash, excluding animated regions. A page flagged visually unstable applies a **confidence ceiling (≤ 0.70)** to every finding before the post-filter, so instability cannot produce a blocking finding.
 
+- **Pin the page clock (#102).** CSS-animation freeze (#13) does not stop JS-driven, time-dependent rendering — relative timestamps ("2 min ago"), `setInterval`/`requestAnimationFrame` carousels and countdowns, date-defaulting widgets — which otherwise churn the capture and trip the stability gate / break the frozen-capture-set the eval relies on. Pin time with Playwright `page.clock`: `install({time: CAPTURE_EPOCH})` BEFORE `goto` (so load timers run and the page doesn't hang), then `pauseAt(CAPTURE_EPOCH)` after readiness and again after scroll, immediately before capture. `CAPTURE_EPOCH` is a deterministic constant (never wall-clock `now()`), identical for baseline + head. The real `page.clock` runs in the live worker (#11); the ordering seam is unit-tested. Source: https://playwright.dev/docs/api/class-clock (page.clock GA v1.45, Jul 2024; accessed 2026-06-21).
+
 ## 6. Repo Context Extraction
 
 Context grounds the model in the actual repo and must be deterministic and versioned.
