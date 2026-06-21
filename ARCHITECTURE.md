@@ -80,7 +80,7 @@ Capture runs in a **Firecracker microVM per job on Fly Machines** — built, not
 
 - **Egress:** two layers — `nftables` in the guest network namespace (deny RFC-1918 / link-local `169.254.0.0/16` / metadata / `::1`; allow public assets with caps) as the primary control, plus Playwright-level DNS re-resolution to defeat rebinding.
 - **storageState:** KMS-decrypted inside the microVM only, origin-scoped, disabled on fork PRs.
-- **Latency:** cold-start Firecracker + Chromium at MVP; a warm-pool manager (snapshot/UFFD) is the deferred lever for the latency budget at scale. The 120s wall clock is per page-capture; jobs fan out across microVMs.
+- **Latency:** cold-start Firecracker + Chromium at MVP; a warm-pool manager is the deferred lever for the latency budget at scale (#77). Restore via Fly's **per-machine suspend/resume (1:1, ~hundreds of ms)** is the recommended default — cloning one golden snapshot across concurrent hostile-PR sandboxes is documented-insecure (entropy/RNG/token reuse) without VMGenID/VMClock reseeding. See TRD §4 (2026-06-21 research note). The 120s wall clock is per page-capture; jobs fan out across microVMs.
 - **Reversibility & residency:** everything sits behind `captureInSandbox(url, ctx)`; the enterprise in-VPC path runs the same sandbox in the customer cloud so screenshots never leave it.
 
 ## 5. Capture Trust Protocol (Decision E4)
@@ -103,7 +103,7 @@ flowchart LR
   F --> G["Stamp versions -> Findings"]
 ```
 
-- **Structured output:** DashScope is a two-step path (Thinking critique → non-thinking `json_object` coercion → Zod) because thinking and JSON mode are mutually exclusive and `max_tokens` cannot be set with `json_object`. Self-host vLLM uses single-call guided decoding (xgrammar/outlines) — the better path, deferred to act-2.
+- **Structured output:** DashScope is a two-step path (Thinking critique → non-thinking `json_object` coercion → Zod) because thinking and JSON mode are mutually exclusive and `max_tokens` cannot be set with `json_object`. Self-host uses single-call guided decoding (SGLang + XGrammar) — the better path, deferred to act-2. SGLang is the primary self-host recommendation: RadixAttention prefix reuse fits the byte-identical context block, and SGLang overlaps grammar-mask generation with inference so guided decoding stays cheap (vLLM degrades at batch >=8). See TRD §7 (2026-06-20 research note, #76).
 - **Image budget:** Qwen3-VL patch-16 + `min_pixels`/`max_pixels` (not Claude's `⌈w/28⌉`/2576px/4784-token constants); `max_pixels` enforced in the adapter and is the cost lever. Prefix caching keyed on the byte-identical context block.
 - **Hallucination gate:** findings whose `route`/`element_ref` are not in the captured set / DOM geometry map are dropped and counted; the drop rate is an SLO that feeds eval.
 
