@@ -51,6 +51,38 @@ apatureai/gate.
 
 ## Self-improvement log (newest first)
 
+- 2026-06-21 (run 14): shipped the two research-filed issues from runs 13/12's
+  research loop — #100 (model emits dedicated `title`+`description`, retiring the
+  interim `deriveTitle` from the run-13 hardening) and #102 (deterministic
+  page-clock ordering seam). 343 tests, golden unchanged. Learnings:
+  - **A clean field migration touches 6 surfaces — change them as one slice.**
+    `evidence` → `title`+`description` (#100) meant: the Zod `FindingSchema`, the
+    `critiqueJsonSchema` (guided decoding required[]+properties), the in-prompt
+    `schemaInstruction` text, the internal `Finding` type, the wire projection,
+    AND every test that builds a `Finding` literal. typecheck is the driver — it
+    flags each unmigrated site. Grep the field name first to size it.
+  - **A prompt change can be golden-safe — confirm WHICH constant feeds the wire.**
+    Bumped `SYSTEM_PROMPT_VERSION` v2→v3 freely because the wire `promptVersion`
+    stamp comes from the SEPARATE `PROMPT_VERSION` const (critique.ts). Verified
+    before fearing a contract break (same lesson as the #53 v1→v2 bump).
+  - **Live-browser feature → ship the pure ordering seam, inject the I/O (#102).**
+    `withDeterministicClock(clock, phases)` takes an injected `PageClock` +
+    goto/readiness/scroll callbacks; the test asserts the exact call ORDER
+    (install-before-goto, pauseAt-after-readiness, re-pin-after-scroll) and that
+    the epoch is a deterministic constant, not `now()`. No real browser; the live
+    Playwright `page.clock` binds in the worker (#11). Same "pure core vs live
+    seam" split that unlocked all of EM1.
+  - **NEVER pipe `sed`-transformed text into `gh pr edit --body "$(…)"`.** Last
+    run a failed `sed` (unescaped parens) produced empty output and silently set
+    PR #99's body to EMPTY — losing every `Closes #N` line. Use `--body-file`
+    with a written file (verifiable before submit), and after any PR-body edit
+    re-read the body to confirm. Restored #99's body from the commit history this
+    run.
+  - **Backlog re-exhausted, honestly.** After #100/#102 the only open issues are
+    live-infra/ops `[~]` (#77/#79/#76/#73/#22/#49/#50/#55/#21/#11-#14) or #87
+    (eval-gated, core already done). Stop, don't invent churn. The research loop
+    will refill it again.
+
 - 2026-06-21 (run 13): backlog genuinely exhausted (every open issue is on PR #99
   pending merge, or live-infra/ops `[~]`), so ran the hardening protocol and found
   ONE real gap: the `Critique` → `EngineReviewResult` **wire projection never
