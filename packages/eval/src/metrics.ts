@@ -149,3 +149,197 @@ export function bootstrapKappaCI(a: Grade[], b: Grade[], options: BootstrapOptio
   const at = (q: number): number => samples[Math.min(samples.length - 1, Math.max(0, Math.floor(q * samples.length)))] ?? 0;
   return { kappa: quadraticWeightedKappa(a, b), lower: at(alpha / 2), upper: at(1 - alpha / 2) };
 }
+
+/**
+ * Multi-rater agreement coefficients (#84). Quadratic-weighted Cohen's kappa
+ * (above) is strictly pairwise and prevalence-sensitive: on our heavily
+ * `ship`-skewed grade distribution with 2-3 golden-set raters (#45) it can read
+ * misleadingly low (the "kappa paradox") and miss raters/missing labels. These
+ * add two coefficients better matched to the setup, both pure stats in the eval
+ * boundary, additive to #46:
+ *   - Krippendorff's alpha (ordinal/nominal/interval): native ≥2 raters +
+ *     missing data, via the coincidence matrix.
+ *   - Gwet's AC2 (ordinal weights): chance-correction robust to skewed marginals.
+ * Read the HEADLINE agreement from AC2/alpha on skewed sets; keep weighted kappa
+ * for continuity. (Sources: arXiv:2603.06865; Gwet 2014; K-Alpha, PMC 2024.)
+ *
+ * Ratings matrix: one row per unit/item, one column per rater; categories are
+ * 0-based ordinal indices (map grades via `GRADE_SCALE.indexOf`); `null` = a
+ * missing rating. Units with fewer than two present ratings are ignored.
+ */
+export type RatingsMatrix = ReadonlyArray<ReadonlyArray<number | null>>;
+export type AgreementMetric = "ordinal" | "nominal" | "interval";
+export type AgreementWeights = "quadratic" | "linear" | "identity";
+
+export interface AgreementOptions {
+  /** Number of ordinal categories; inferred from the data (max index + 1) if omitted. */
+  categories?: number;
+}
+
+function categoryCount(ratings: RatingsMatrix, options: AgreementOptions): number {
+  if (options.categories !== undefined) return options.categories;
+  let max = -1;
+  for (const row of ratings) for (const v of row) if (v !== null && v > max) max = v;
+  return max + 1;
+}
+
+/** Per-unit category counts (only units with >= 2 present ratings). */
+function unitCounts(ratings: RatingsMatrix, q: number): Array<{ counts: number[]; total: number }> {
+  const units: Array<{ counts: number[]; total: number }> = [];
+  for (const row of ratings) {
+    const counts = Array<number>(q).fill(0);
+    let total = 0;
+    for (const v of row) {
+      if (v === null) continue;
+      if (v < 0 || v >= q) throw new Error(`rating ${v} out of range [0, ${q})`);
+      counts[v] = (counts[v] ?? 0) + 1;
+      total++;
+    }
+    if (total >= 2) units.push({ counts, total });
+  }
+  return units;
+}
+
+/**
+ * Krippendorff's alpha over an ordinal (default), nominal, or interval scale.
+ * Handles >= 2 raters and missing labels natively via the coincidence matrix.
+ */
+export function krippendorffAlpha(
+  ratings: RatingsMatrix,
+  metric: AgreementMetric = "ordinal",
+  options: AgreementOptions = {},
+): number {
+  const q = categoryCount(ratings, options);
+  if (q < 1) throw new Error("krippendorffAlpha needs at least one category");
+  const units = unitCounts(ratings, q);
+  if (units.length === 0) throw new Error("krippendorffAlpha needs a unit with >= 2 ratings");
+
+  const o: number[][] = Array.from({ length: q }, () => Array<number>(q).fill(0));
+  for (const { counts, total } of units) {
+    for (let c = 0; c < q; c++) {
+      const row = o[c] as number[];
+      for (let k = 0; k < q; k++) {
+        const pairs = c === k ? (counts[c] ?? 0) * ((counts[c] ?? 0) - 1) : (counts[c] ?? 0) * (counts[k] ?? 0);
+        row[k] = (row[k] ?? 0) + pairs / (total - 1);
+      }
+    }
+  }
+  const marg = o.map((row) => row.reduce((a, b) => a + b, 0));
+  const n = marg.reduce((a, b) => a + b, 0);
+
+  const delta2 = (c: number, k: number): number => {
+    if (c === k) return 0;
+    if (metric === "nominal") return 1;
+    if (metric === "interval") return (c - k) * (c - k);
+    const lo = Math.min(c, k);
+    const hi = Math.max(c, k);
+    let sum = 0;
+    for (let g = lo; g <= hi; g++) sum += marg[g] ?? 0;
+    const d = sum - ((marg[lo] ?? 0) + (marg[hi] ?? 0)) / 2;
+    return d * d;
+  };
+
+  let obs = 0;
+  let exp = 0;
+  for (let c = 0; c < q; c++) {
+    for (let k = 0; k < q; k++) {
+      const d = delta2(c, k);
+      obs += ((o[c] as number[])[k] ?? 0) * d;
+      exp += (marg[c] ?? 0) * (marg[k] ?? 0) * d;
+    }
+  }
+  if (exp === 0) return 1; // no expected disagreement -> perfect by convention
+  return 1 - ((n - 1) * obs) / exp;
+}
+
+function agreementWeight(k: number, l: number, q: number, weights: AgreementWeights): number {
+  if (weights === "identity") return k === l ? 1 : 0;
+  if (q < 2) return 1;
+  const d = Math.abs(k - l);
+  if (weights === "linear") return 1 - d / (q - 1);
+  return 1 - (d * d) / ((q - 1) * (q - 1));
+}
+
+/**
+ * Gwet's AC2 with ordinal agreement weights (quadratic by default). Robust to
+ * skewed/prevalence-imbalanced category distributions; with identity weights it
+ * reduces to Gwet's AC1.
+ */
+export function gwetAC2(
+  ratings: RatingsMatrix,
+  weights: AgreementWeights = "quadratic",
+  options: AgreementOptions = {},
+): number {
+  const q = categoryCount(ratings, options);
+  if (q < 2) return 1; // a single category -> everyone agrees
+  const units = unitCounts(ratings, q);
+  if (units.length === 0) throw new Error("gwetAC2 needs a unit with >= 2 ratings");
+
+  let pa = 0;
+  for (const { counts, total } of units) {
+    let agree = 0;
+    for (let k = 0; k < q; k++) {
+      for (let l = 0; l < q; l++) {
+        agree += agreementWeight(k, l, q, weights) * (counts[k] ?? 0) * (counts[l] ?? 0);
+      }
+    }
+    agree -= total; // remove self-pairs (w_kk = 1)
+    pa += agree / (total * (total - 1));
+  }
+  pa /= units.length;
+
+  const pi = Array<number>(q).fill(0);
+  for (const { counts, total } of units) {
+    for (let k = 0; k < q; k++) pi[k] = (pi[k] ?? 0) + (counts[k] ?? 0) / total;
+  }
+  for (let k = 0; k < q; k++) pi[k] = (pi[k] ?? 0) / units.length;
+
+  let tw = 0;
+  for (let k = 0; k < q; k++) for (let l = 0; l < q; l++) tw += agreementWeight(k, l, q, weights);
+  let sumPi = 0;
+  for (let k = 0; k < q; k++) sumPi += (pi[k] ?? 0) * (1 - (pi[k] ?? 0));
+  const pe = (tw / (q * (q - 1))) * sumPi;
+  if (1 - pe === 0) return 1;
+  return (pa - pe) / (1 - pe);
+}
+
+/** Map a matrix of grades (per unit, per rater; null = missing) to ordinal indices. */
+export function gradeRatingsMatrix(rows: ReadonlyArray<ReadonlyArray<Grade | null>>): Array<Array<number | null>> {
+  return rows.map((row) => row.map((g) => (g === null ? null : GRADE_SCALE.indexOf(g))));
+}
+
+export interface AgreementCI {
+  value: number;
+  lower: number;
+  upper: number;
+}
+
+/**
+ * Seeded bootstrap percentile CI for any matrix-based agreement estimator,
+ * resampling UNITS (rows) with replacement. Reuses the #46 mulberry32 seed.
+ */
+export function bootstrapAgreementCI(
+  ratings: RatingsMatrix,
+  estimator: (m: RatingsMatrix) => number,
+  options: BootstrapOptions = {},
+): AgreementCI {
+  const iterations = options.iterations ?? 1000;
+  const alpha = options.alpha ?? 0.05;
+  const rng = mulberry32(options.seed ?? 1);
+  const n = ratings.length;
+  const samples: number[] = [];
+  for (let it = 0; it < iterations; it++) {
+    const resampled: ReadonlyArray<number | null>[] = [];
+    for (let i = 0; i < n; i++) resampled.push(ratings[Math.floor(rng() * n)] ?? []);
+    try {
+      const v = estimator(resampled);
+      if (Number.isFinite(v)) samples.push(v);
+    } catch {
+      // degenerate resample (e.g. no usable unit) -> skip
+    }
+  }
+  samples.sort((x, y) => x - y);
+  const at = (qf: number): number =>
+    samples[Math.min(samples.length - 1, Math.max(0, Math.floor(qf * samples.length)))] ?? 0;
+  return { value: estimator(ratings), lower: at(alpha / 2), upper: at(1 - alpha / 2) };
+}
