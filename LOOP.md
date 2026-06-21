@@ -51,6 +51,33 @@ apatureai/gate.
 
 ## Self-improvement log (newest first)
 
+- 2026-06-21 (run 16): backlog exhausted (all open issues pending-merge `[x]` or
+  live-infra `[~]`) → hardening protocol, found TWO real gaps in the pipeline's
+  composition. 366 tests, golden unchanged. Learnings:
+  - **The biggest gaps are missing GLUE between tested pieces, not bugs in them.**
+    `runDeepPass` (#29) returns PER-ROUTE outputs; the validation tail (#32 gate /
+    #70 ceiling / #33 cap+dedupe / #68 stamp) must run ONCE GLOBALLY — but nothing
+    aggregated routes into a `Critique`. `critique()` did the tail only for its
+    single stub pass. Added `assembleCritique`. Same shape as the run-13 wire-
+    projection gap: a fixture/anchor + per-piece tests pass while the END-TO-END
+    assembly is absent. Hardening = trace the full pipeline (capture→context→
+    triage→deep-pass→assemble→project) and find the seam nobody wrote.
+  - **A drop-stage downstream of a decision-stage creates a consistency gap.** The
+    grade is set from the model, THEN #32/#33 drop findings — leaving a grade its
+    surviving findings don't justify (a "blocked" with all blockers gate-dropped
+    would block a PR on nothing). Whenever stage B removes what stage A's output
+    was based on, add a reconcile step (`reconcileGrade`, floor-only). Filed #106
+    then fixed it (the issue fully specified the severity→grade policy, so it was
+    safe to implement, not just file).
+  - **Avoid the import cycle when extracting shared logic.** `assemble.ts` imports
+    `ENGINE_VERSION` from `critique.ts`, and `critique.ts` needed `reconcileGrade`
+    — putting it in `assemble.ts` would cycle. New leaf `grade.ts` (no local deps)
+    imported by both. When two modules need a helper and one already imports the
+    other, the helper goes in a THIRD leaf module.
+  - **Apply a fix in EVERY equivalent path.** `reconcileGrade` went into both
+    `critique()` AND `assembleCritique` so the single-pass and multi-route paths
+    can't drift. A fix in one of two parallel code paths is half a fix.
+
 - 2026-06-21 (run 15): shipped #104 (UI-DNA genome grounding via retrieval) — the
   research loop's latest filing. New pure `genome-grounding.ts` in `@engine/context`
   (embed-once index + cosine top-k + char cap) injected into the deep pass as a
