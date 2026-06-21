@@ -13,6 +13,7 @@
     { "path": "packages/api" },
     { "path": "packages/context" },
     { "path": "packages/eval" },
-    { "path": "packages/feedback" }
+    { "path": "packages/feedback" },
+    { "path": "packages/review" }
   ]
 }

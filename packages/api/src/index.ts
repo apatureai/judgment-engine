@@ -1,5 +1,6 @@
 export { createJobApi } from "./server.js";
 export type { JobApiOptions, JobProcessor, ApiRequest, ApiResponse } from "./server.js";
+export { createJobReviewProcessor } from "./review-processor.js";
 export {
   verifyEngineRequest,
   signEngineRequest,

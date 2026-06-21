@@ -1,0 +1,18 @@
+{
+  "name": "@engine/review",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "End-to-end review orchestrator: composes context + capture + triage + deep-pass + assemble + wire-projection into one review pipeline. The keystone the async job API runs as its processor.",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": { ".": { "types": "./dist/index.d.ts", "default": "./dist/index.js" } },
+  "files": ["dist"],
+  "scripts": { "test": "vitest run" },
+  "dependencies": {
+    "@engine/capture": "workspace:*",
+    "@engine/context": "workspace:*",
+    "@engine/critique": "workspace:*",
+    "@engine/types": "workspace:*"
+  }
+}

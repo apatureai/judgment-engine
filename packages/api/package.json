@@ -11,6 +11,7 @@
   "scripts": { "test": "vitest run" },
   "dependencies": {
     "@engine/jobs": "workspace:*",
+    "@engine/review": "workspace:*",
     "@engine/storage": "workspace:*",
     "@engine/types": "workspace:*"
   },

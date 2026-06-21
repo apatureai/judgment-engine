@@ -3,9 +3,9 @@
   "compilerOptions": { "rootDir": "src", "outDir": "dist" },
   "include": ["src/**/*.ts"],
   "references": [
-    { "path": "../jobs" },
-    { "path": "../review" },
-    { "path": "../storage" },
-    { "path": "../types" }
+    { "path": "../types" },
+    { "path": "../capture" },
+    { "path": "../context" },
+    { "path": "../critique" }
   ]
 }
