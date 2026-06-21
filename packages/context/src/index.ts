@@ -13,4 +13,17 @@ export { extractTailwindTokens, resolveTailwindV3Tokens } from "./tailwind.js";
 export { extractTailwindV4 } from "./tailwind-v4.js";
 export type { TailwindV4Result } from "./tailwind-v4.js";
 export { CONTEXT_VERSION, serializeContextBlock, buildContextBlock } from "./context-block.js";
+export {
+  buildGenomeIndex,
+  retrieveGenomeRules,
+  selectGenomeRules,
+  cosineSimilarity,
+} from "./genome-grounding.js";
+export type {
+  GenomeRule,
+  GenomeIndex,
+  Embedder,
+  GenomeRetrievalOptions,
+  RetrievedGenomeRule,
+} from "./genome-grounding.js";
 export type { ContextBlockInput, ContextBlock } from "./context-block.js";

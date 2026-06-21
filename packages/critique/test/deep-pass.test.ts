@@ -6,6 +6,7 @@ import {
   critiqueRouteTwoStep,
   mapWithConcurrency,
   renderBuildFacts,
+  renderGenomeRules,
   runDeepPass,
   type DeepPassDeps,
   type DeepPassRoute,
@@ -129,6 +130,32 @@ describe("previewBuildFacts grounding (#98)", () => {
     await critiqueRouteTwoStep(deps(mock), route("/x"));
     const userMsg = mock.calls[0]?.messages.find((m) => m.role === "user");
     expect(userMsg?.content).not.toContain("Build/runtime signals");
+  });
+});
+
+describe("UI-DNA genome grounding (#104)", () => {
+  it("renderGenomeRules: labeled trusted block, or empty when none", () => {
+    expect(renderGenomeRules(undefined)).toBe("");
+    expect(renderGenomeRules([])).toBe("");
+    const out = renderGenomeRules(["Buttons use the accent token", "Cards use 16px spacing"]);
+    expect(out).toContain("Design-system rules (UI-DNA; trusted):");
+    expect(out).toContain("- Buttons use the accent token");
+  });
+
+  it("injects the route's retrieved genome rules into its deep-pass prompt", async () => {
+    const mock = new TwoStepMock();
+    const r: DeepPassRoute = { ...route("/pricing"), genomeRules: ["Buttons use the accent color token"] };
+    await critiqueRouteTwoStep(deps(mock), r);
+    const userMsg = mock.calls.find((c) => c.thinking)?.messages.find((m) => m.role === "user");
+    expect(userMsg?.content).toContain("Design-system rules (UI-DNA; trusted):");
+    expect(userMsg?.content).toContain("accent color token");
+  });
+
+  it("leaves the prompt without a genome block when no rules are supplied", async () => {
+    const mock = new TwoStepMock();
+    await critiqueRouteTwoStep(deps(mock), route("/x"));
+    const userMsg = mock.calls[0]?.messages.find((m) => m.role === "user");
+    expect(userMsg?.content).not.toContain("Design-system rules (UI-DNA");
   });
 });
 

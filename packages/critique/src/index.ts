@@ -56,6 +56,7 @@ export {
   runDeepPass,
   mapWithConcurrency,
   renderBuildFacts,
+  renderGenomeRules,
   MAX_BUILD_FACTS,
 } from "./deep-pass.js";
 export type { DeepPassRoute, DeepPassDeps, DeepPassRouteResult } from "./deep-pass.js";

@@ -28,6 +28,12 @@ export interface DeepPassRoute {
   /** Per-repo memory digest suffix (#41), optional. */
   feedbackDigest?: string;
   /**
+   * Top-k UI-DNA genome rules retrieved for THIS route (#104) — the resolved
+   * design-system rules relevant to the route's components/diff. Trusted grounding
+   * (from our resolved genome, not the page). Absent leaves the prompt unchanged.
+   */
+  genomeRules?: string[];
+  /**
    * Untrusted DOM text extracted from the page (#53). Fenced in the
    * `untrusted_page_content` delimiter and governed by the data-not-instructions
    * rule in the system prompt — never treated as instructions.
@@ -82,6 +88,16 @@ export function renderBuildFacts(facts: PreviewBuildFact[] | undefined): string 
   return `\nBuild/runtime signals (from the preview build; trusted facts):\n${lines.join("\n")}`;
 }
 
+/**
+ * Render the route's retrieved UI-DNA genome rules (#104) as a labeled block of
+ * TRUSTED design-system grounding (from the resolved genome, not the page).
+ * Returns "" when there are none, keeping the prompt byte-identical.
+ */
+export function renderGenomeRules(rules: string[] | undefined): string {
+  if (!rules || rules.length === 0) return "";
+  return `\nDesign-system rules (UI-DNA; trusted):\n${rules.map((r) => `- ${r}`).join("\n")}`;
+}
+
 export interface DeepPassRouteResult {
   route: string;
   /** Validated output, or null if the coercion failed (no partial emitted). */
@@ -91,6 +107,7 @@ export interface DeepPassRouteResult {
 function thinkingMessages(deps: DeepPassDeps, route: DeepPassRoute): ModelMessage[] {
   const factLines = route.facts && route.facts.length > 0 ? `\nDeterministic facts:\n${route.facts.join("\n")}` : "";
   const buildFacts = renderBuildFacts(deps.buildFacts);
+  const genomeRules = renderGenomeRules(route.genomeRules);
   const digest = route.feedbackDigest ? `\nRepo memory:\n${route.feedbackDigest}` : "";
   // Untrusted DOM text is fenced so the model can read it as page content but
   // never as instructions (#53); trusted facts stay outside the fence.
@@ -100,7 +117,7 @@ function thinkingMessages(deps: DeepPassDeps, route: DeepPassRoute): ModelMessag
     { role: "system", content: cachePrefix(deps.systemPrompt, deps.contextBlock) },
     {
       role: "user",
-      content: `Review route ${route.route}. Cite segment labels + element_ref.${factLines}${buildFacts}${digest}${pageText}`,
+      content: `Review route ${route.route}. Cite segment labels + element_ref.${factLines}${genomeRules}${buildFacts}${digest}${pageText}`,
       images: route.images,
     },
   ];
