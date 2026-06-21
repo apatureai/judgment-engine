@@ -31,8 +31,31 @@ export interface PreferenceExample {
   verdict: "endorsed" | "dismissed";
   /** KTO-style binary label (#85). */
   label: "desirable" | "undesirable";
+  /** Provenance of the label (#85 AC1): which feedback channel produced it. */
+  source: KtoSource;
   /** Whether at least one collaborator (training-grade) signal backs the verdict. */
   trainingGrade: boolean;
+}
+
+/** KTO label provenance (#85): the human channel the binary label came from. */
+export type KtoSource = "thumbs" | "ignore" | "implicit";
+
+/**
+ * Map a raw feedback signal to its KTO source channel (#38/#39). Explicit thumbs
+ * are the strongest provenance, then `/ignore`, then implicit accept/merge.
+ */
+export function ktoSourceForSignal(signal: FeedbackSignal): KtoSource {
+  if (signal === "thumbs_up" || signal === "thumbs_down") return "thumbs";
+  if (signal === "ignore") return "ignore";
+  return "implicit";
+}
+
+/** Pick the example's source from its signals (thumbs > ignore > implicit). */
+function dominantKtoSource(signals: Array<{ signal: FeedbackSignal }>): KtoSource {
+  const sources = signals.map((s) => ktoSourceForSignal(s.signal));
+  if (sources.includes("thumbs")) return "thumbs";
+  if (sources.includes("ignore")) return "ignore";
+  return "implicit";
 }
 
 export interface PreferenceExportOptions {
@@ -114,6 +137,7 @@ export async function exportPreferenceDataset(
       },
       verdict: endorsed ? "endorsed" : "dismissed",
       label: endorsed ? "desirable" : "undesirable",
+      source: dominantKtoSource(signals),
       trainingGrade: signals.some((s) => isTrainingGrade(s.rater_permission)),
     });
   }

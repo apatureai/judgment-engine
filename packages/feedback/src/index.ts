@@ -21,8 +21,8 @@ export type { MemoryPattern, MemoryDigestOptions } from "./memory-digest.js";
 export { scanForPii, isPiiClean, trainingEligible } from "./pii.js";
 export type { PiiMatch } from "./pii.js";
 export { TrainingConsentStore } from "./consent.js";
-export { exportPreferenceDataset } from "./preference-export.js";
-export type { PreferenceExample, PreferenceExportOptions } from "./preference-export.js";
+export { exportPreferenceDataset, ktoSourceForSignal } from "./preference-export.js";
+export type { PreferenceExample, PreferenceExportOptions, KtoSource } from "./preference-export.js";
 export {
   buildDvcDataset,
   removeSubject,
