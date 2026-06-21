@@ -51,6 +51,33 @@ apatureai/gate.
 
 ## Self-improvement log (newest first)
 
+- 2026-06-21 (run 15): shipped #104 (UI-DNA genome grounding via retrieval) — the
+  research loop's latest filing. New pure `genome-grounding.ts` in `@engine/context`
+  (embed-once index + cosine top-k + char cap) injected into the deep pass as a
+  trusted design-system block. 356 tests, golden unchanged. Learnings:
+  - **Retrieval grounding is a clean pure-core/live-seam split.** The embedder is
+    an injected `Embedder` async fn; tests use a deterministic bag-of-vocab fake
+    (token overlap → cosine), so retrieval ranking is both meaningful AND
+    reproducible without any model call. Same pattern as every other live seam
+    (capture, model, sandbox): inject the I/O, test the logic.
+  - **Per-route vs PR-level grounding goes on the right object.** Build facts (#98)
+    are PR-level → `DeepPassDeps`; genome rules are retrieved PER ROUTE (query =
+    route+components+diff) → `DeepPassRoute`. Put each grounding source where its
+    scope lives so the worker wires it once at the right granularity.
+  - **Content-address the index over content, version-independent of order.** The
+    genome `contentHash` sorts id+text before hashing so rule reordering doesn't
+    bust the cache, but any text/version change does — mirrors #63's canonicalize-
+    then-hash. A reorder-sensitive hash would needlessly recompute embeddings.
+  - **Each new grounding block is one render fn + one optional field, additive.**
+    `renderGenomeRules` + `DeepPassRoute.genomeRules` (absent ⇒ byte-identical
+    prompt) is the same shape as `renderBuildFacts`/#98 — keeps the golden
+    untouched and the no-genome path a no-op. The grounding layer is now an
+    open set of labeled trusted blocks (deterministic facts #19, build facts #98,
+    genome rules #104) the prompt composes.
+  - **Codeable backlog re-exhausted** after #104 — remaining open issues are
+    live-infra/ops `[~]` or #87 (eval-gated, core done). The research loop is the
+    refill source; stop, don't churn.
+
 - 2026-06-21 (run 14): shipped the two research-filed issues from runs 13/12's
   research loop — #100 (model emits dedicated `title`+`description`, retiring the
   interim `deriveTitle` from the run-13 hardening) and #102 (deterministic
