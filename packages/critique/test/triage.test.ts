@@ -33,7 +33,7 @@ describe("allUnchanged (#28 short-circuit)", () => {
 });
 
 describe("runTriage", () => {
-  it("short-circuits with a one-line result when phash matches the baseline (no model call)", async () => {
+  const noModelCall = () => {
     let called = false;
     const client: ModelClient = {
       backend: "mock",
@@ -42,13 +42,36 @@ describe("runTriage", () => {
         return { text: "{}", usage: { inputTokens: 0, outputTokens: 0, cachedTokens: 0 }, finishReason: "stop" };
       },
     };
+    return { client, wasCalled: () => called };
+  };
+
+  it("short-circuits only when phash matches AND the tile-wise diff confirms unchanged (no model call)", async () => {
+    const { client, wasCalled } = noModelCall();
     const result = await runTriage({ client, model: "qwen3-vl-flash" }, [
-      route({ baselinePhash: "ffff", currentPhash: "ffff" }),
+      route({ baselinePhash: "ffff", currentPhash: "ffff", tileScores: [{ ssim: 1 }, { ssim: 0.999 }] }),
     ]);
     expect(result.shortCircuited).toBe(true);
     expect(result.needsDeepReview).toBe(false);
     expect(result.summary).toMatch(/no design changes/i);
-    expect(called).toBe(false); // never spent a model call
+    expect(wasCalled()).toBe(false); // never spent a model call
+  });
+
+  it("does NOT short-circuit on a phash match when a tile's SSIM is below threshold (#89 regression)", async () => {
+    const client = clientReturning({ needsDeepReview: true, suspectRoutes: ["/pricing"], obviousBreakage: [] });
+    // pHash identical (low-frequency-blind), but one tile changed (e.g. a button color tweak).
+    const result = await runTriage({ client, model: "qwen3-vl-flash" }, [
+      route({ baselinePhash: "ffff", currentPhash: "ffff", tileScores: [{ ssim: 1 }, { ssim: 0.5 }] }),
+    ]);
+    expect(result.shortCircuited).toBe(false);
+    expect(result.needsDeepReview).toBe(true);
+  });
+
+  it("fails open to a deep review when a phash match has no sensitive-diff input", async () => {
+    const client = clientReturning({ needsDeepReview: true, suspectRoutes: [], obviousBreakage: [] });
+    const result = await runTriage({ client, model: "qwen3-vl-flash" }, [
+      route({ baselinePhash: "ffff", currentPhash: "ffff" }), // no tileScores
+    ]);
+    expect(result.shortCircuited).toBe(false);
   });
 
   it("runs the flash model on changes and emits the triage decision", async () => {

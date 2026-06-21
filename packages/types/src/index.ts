@@ -22,6 +22,8 @@ export type {
   CritiqueOptions,
   Critique_Fn,
   CritiqueInput,
+  PreviewBuildFact,
+  PreviewBuildFactKind,
 } from "./critique-fn.js";
 export {
   SCHEMA_VERSION,

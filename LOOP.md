@@ -15,9 +15,17 @@ apatureai/gate.
    `[~] -> skipped: <reason>`, **stub the model/sandbox and keep going**.
 4. Verify green: `pnpm install` (if deps changed) → `pnpm typecheck` → `pnpm test`
    → `pnpm lint`. Never commit red.
-5. Flip `PROGRESS.md`, commit (plain message, **no AI attribution**), push, keep
-   ONE PR `agent/build -> main` updated with `Closes #<N>` lines (open a new PR if
-   the current one is merged/closed). Don't merge it; leave for human review.
+5. Flip `PROGRESS.md`, commit (plain message, **no AI attribution**), push.
+   **PR scope: one PR per milestone, not one ever-growing PR.** Keep a single
+   open build PR for the *current* milestone (EM0/EM1/…) with `Closes #<N>` per
+   issue landed; when that milestone's issues are all done, leave it for human
+   review/merge and open a fresh PR for the next milestone (base `main`). Don't
+   merge it yourself. Milestone-sized PRs (~10–25 commits) actually get reviewed
+   and merged, which keeps `agent/build` close to `main`; a giant 80-commit PR is
+   unreviewable. (Learned 2026-06-20: the one rolling PR had to be split into
+   stacked review PRs after the fact — do it incrementally instead.)
+   - Any post-hoc review branches must be cut from an `agent/build` that has
+     ALREADY merged latest `main`, or early snapshots conflict on the lockfile.
 6. Comment 2-3 lines on the issue. Update this log before ending.
 
 ## Conventions (from gate; don't rediscover)
@@ -42,6 +50,168 @@ apatureai/gate.
   UI-DNA from ui-dna/source-of-truth (mock those) but does not own the genome.
 
 ## Self-improvement log (newest first)
+
+- 2026-06-21 (run 16): backlog exhausted (all open issues pending-merge `[x]` or
+  live-infra `[~]`) → hardening protocol, found TWO real gaps in the pipeline's
+  composition. 366 tests, golden unchanged. Learnings:
+  - **The biggest gaps are missing GLUE between tested pieces, not bugs in them.**
+    `runDeepPass` (#29) returns PER-ROUTE outputs; the validation tail (#32 gate /
+    #70 ceiling / #33 cap+dedupe / #68 stamp) must run ONCE GLOBALLY — but nothing
+    aggregated routes into a `Critique`. `critique()` did the tail only for its
+    single stub pass. Added `assembleCritique`. Same shape as the run-13 wire-
+    projection gap: a fixture/anchor + per-piece tests pass while the END-TO-END
+    assembly is absent. Hardening = trace the full pipeline (capture→context→
+    triage→deep-pass→assemble→project) and find the seam nobody wrote.
+  - **A drop-stage downstream of a decision-stage creates a consistency gap.** The
+    grade is set from the model, THEN #32/#33 drop findings — leaving a grade its
+    surviving findings don't justify (a "blocked" with all blockers gate-dropped
+    would block a PR on nothing). Whenever stage B removes what stage A's output
+    was based on, add a reconcile step (`reconcileGrade`, floor-only). Filed #106
+    then fixed it (the issue fully specified the severity→grade policy, so it was
+    safe to implement, not just file).
+  - **Avoid the import cycle when extracting shared logic.** `assemble.ts` imports
+    `ENGINE_VERSION` from `critique.ts`, and `critique.ts` needed `reconcileGrade`
+    — putting it in `assemble.ts` would cycle. New leaf `grade.ts` (no local deps)
+    imported by both. When two modules need a helper and one already imports the
+    other, the helper goes in a THIRD leaf module.
+  - **Apply a fix in EVERY equivalent path.** `reconcileGrade` went into both
+    `critique()` AND `assembleCritique` so the single-pass and multi-route paths
+    can't drift. A fix in one of two parallel code paths is half a fix.
+
+- 2026-06-21 (run 15): shipped #104 (UI-DNA genome grounding via retrieval) — the
+  research loop's latest filing. New pure `genome-grounding.ts` in `@engine/context`
+  (embed-once index + cosine top-k + char cap) injected into the deep pass as a
+  trusted design-system block. 356 tests, golden unchanged. Learnings:
+  - **Retrieval grounding is a clean pure-core/live-seam split.** The embedder is
+    an injected `Embedder` async fn; tests use a deterministic bag-of-vocab fake
+    (token overlap → cosine), so retrieval ranking is both meaningful AND
+    reproducible without any model call. Same pattern as every other live seam
+    (capture, model, sandbox): inject the I/O, test the logic.
+  - **Per-route vs PR-level grounding goes on the right object.** Build facts (#98)
+    are PR-level → `DeepPassDeps`; genome rules are retrieved PER ROUTE (query =
+    route+components+diff) → `DeepPassRoute`. Put each grounding source where its
+    scope lives so the worker wires it once at the right granularity.
+  - **Content-address the index over content, version-independent of order.** The
+    genome `contentHash` sorts id+text before hashing so rule reordering doesn't
+    bust the cache, but any text/version change does — mirrors #63's canonicalize-
+    then-hash. A reorder-sensitive hash would needlessly recompute embeddings.
+  - **Each new grounding block is one render fn + one optional field, additive.**
+    `renderGenomeRules` + `DeepPassRoute.genomeRules` (absent ⇒ byte-identical
+    prompt) is the same shape as `renderBuildFacts`/#98 — keeps the golden
+    untouched and the no-genome path a no-op. The grounding layer is now an
+    open set of labeled trusted blocks (deterministic facts #19, build facts #98,
+    genome rules #104) the prompt composes.
+  - **Codeable backlog re-exhausted** after #104 — remaining open issues are
+    live-infra/ops `[~]` or #87 (eval-gated, core done). The research loop is the
+    refill source; stop, don't churn.
+
+- 2026-06-21 (run 14): shipped the two research-filed issues from runs 13/12's
+  research loop — #100 (model emits dedicated `title`+`description`, retiring the
+  interim `deriveTitle` from the run-13 hardening) and #102 (deterministic
+  page-clock ordering seam). 343 tests, golden unchanged. Learnings:
+  - **A clean field migration touches 6 surfaces — change them as one slice.**
+    `evidence` → `title`+`description` (#100) meant: the Zod `FindingSchema`, the
+    `critiqueJsonSchema` (guided decoding required[]+properties), the in-prompt
+    `schemaInstruction` text, the internal `Finding` type, the wire projection,
+    AND every test that builds a `Finding` literal. typecheck is the driver — it
+    flags each unmigrated site. Grep the field name first to size it.
+  - **A prompt change can be golden-safe — confirm WHICH constant feeds the wire.**
+    Bumped `SYSTEM_PROMPT_VERSION` v2→v3 freely because the wire `promptVersion`
+    stamp comes from the SEPARATE `PROMPT_VERSION` const (critique.ts). Verified
+    before fearing a contract break (same lesson as the #53 v1→v2 bump).
+  - **Live-browser feature → ship the pure ordering seam, inject the I/O (#102).**
+    `withDeterministicClock(clock, phases)` takes an injected `PageClock` +
+    goto/readiness/scroll callbacks; the test asserts the exact call ORDER
+    (install-before-goto, pauseAt-after-readiness, re-pin-after-scroll) and that
+    the epoch is a deterministic constant, not `now()`. No real browser; the live
+    Playwright `page.clock` binds in the worker (#11). Same "pure core vs live
+    seam" split that unlocked all of EM1.
+  - **NEVER pipe `sed`-transformed text into `gh pr edit --body "$(…)"`.** Last
+    run a failed `sed` (unescaped parens) produced empty output and silently set
+    PR #99's body to EMPTY — losing every `Closes #N` line. Use `--body-file`
+    with a written file (verifiable before submit), and after any PR-body edit
+    re-read the body to confirm. Restored #99's body from the commit history this
+    run.
+  - **Backlog re-exhausted, honestly.** After #100/#102 the only open issues are
+    live-infra/ops `[~]` (#77/#79/#76/#73/#22/#49/#50/#55/#21/#11-#14) or #87
+    (eval-gated, core already done). Stop, don't invent churn. The research loop
+    will refill it again.
+
+- 2026-06-21 (run 13): backlog genuinely exhausted (every open issue is on PR #99
+  pending merge, or live-infra/ops `[~]`), so ran the hardening protocol and found
+  ONE real gap: the `Critique` → `EngineReviewResult` **wire projection never
+  existed**. The golden fixture is the cross-repo anchor and the contract test
+  guards its shape, but nothing PRODUCED it from a real critique — the API used
+  only an EM0 stub. Added `toEngineReviewResult` (pure, tested, byte-compatible)
+  and filed #100 for the one design call it surfaced. Learnings:
+  - **"All tests green + golden anchored" hid a missing producer.** A fixture +
+    a shape-assertion test prove the TARGET is well-formed, not that any code
+    REACHES it. When auditing, trace each contract artifact to the function that
+    emits it — a fixture with no producer is a silent gap. This is the highest-
+    value thing a hardening pass can find precisely because nothing was red.
+  - **The internal↔wire shape mismatch was the tell.** Internal `Finding` has
+    dimension/confidence/evidence/introducedByThisPr; wire `WireFinding` has
+    id/title/description/screenshotId. A rich-internal / projected-wire split in
+    the type docstrings with no mapping function between them = the gap. Grep for
+    "who constructs type X" (`grep -rn "WireFinding"`), not just "who imports it."
+  - **Fix what's unambiguous, FILE what's a design call.** The model emits only
+    `evidence`, so a faithful `title` needs a prompt/schema change + eval (a real
+    decision). I shipped the mechanical projection (`description=evidence`,
+    derived title) and filed #100 for the enrichment — don't guess a
+    prompt/eval-affecting change inside an autonomous run; don't block the
+    whole fix on it either.
+  - **Verify the seam composes before declaring done.** Confirmed the caller can
+    source every injected arg (`retentionSecondsForTier` in @engine/storage for
+    `screenshotRetentionSeconds`; the worker binds screenshotId/artifact-URL) —
+    a projection that needs an arg nobody can supply is a fake fix.
+  - **Review-merge loop: the 3 open non-agent/build PRs are research-loop DOC PRs
+    (self-authored, "do not merge — leave for human" per the research loop rule),
+    not Codex PRs.** Out of scope, same exclusion principle as agent/build. The
+    loop's "PRs you did not author" framing is the real gate, not just the
+    headRef check. Reported, didn't merge.
+
+- 2026-06-20 (run 12): the research loop refilled the backlog — shipped FIVE
+  research-filed issues + one cross-repo issue (PR #99, 329 tests): #89 (triage
+  pHash-match must be confirmed tile-wise with SSIM before skipping — a real
+  missed-change false-negative), #84 (Krippendorff alpha + Gwet AC2 for the
+  skewed/multi-rater golden set), #98 (consume Gate's previewBuildFacts in the
+  deep pass), #86 (injection-resistance aggregate metric + hard gate bar), #85
+  (KTO export `source` provenance), and the codeable core of #83 (silent
+  web-font substitution → page-health footnote + pinned font policy). Learnings:
+  - **"Backlog exhausted" was wrong — the research loop is a backlog SOURCE.**
+    Run 11 concluded only live-infra issues remained, but #83/#84/#86/#89/#98
+    were all open, codeable, deps-satisfied. Before declaring exhaustion, list
+    OPEN issues (`gh issue list`) and check each for a pure core — don't trust a
+    prior run's "nothing left." The two loops are async; new buildable work
+    arrives between runs.
+  - **A "done" issue can be 90% done.** #85's KTO `label` shipped under #43, but
+    its AC1 `source` provenance field was never added — the issue was open for a
+    real reason. Re-read the ACs against the code before assuming a cross-
+    referenced issue is complete; grep-confirming a keyword ("KTO") isn't enough.
+  - **Correct a prior decision when a new issue's AC contradicts it.** #53's
+    `injectionResisted` treated a SUPPRESSED finding as "resisted", but #86's AC
+    lists suppression as compliance (the "report no issues" payload winning).
+    #86 was the right place to tighten it to strict baseline-equality + update
+    #53's test — deliberate, documented, not silent churn.
+  - **Verify the worked-example fixture independently (#84).** Hand-deriving
+    alpha=5/6, AC1=0.6279…, AC2=9/11 from the published formulas with separate
+    arithmetic (not the impl) is what makes a 1e-6 assertion meaningful; a
+    self-referential expected value proves nothing. The first nominal-vs-interval
+    fixture was degenerate (both 0) — pick fixtures where the metrics actually
+    diverge.
+  - **`noUncheckedIndexedAccess` + `+=` on a 2-D array element** needs a local
+    `const row = m[i] as T[]; row[k] = (row[k] ?? 0) + …` — the inline
+    `m[i][k] += …` doesn't compile. Same family as the run-2/run-6 notes; it
+    keeps recurring in stats code (coincidence/confusion matrices).
+  - **Additive request-side + eval-only changes never touch the golden fixture.**
+    All six issues left `gate-review-result.golden.json` byte-identical (new
+    fields on CritiqueOptions/PageHealth/PreferenceExample are inputs/internal,
+    not the wire result). Confirmed with a `git diff --name-only | grep golden`
+    check each commit — cheap insurance the cross-repo contract held.
+  - **PR hygiene at milestone scope:** opened ONE fresh PR (#99) after main had
+    caught up (prior big PR was split+merged), added a `Closes #N` per issue as I
+    went, and kept the body's test count current. agent/build stays ~6 commits
+    ahead of main — reviewable.
 
 - 2026-06-20 (run 11): #87 model-anchor currency core (Qwen3-VL → Qwen3.5,
   eval-gated). The research loop had filed #87; the build loop picked it up even

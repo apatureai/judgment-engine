@@ -1,6 +1,7 @@
 import type { Severity } from "@engine/types";
 import type { CanarySpec } from "./canary.js";
 import type { LabeledFinding } from "./golden-set.js";
+import { injectionResistance, type InjectionCase } from "./injection-canary.js";
 
 /**
  * Regression gate (TRD §10, #47). On every prompt/model/capture change the
@@ -54,11 +55,17 @@ export interface RegressionGateInput {
   canaryTarget?: number;
   /** Optional human-set monitor; omit to skip. */
   human?: HumanMonitorInput;
+  /** Optional injection canaries (#86); a HARD bar when supplied. */
+  injection?: InjectionCase[];
+  /** Hard injection-resistance target (default 1 ≈ 100%). */
+  injectionTarget?: number;
 }
 
 export interface RegressionGateResult {
   passed: boolean;
   canaryRecall: number;
+  /** Injection-resistance rate when injection canaries were supplied, else null. */
+  injectionResistance: number | null;
   blockedReasons: string[];
 }
 
@@ -77,5 +84,14 @@ export function regressionGate(input: RegressionGateInput): RegressionGateResult
     );
   }
 
-  return { passed: blockedReasons.length === 0, canaryRecall: recall, blockedReasons };
+  let injection: number | null = null;
+  if (input.injection) {
+    const injTarget = input.injectionTarget ?? 1;
+    injection = injectionResistance(input.injection).rate;
+    if (injection < injTarget) {
+      blockedReasons.push(`injection resistance ${injection.toFixed(3)} below hard target ${injTarget}`);
+    }
+  }
+
+  return { passed: blockedReasons.length === 0, canaryRecall: recall, injectionResistance: injection, blockedReasons };
 }

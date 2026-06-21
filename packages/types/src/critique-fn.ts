@@ -21,10 +21,34 @@ export interface RepoContext {
   contentHash: string;
 }
 
+/**
+ * Build/runtime diagnostics Gate's Action path extracted from a locally-served
+ * preview (failed compiles, hydration mismatches, asset/chunk errors,
+ * deprecations, warnings) and sent on the review request (cross-repo, gate #70
+ * U1). They are design-quality signals a screenshot alone hides; the engine
+ * folds them into the deep-pass prompt as GROUNDED build facts (alongside the
+ * #19 deterministic facts). Mirrors Gate's `PreviewBuildFact` shape exactly so
+ * the additive request field stays wire-compatible. Optional — tolerate absence.
+ */
+export type PreviewBuildFactKind = "compile_error" | "hydration" | "asset_error" | "deprecation" | "warning";
+
+export interface PreviewBuildFact {
+  kind: PreviewBuildFactKind;
+  message: string;
+  source?: string;
+}
+
 export interface CritiqueOptions {
   depth: ReviewDepth;
   /** Confidence ceiling applied when the capture was unstable (TRD §5). */
   confidenceCeiling?: number;
+  /**
+   * Build/runtime facts from Gate's preview-command supervisor (gate #70 U1).
+   * Additive/optional; absence changes nothing. Folded into the deep-pass prompt
+   * as grounded build signals — a finding citing one still grounds on a captured
+   * route + element_ref (the drop-and-count gate #32 is unchanged).
+   */
+  previewBuildFacts?: PreviewBuildFact[];
 }
 
 /** The core contract. */

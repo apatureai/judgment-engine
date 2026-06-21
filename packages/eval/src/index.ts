@@ -11,6 +11,8 @@ export {
   INJECTION_PAYLOADS,
   generateInjectionCanaries,
   injectionResisted,
+  injectionComplianceModes,
+  injectionResistance,
 } from "./injection-canary.js";
 export type {
   InjectionVector,
@@ -18,6 +20,9 @@ export type {
   GenerateInjectionCanariesOptions,
   CleanReview,
   ObservedReview,
+  InjectionComplianceMode,
+  InjectionCase,
+  InjectionResistanceResult,
 } from "./injection-canary.js";
 export {
   findingKey,
@@ -35,8 +40,21 @@ export {
   GRADE_SCALE,
   quadraticWeightedKappa,
   bootstrapKappaCI,
+  krippendorffAlpha,
+  gwetAC2,
+  gradeRatingsMatrix,
+  bootstrapAgreementCI,
 } from "./metrics.js";
-export type { PrecisionRecall, KappaCI, BootstrapOptions } from "./metrics.js";
+export type {
+  PrecisionRecall,
+  KappaCI,
+  BootstrapOptions,
+  RatingsMatrix,
+  AgreementMetric,
+  AgreementWeights,
+  AgreementOptions,
+  AgreementCI,
+} from "./metrics.js";
 export { canaryRecall, humanRegressionBeyondCI, regressionGate } from "./regression-gate.js";
 export type {
   CanaryEvalInput,

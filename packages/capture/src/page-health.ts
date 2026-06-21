@@ -19,11 +19,30 @@ export interface FailedRequest {
   status: number | null;
 }
 
+/**
+ * A `document.fonts` entry sampled by the worker AFTER `fonts.ready` resolves.
+ * `fonts.ready` resolves even when a web font was blocked (by the egress policy
+ * #24 or a CDN outage) and silently substituted — so a non-"loaded" status is
+ * the only signal that the rendered glyphs aren't what real users see (#83).
+ */
+export interface FontFaceStatus {
+  family: string;
+  /** The FontFace.status: "unloaded" | "loading" | "loaded" | "error". */
+  status: string;
+}
+
+/** Web fonts that did not finish loading (silent fallback substitution). */
+export function blockedFonts(fonts: FontFaceStatus[]): FontFaceStatus[] {
+  return fonts.filter((f) => f.status.toLowerCase() !== "loaded");
+}
+
 export interface PageHealthInput {
   console: ConsoleEvent[];
   failedRequests: FailedRequest[];
   /** Stability flag from the phash/structural gate (#15). */
   unstable?: boolean;
+  /** `document.fonts` statuses sampled after `fonts.ready` (#83), if collected. */
+  fonts?: FontFaceStatus[];
 }
 
 /** Aggregate raw capture events into the `PageHealth` summary. */
@@ -33,6 +52,7 @@ export function buildPageHealth(input: PageHealthInput): PageHealth {
     consoleErrors,
     failedRequests: input.failedRequests.length,
     unstable: input.unstable ?? false,
+    blockedFonts: input.fonts ? blockedFonts(input.fonts).length : 0,
   };
 }
 
@@ -42,5 +62,7 @@ export function pageHealthFootnote(health: PageHealth): string | null {
   if (health.consoleErrors > 0) parts.push(`${health.consoleErrors} console error(s)`);
   if (health.failedRequests > 0) parts.push(`${health.failedRequests} failed request(s)`);
   if (health.unstable) parts.push("page visually unstable during capture");
+  if (health.blockedFonts && health.blockedFonts > 0)
+    parts.push(`${health.blockedFonts} web font(s) blocked/substituted (rendered glyphs may differ)`);
   return parts.length > 0 ? `Page health: ${parts.join(", ")}.` : null;
 }

@@ -1,7 +1,7 @@
 import { pgliteExecutor, runMigrations, type SqlExecutor } from "@engine/db";
 import { PGlite } from "@electric-sql/pglite";
 import { beforeEach, describe, expect, it } from "vitest";
-import { exportPreferenceDataset, FeedbackStore, TrainingConsentStore } from "../src/index.js";
+import { exportPreferenceDataset, FeedbackStore, ktoSourceForSignal, TrainingConsentStore } from "../src/index.js";
 
 let exec: SqlExecutor;
 let store: FeedbackStore;
@@ -42,12 +42,13 @@ describe("exportPreferenceDataset (#43)", () => {
       contextHash: "ctx-abc",
       verdict: "endorsed",
       label: "desirable",
+      source: "thumbs",
       trainingGrade: true,
     });
     expect(examples[0]?.imageRef).toMatch(/^jobs\/.+\/screenshots\/\/pricing-desktop$/);
   });
 
-  it("maps a dismissed verdict to the undesirable KTO label and skips ambiguous findings", async () => {
+  it("maps a dismissed verdict to the undesirable KTO label + source, and skips ambiguous findings", async () => {
     await consent.setConsent("yes", true);
     const dismissed = await mkFinding("yes", "color_contrast");
     await store.recordExplicit({ findingId: dismissed, raterId: "u1", signal: "ignore", raterPermission: "owner" });
@@ -56,7 +57,23 @@ describe("exportPreferenceDataset (#43)", () => {
 
     const examples = await exportPreferenceDataset(exec);
     expect(examples).toHaveLength(1);
-    expect(examples[0]).toMatchObject({ verdict: "dismissed", label: "undesirable" });
+    expect(examples[0]).toMatchObject({ verdict: "dismissed", label: "undesirable", source: "ignore" });
+  });
+
+  it("derives an implicit source from an applied-suggestion signal (#39)", async () => {
+    await consent.setConsent("yes", true);
+    const f = await mkFinding("yes", "consistency");
+    await store.recordImplicit(f, "applied", "owner");
+    const examples = await exportPreferenceDataset(exec);
+    expect(examples[0]).toMatchObject({ label: "desirable", source: "implicit" });
+  });
+
+  it("maps each signal to its KTO source channel (#85 AC2)", () => {
+    expect(ktoSourceForSignal("thumbs_up")).toBe("thumbs");
+    expect(ktoSourceForSignal("thumbs_down")).toBe("thumbs");
+    expect(ktoSourceForSignal("ignore")).toBe("ignore");
+    expect(ktoSourceForSignal("applied")).toBe("implicit");
+    expect(ktoSourceForSignal("recheck_resolved")).toBe("implicit");
   });
 
   it("filters by prompt_version", async () => {

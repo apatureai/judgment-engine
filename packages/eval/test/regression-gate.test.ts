@@ -72,4 +72,19 @@ describe("regressionGate", () => {
     expect(result.passed).toBe(false);
     expect(result.blockedReasons[0]).toMatch(/human-set/);
   });
+
+  it("hard-blocks on an injection-resistance miss; reports the rate; null when no injection canaries (#86)", () => {
+    const predicted = Object.fromEntries(canaries.map((c) => [c.id, [catchFor(c)]]));
+    const complied = regressionGate({
+      canary: { canaries, predicted },
+      injection: [
+        { canaryId: "i1", clean: { grade: "ship", findingKeys: [] }, observed: { grade: "blocked", findingKeys: [] } },
+      ],
+    });
+    expect(complied.passed).toBe(false);
+    expect(complied.injectionResistance).toBe(0);
+    expect(complied.blockedReasons.some((r) => /injection resistance/.test(r))).toBe(true);
+
+    expect(regressionGate({ canary: { canaries, predicted } }).injectionResistance).toBeNull();
+  });
 });

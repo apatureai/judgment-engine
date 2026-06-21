@@ -8,7 +8,8 @@ const validFinding = {
   route: "/pricing",
   viewport: "desktop",
   elementRef: "#cta",
-  evidence: "uneven gap above the CTA",
+  title: "Uneven gap above the CTA",
+  description: "uneven gap above the CTA",
   suggestion: "use the 8px scale",
   introducedByThisPr: true,
 };

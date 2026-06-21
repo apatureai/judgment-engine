@@ -50,8 +50,19 @@ export type { HallucinationGateInput, HallucinationGateResult } from "./hallucin
 export { postFilter } from "./post-filter.js";
 export type { PostFilterOptions } from "./post-filter.js";
 export { applyConfidenceCeiling } from "./confidence-ceiling.js";
-export { critiqueRouteTwoStep, critiqueRouteSingleCall, runDeepPass, mapWithConcurrency } from "./deep-pass.js";
+export {
+  critiqueRouteTwoStep,
+  critiqueRouteSingleCall,
+  runDeepPass,
+  mapWithConcurrency,
+  renderBuildFacts,
+  renderGenomeRules,
+  MAX_BUILD_FACTS,
+} from "./deep-pass.js";
 export type { DeepPassRoute, DeepPassDeps, DeepPassRouteResult } from "./deep-pass.js";
+export { assembleCritique } from "./assemble.js";
+export type { AssembleCritiqueDeps } from "./assemble.js";
+export { reconcileGrade, gradeFromFindings, worstGrade } from "./grade.js";
 export { cachePrefix, cachedInputTokens, isCacheHit } from "./cache.js";
 export { FREE_TIER_PASS_MODELS, passModelsForTier } from "./tier.js";
 export type { BillingTier } from "./tier.js";
@@ -63,3 +74,5 @@ export {
 export type { ModelGeneration, GenerationConfig } from "./generations.js";
 export { TriageOutputSchema, allUnchanged, runTriage } from "./triage.js";
 export type { TriageOutput, TriageRoute, TriageDeps, TriageResult } from "./triage.js";
+export { toEngineReviewResult, deriveTitle, wireFindingId } from "./wire-projection.js";
+export type { WireProjectionOptions } from "./wire-projection.js";
