@@ -312,13 +312,32 @@ describe("runReview — end-to-end orchestrator", () => {
     expect(thinking?.messages.some((m) => m.content.includes("Primary CTA must use the accent token"))).toBe(true);
   });
 
-  it("applies the confidence ceiling when the capture is visually unstable (#70)", async () => {
+  it("caps confidence on an unstable capture but keeps the finding (#70: ceiling 0.6 ≥ floor 0.55)", async () => {
     const routes = ["/pricing"];
-    // Finding confidence 0.9; an unstable capture ceilings it to 0.5, which is
-    // below the post-filter floor (0.55), so it is dropped.
+    // Finding confidence 0.9; an unstable capture (no explicit ceiling) caps it to
+    // the default UNSTABLE_CONFIDENCE_CEILING (0.6), which is ABOVE the post-filter
+    // floor (0.55) — so a REAL finding still SURFACES with lowered trust. It must
+    // NOT be silently dropped (a flaky page with a real blocker would otherwise
+    // return ship/[]).
     const { factory } = scriptedModel(() => critiqueFor("/pricing", "major", "needs_work"));
 
     const result = await runReview(baseInput(routes), {
+      captureInSandbox: stubCapture(routes, ["#cta"], { unstable: true }),
+      modelFactory: factory,
+    });
+
+    // Survives the ceiling+filter; grade reflects the surviving major finding.
+    expect(result.findings).toHaveLength(1);
+    expect(result.findings[0]!.route).toBe("/pricing");
+    expect(result.grade).toBe("needs_work");
+  });
+
+  it("drops findings only when an EXPLICIT ceiling is set below the post-filter floor", async () => {
+    const routes = ["/pricing"];
+    // A caller may pass a stricter ceiling; 0.5 < the 0.55 floor drops the finding.
+    const { factory } = scriptedModel(() => critiqueFor("/pricing", "major", "needs_work"));
+
+    const result = await runReview(baseInput(routes, { confidenceCeiling: 0.5 }), {
       captureInSandbox: stubCapture(routes, ["#cta"], { unstable: true }),
       modelFactory: factory,
     });

@@ -1,4 +1,4 @@
-import { PIXEL_BUDGETS } from "@engine/capture";
+import { PIXEL_BUDGETS, UNSTABLE_CONFIDENCE_CEILING } from "@engine/capture";
 import type { CaptureContext, CaptureImage, CaptureInSandbox, GeometryRect } from "@engine/types";
 import {
   buildContextBlock,
@@ -242,8 +242,13 @@ export async function runReview(input: ReviewInput, deps: ReviewDeps): Promise<E
   const critique = assembleCritique(deepResults, {
     capturedRoutes: capturedRoutes(capture.images),
     geometrySelectors: selectors,
+    // #70: cap confidence when the capture was visually unstable. The default
+    // ceiling (UNSTABLE_CONFIDENCE_CEILING = 0.6) sits ABOVE the post-filter
+    // confidence floor (0.55), so a capped finding still SURFACES with lowered
+    // trust — it must not silently drop every finding (a flaky page with a real
+    // blocker would otherwise return ship/[]).
     ...(input.confidenceCeiling !== undefined || capture.pageHealth.unstable
-      ? { confidenceCeiling: input.confidenceCeiling ?? 0.5 }
+      ? { confidenceCeiling: input.confidenceCeiling ?? UNSTABLE_CONFIDENCE_CEILING }
       : {}),
     notReviewed: [...(input.notReviewed ?? []), ...uncapturedNotReviewed],
     model: deepConfig.model,
