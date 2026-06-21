@@ -70,6 +70,9 @@ export type {
   BaselineChangeDecision,
 } from "./change-detection.js";
 
+export { CAPTURE_EPOCH_MS, PRELOAD_SKEW_MS, withDeterministicClock } from "./capture-clock.js";
+export type { PageClock, CapturePhases } from "./capture-clock.js";
+
 export { isPrivateOrReservedIp, evaluateEgress, checkEgressForHost, DomainBudget } from "./egress.js";
 export type { EgressPolicyOptions, EgressDecision, DomainCaps, Resolver } from "./egress.js";
 
