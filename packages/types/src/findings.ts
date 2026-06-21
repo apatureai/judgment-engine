@@ -1,6 +1,6 @@
 /**
  * Critique output contract (TRD §2, §8). The engine's internal `Finding` is the
- * rich form (dimension, confidence, evidence, element_ref, introduced-by-this-PR);
+ * rich form (dimension, confidence, title/description, element_ref, introduced-by-this-PR);
  * consumers receive a projected, version-stamped result over the async job API.
  * The type package evolves additive-only behind `x-schema-version`.
  */
@@ -29,8 +29,10 @@ export interface Finding {
   viewport: Viewport;
   /** Selector/role reference into the captured DOM geometry, or null. */
   elementRef: string | null;
-  /** What was observed (grounds the finding; anti-hallucination). */
-  evidence: string;
+  /** Concise human-readable summary of the finding (#100); projected to the wire `title`. */
+  title: string;
+  /** The grounded explanation of what was observed (anti-hallucination); projected to the wire `description`. */
+  description: string;
   suggestion: string | null;
   /** Whether this PR introduced the issue (vs pre-existing). */
   introducedByThisPr: boolean;

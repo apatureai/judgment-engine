@@ -10,7 +10,8 @@ const finding = (confidence: number): Finding => ({
   route: "/",
   viewport: "desktop",
   elementRef: null,
-  evidence: "x",
+  title: "x",
+  description: "x",
   suggestion: null,
   introducedByThisPr: true,
 });

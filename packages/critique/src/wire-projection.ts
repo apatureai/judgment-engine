@@ -5,26 +5,24 @@ import type { Critique, EngineReviewResult, Finding, WireFinding } from "@engine
  * `EngineReviewResult` (TRD §2/§8). This IS the cross-repo contract boundary with
  * Gate: the async job API returns this shape, and it must stay byte-compatible
  * with `fixtures/gate-review-result.golden.json`. The internal `Finding` is the
- * rich form (dimension/confidence/evidence/introducedByThisPr) — those internal
- * fields are DROPPED here; the wire form is the projected, stable subset Gate
- * renders.
+ * rich form (dimension/confidence/introducedByThisPr) — those internal fields
+ * are DROPPED here; the wire form is the projected, stable subset Gate renders.
  *
  * Pure. The screenshot-id and artifact-URL resolution are injected (the worker
  * binds them to the captured-image set + the object-store signed-URL base);
  * absent ⇒ no annotated screenshot for that finding.
  *
- * NOTE (interim): the model output schema (#31) carries a single `evidence`
- * string, not a separate `title`/`description`. Here `description = evidence` and
- * `title` is a concise summary derived from it. A dedicated model-emitted title
- * is the faithful fix (needs a frozen-prompt version bump + eval) — tracked
- * separately; deriving keeps the wire shape correct in the meantime.
+ * The model emits a dedicated `title` + `description` per finding (#100); the
+ * projection passes them through. `deriveTitle` remains only as a DEFENSIVE
+ * fallback for a finding whose title is empty/whitespace — it derives one from
+ * the description so a malformed model row can never yield a blank wire title.
  */
 
 const MAX_TITLE_LEN = 80;
 
-/** Derive a concise finding title from its evidence (interim — see module note). */
-export function deriveTitle(evidence: string): string {
-  const trimmed = evidence.trim();
+/** Derive a concise title from a description (defensive fallback for a blank title). */
+export function deriveTitle(description: string): string {
+  const trimmed = description.trim();
   if (trimmed.length === 0) return "Design finding";
   // First sentence, if it is short enough to read as a title.
   const sentenceEnd = trimmed.search(/[.!?](\s|$)/);
@@ -61,8 +59,9 @@ function toWireFinding(finding: Finding, index: number, options: WireProjectionO
   return {
     id: wireFindingId(index),
     severity: finding.severity,
-    title: deriveTitle(finding.evidence),
-    description: finding.evidence,
+    // Pass the model-emitted title through; fall back to a derived one only if blank.
+    title: finding.title.trim().length > 0 ? finding.title : deriveTitle(finding.description),
+    description: finding.description,
     route: finding.route,
     viewport: finding.viewport,
     element: finding.elementRef,

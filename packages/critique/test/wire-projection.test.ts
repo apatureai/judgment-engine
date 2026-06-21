@@ -10,7 +10,8 @@ const finding = (over: Partial<Finding> = {}): Finding => ({
   route: "/pricing",
   viewport: "mobile",
   elementRef: "button[data-testid='cta-primary']",
-  evidence: "On the mobile viewport the primary button renders with the default blue.",
+  title: "Primary CTA uses an off-brand color on mobile",
+  description: "On the mobile viewport the primary button renders with the default blue.",
   suggestion: "Apply the --color-accent token.",
   introducedByThisPr: true,
   ...over,
@@ -43,12 +44,13 @@ describe("toEngineReviewResult (wire projection — cross-repo contract)", () =>
     expect(Object.keys(result.metadata).sort()).toEqual(Object.keys(golden.metadata).sort());
   });
 
-  it("maps unambiguous fields and DROPS internal-only ones (dimension/confidence/evidence/introducedByThisPr)", () => {
+  it("passes title/description through and DROPS internal-only fields (dimension/confidence/introducedByThisPr)", () => {
     const result = toEngineReviewResult(critique(), { screenshotRetentionSeconds: 60 });
     const f = result.findings[0]!;
     expect(f).toMatchObject({
       id: "f_001",
       severity: "major",
+      title: "Primary CTA uses an off-brand color on mobile",
       description: "On the mobile viewport the primary button renders with the default blue.",
       route: "/pricing",
       viewport: "mobile",
@@ -58,7 +60,6 @@ describe("toEngineReviewResult (wire projection — cross-repo contract)", () =>
     });
     expect(f).not.toHaveProperty("dimension");
     expect(f).not.toHaveProperty("confidence");
-    expect(f).not.toHaveProperty("evidence");
     expect(f).not.toHaveProperty("introducedByThisPr");
     expect(result.grade).toBe("needs_work");
     expect(result.notReviewed).toEqual(["route /checkout (no preview)"]);
@@ -90,6 +91,14 @@ describe("toEngineReviewResult (wire projection — cross-repo contract)", () =>
     const result = toEngineReviewResult(critique(), { screenshotRetentionSeconds: 60 });
     expect(result.metadata).toEqual(critique().metadata);
   });
+
+  it("falls back to a derived title only when the model emits a blank title (#100 defensive)", () => {
+    const blank = toEngineReviewResult(critique({ findings: [finding({ title: "   " })] }), {
+      screenshotRetentionSeconds: 60,
+    });
+    // Derived from the description's first sentence.
+    expect(blank.findings[0]!.title).toBe("On the mobile viewport the primary button renders with the default blue");
+  });
 });
 
 describe("deriveTitle / wireFindingId", () => {
@@ -108,7 +117,7 @@ describe("deriveTitle / wireFindingId", () => {
     expect(long.startsWith(title.slice(0, -1))).toBe(true); // a real prefix, cut at a word
   });
 
-  it("falls back to a generic title on empty evidence", () => {
+  it("falls back to a generic title on empty input", () => {
     expect(deriveTitle("   ")).toBe("Design finding");
   });
 

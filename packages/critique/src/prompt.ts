@@ -6,7 +6,7 @@ import type { Dimension } from "@engine/types";
  * is part of the version stamp (#68) and the eval-gated promotion (#71), so a
  * prompt change can't ship without a version bump and an eval pass.
  */
-export const SYSTEM_PROMPT_VERSION = "v2";
+export const SYSTEM_PROMPT_VERSION = "v3";
 
 /** Delimiter tag that fences untrusted page text inside the prompt (#53). */
 export const UNTRUSTED_CONTENT_TAG = "untrusted_page_content";
@@ -66,6 +66,7 @@ const DIMENSION_RUBRIC: Record<Dimension, string> = {
 
 const ANTI_HALLUCINATION = [
   "GROUNDING RULES (mandatory):",
+  "- Each finding has a concise `title` (a short summary, <= ~80 chars) and a `description` (the full grounded explanation). The title is a headline, not a truncation of the description.",
   "- Every finding MUST name something visible in a specific captured image segment; cite the segment and the element_ref from the provided DOM geometry. If you cannot ground it, do not report it.",
   "- Only report issues on routes that were captured and elements present in the geometry map. Never invent a route or element.",
   "- Do NOT report hover, focus, active, or animation states — they are not captured.",
