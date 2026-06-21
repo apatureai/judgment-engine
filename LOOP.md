@@ -51,6 +51,49 @@ apatureai/gate.
 
 ## Self-improvement log (newest first)
 
+- 2026-06-20 (run 12): the research loop refilled the backlog — shipped FIVE
+  research-filed issues + one cross-repo issue (PR #99, 329 tests): #89 (triage
+  pHash-match must be confirmed tile-wise with SSIM before skipping — a real
+  missed-change false-negative), #84 (Krippendorff alpha + Gwet AC2 for the
+  skewed/multi-rater golden set), #98 (consume Gate's previewBuildFacts in the
+  deep pass), #86 (injection-resistance aggregate metric + hard gate bar), #85
+  (KTO export `source` provenance), and the codeable core of #83 (silent
+  web-font substitution → page-health footnote + pinned font policy). Learnings:
+  - **"Backlog exhausted" was wrong — the research loop is a backlog SOURCE.**
+    Run 11 concluded only live-infra issues remained, but #83/#84/#86/#89/#98
+    were all open, codeable, deps-satisfied. Before declaring exhaustion, list
+    OPEN issues (`gh issue list`) and check each for a pure core — don't trust a
+    prior run's "nothing left." The two loops are async; new buildable work
+    arrives between runs.
+  - **A "done" issue can be 90% done.** #85's KTO `label` shipped under #43, but
+    its AC1 `source` provenance field was never added — the issue was open for a
+    real reason. Re-read the ACs against the code before assuming a cross-
+    referenced issue is complete; grep-confirming a keyword ("KTO") isn't enough.
+  - **Correct a prior decision when a new issue's AC contradicts it.** #53's
+    `injectionResisted` treated a SUPPRESSED finding as "resisted", but #86's AC
+    lists suppression as compliance (the "report no issues" payload winning).
+    #86 was the right place to tighten it to strict baseline-equality + update
+    #53's test — deliberate, documented, not silent churn.
+  - **Verify the worked-example fixture independently (#84).** Hand-deriving
+    alpha=5/6, AC1=0.6279…, AC2=9/11 from the published formulas with separate
+    arithmetic (not the impl) is what makes a 1e-6 assertion meaningful; a
+    self-referential expected value proves nothing. The first nominal-vs-interval
+    fixture was degenerate (both 0) — pick fixtures where the metrics actually
+    diverge.
+  - **`noUncheckedIndexedAccess` + `+=` on a 2-D array element** needs a local
+    `const row = m[i] as T[]; row[k] = (row[k] ?? 0) + …` — the inline
+    `m[i][k] += …` doesn't compile. Same family as the run-2/run-6 notes; it
+    keeps recurring in stats code (coincidence/confusion matrices).
+  - **Additive request-side + eval-only changes never touch the golden fixture.**
+    All six issues left `gate-review-result.golden.json` byte-identical (new
+    fields on CritiqueOptions/PageHealth/PreferenceExample are inputs/internal,
+    not the wire result). Confirmed with a `git diff --name-only | grep golden`
+    check each commit — cheap insurance the cross-repo contract held.
+  - **PR hygiene at milestone scope:** opened ONE fresh PR (#99) after main had
+    caught up (prior big PR was split+merged), added a `Closes #N` per issue as I
+    went, and kept the body's test count current. agent/build stays ~6 commits
+    ahead of main — reviewable.
+
 - 2026-06-20 (run 11): #87 model-anchor currency core (Qwen3-VL → Qwen3.5,
   eval-gated). The research loop had filed #87; the build loop picked it up even
   though it wasn't yet a line in PROGRESS.md (deps #26/#48/#71/#78 all satisfied).
