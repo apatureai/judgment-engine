@@ -11,6 +11,8 @@ export {
   INJECTION_PAYLOADS,
   generateInjectionCanaries,
   injectionResisted,
+  injectionComplianceModes,
+  injectionResistance,
 } from "./injection-canary.js";
 export type {
   InjectionVector,
@@ -18,6 +20,9 @@ export type {
   GenerateInjectionCanariesOptions,
   CleanReview,
   ObservedReview,
+  InjectionComplianceMode,
+  InjectionCase,
+  InjectionResistanceResult,
 } from "./injection-canary.js";
 export {
   findingKey,

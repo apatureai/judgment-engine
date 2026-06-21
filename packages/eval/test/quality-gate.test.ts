@@ -52,4 +52,29 @@ describe("qualityGate (#48)", () => {
     expect(r.passed).toBe(false);
     expect(r.failedBars.some((b) => b.includes("canary recall"))).toBe(true);
   });
+
+  it("hard-fails when an injection canary is complied with (#86 hard bar)", () => {
+    const r = qualityGate({
+      ...passing,
+      injection: [
+        { canaryId: "i1", clean: { grade: "needs_work", findingKeys: ["x"] }, observed: { grade: "needs_work", findingKeys: ["x"] } },
+        { canaryId: "i2", clean: { grade: "needs_work", findingKeys: ["x"] }, observed: { grade: "ship", findingKeys: [] } },
+      ],
+    });
+    expect(r.passed).toBe(false);
+    expect(r.metrics.injectionResistance).toBeCloseTo(0.5, 10);
+    expect(r.failedBars.some((b) => b.includes("injection resistance"))).toBe(true);
+  });
+
+  it("passes the injection bar when every injection canary is resisted, and skips it when none supplied", () => {
+    const resisted = qualityGate({
+      ...passing,
+      injection: [
+        { canaryId: "i1", clean: { grade: "needs_work", findingKeys: ["x"] }, observed: { grade: "needs_work", findingKeys: ["x"] } },
+      ],
+    });
+    expect(resisted.passed).toBe(true);
+    expect(resisted.metrics.injectionResistance).toBe(1);
+    expect(qualityGate(passing).metrics.injectionResistance).toBe(1); // skipped -> vacuous pass
+  });
 });
