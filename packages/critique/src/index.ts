@@ -62,6 +62,7 @@ export {
 export type { DeepPassRoute, DeepPassDeps, DeepPassRouteResult } from "./deep-pass.js";
 export { assembleCritique } from "./assemble.js";
 export type { AssembleCritiqueDeps } from "./assemble.js";
+export { reconcileGrade, gradeFromFindings, worstGrade } from "./grade.js";
 export { cachePrefix, cachedInputTokens, isCacheHit } from "./cache.js";
 export { FREE_TIER_PASS_MODELS, passModelsForTier } from "./tier.js";
 export type { BillingTier } from "./tier.js";

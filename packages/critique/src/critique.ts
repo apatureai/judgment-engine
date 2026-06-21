@@ -4,6 +4,7 @@ import type { ModelImage, ModelRequest } from "./model.js";
 import { defaultModelFactory } from "./mock-model.js";
 import { resolvePassModel, type ModelClientFactory, type PassModelOverrides } from "./registry.js";
 import { applyConfidenceCeiling } from "./confidence-ceiling.js";
+import { reconcileGrade } from "./grade.js";
 import { hallucinationGate } from "./hallucination-gate.js";
 import { postFilter } from "./post-filter.js";
 import { parseCritiqueOutput } from "./schema.js";
@@ -89,7 +90,9 @@ export async function critique(
   const findings = postFilter(capped);
 
   return {
-    grade: output?.grade ?? "ship",
+    // #106: floor the model grade to what surviving findings support (a grade
+    // justified only by a gate-dropped finding must not block the PR).
+    grade: reconcileGrade(output?.grade ?? "ship", findings),
     overall: output?.overall ?? `critique via ${config.model}`,
     findings,
     notReviewed: output?.notReviewed ?? [],

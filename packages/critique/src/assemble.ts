@@ -1,7 +1,8 @@
-import type { Critique, Finding, Grade } from "@engine/types";
+import type { Critique, Finding } from "@engine/types";
 import { applyConfidenceCeiling } from "./confidence-ceiling.js";
 import { ENGINE_VERSION, PROMPT_VERSION } from "./critique.js";
 import type { DeepPassRouteResult } from "./deep-pass.js";
+import { reconcileGrade, worstGrade } from "./grade.js";
 import { hallucinationGate } from "./hallucination-gate.js";
 import { postFilter } from "./post-filter.js";
 import { buildResultMetadata } from "./version-stamp.js";
@@ -22,13 +23,6 @@ import { buildResultMetadata } from "./version-stamp.js";
  * Pure. A route whose coercion failed (`output: null`, no partial #31) contributes
  * no findings and is recorded in `notReviewed`.
  */
-const GRADE_RANK: Record<Grade, number> = { ship: 0, ship_with_nits: 1, needs_work: 2, blocked: 3 };
-
-/** The most severe grade across routes (the PR is only as good as its worst route). */
-function worstGrade(grades: Grade[]): Grade {
-  return grades.reduce<Grade>((worst, g) => (GRADE_RANK[g] > GRADE_RANK[worst] ? g : worst), "ship");
-}
-
 export interface AssembleCritiqueDeps {
   /** Every captured route — the hallucination gate drops findings on uncaptured routes (#32). */
   capturedRoutes: string[];
@@ -60,7 +54,8 @@ export function assembleCritique(routes: DeepPassRouteResult[], deps: AssembleCr
     deps.confidenceCeiling !== undefined ? applyConfidenceCeiling(gated.findings, deps.confidenceCeiling) : gated.findings;
   const findings = postFilter(capped);
 
-  const grade = worstGrade(valid.map((r) => r.output.grade));
+  // Worst route grade, then floored to what the surviving findings support (#106).
+  const grade = reconcileGrade(worstGrade(valid.map((r) => r.output.grade)), findings);
   const overall = dedupeStrings(valid.map((r) => r.output.overall).filter((s) => s.trim().length > 0)).join(" ");
 
   const notReviewed = dedupeStrings([
