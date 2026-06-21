@@ -51,6 +51,39 @@ apatureai/gate.
 
 ## Self-improvement log (newest first)
 
+- 2026-06-21 (run 13): backlog genuinely exhausted (every open issue is on PR #99
+  pending merge, or live-infra/ops `[~]`), so ran the hardening protocol and found
+  ONE real gap: the `Critique` → `EngineReviewResult` **wire projection never
+  existed**. The golden fixture is the cross-repo anchor and the contract test
+  guards its shape, but nothing PRODUCED it from a real critique — the API used
+  only an EM0 stub. Added `toEngineReviewResult` (pure, tested, byte-compatible)
+  and filed #100 for the one design call it surfaced. Learnings:
+  - **"All tests green + golden anchored" hid a missing producer.** A fixture +
+    a shape-assertion test prove the TARGET is well-formed, not that any code
+    REACHES it. When auditing, trace each contract artifact to the function that
+    emits it — a fixture with no producer is a silent gap. This is the highest-
+    value thing a hardening pass can find precisely because nothing was red.
+  - **The internal↔wire shape mismatch was the tell.** Internal `Finding` has
+    dimension/confidence/evidence/introducedByThisPr; wire `WireFinding` has
+    id/title/description/screenshotId. A rich-internal / projected-wire split in
+    the type docstrings with no mapping function between them = the gap. Grep for
+    "who constructs type X" (`grep -rn "WireFinding"`), not just "who imports it."
+  - **Fix what's unambiguous, FILE what's a design call.** The model emits only
+    `evidence`, so a faithful `title` needs a prompt/schema change + eval (a real
+    decision). I shipped the mechanical projection (`description=evidence`,
+    derived title) and filed #100 for the enrichment — don't guess a
+    prompt/eval-affecting change inside an autonomous run; don't block the
+    whole fix on it either.
+  - **Verify the seam composes before declaring done.** Confirmed the caller can
+    source every injected arg (`retentionSecondsForTier` in @engine/storage for
+    `screenshotRetentionSeconds`; the worker binds screenshotId/artifact-URL) —
+    a projection that needs an arg nobody can supply is a fake fix.
+  - **Review-merge loop: the 3 open non-agent/build PRs are research-loop DOC PRs
+    (self-authored, "do not merge — leave for human" per the research loop rule),
+    not Codex PRs.** Out of scope, same exclusion principle as agent/build. The
+    loop's "PRs you did not author" framing is the real gate, not just the
+    headRef check. Reported, didn't merge.
+
 - 2026-06-20 (run 12): the research loop refilled the backlog — shipped FIVE
   research-filed issues + one cross-repo issue (PR #99, 329 tests): #89 (triage
   pHash-match must be confirmed tile-wise with SSIM before skipping — a real
