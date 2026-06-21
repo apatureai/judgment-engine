@@ -55,6 +55,21 @@ export {
 } from "./stability.js";
 export type { StabilityOptions, StabilitySample, StabilityResult } from "./stability.js";
 
+export {
+  BASELINE_SSIM_THRESHOLD,
+  BASELINE_DIFF_RATIO_THRESHOLD,
+  BASELINE_PHASH_THRESHOLD,
+  detectBaselineChange,
+  allRoutesConfirmedUnchanged,
+} from "./change-detection.js";
+export type {
+  TileChangeScore,
+  BaselineChangeInput,
+  BaselineChangeOptions,
+  BaselineChangeReason,
+  BaselineChangeDecision,
+} from "./change-detection.js";
+
 export { isPrivateOrReservedIp, evaluateEgress, checkEgressForHost, DomainBudget } from "./egress.js";
 export type { EgressPolicyOptions, EgressDecision, DomainCaps, Resolver } from "./egress.js";
 

@@ -1,4 +1,5 @@
-import { hashesWithin } from "@engine/capture";
+import { allRoutesConfirmedUnchanged, hashesWithin } from "@engine/capture";
+import type { BaselineChangeOptions, TileChangeScore } from "@engine/capture";
 import { z } from "zod";
 import type { ModelClient, ModelImage } from "./model.js";
 
@@ -23,6 +24,13 @@ export interface TriageRoute {
   /** Cached baseline perceptual hash (#34/#41), if any. */
   baselinePhash?: string;
   currentPhash: string;
+  /**
+   * Per-tile change-sensitive scores (#17 tiling, #89) used to CONFIRM a pHash
+   * match before short-circuiting. A pHash match WITHOUT these (or with an
+   * ambiguous score) fails open to a deep review. The worker computes them
+   * (SSIM/pixel-diff); absent here in tests that don't exercise the confirm path.
+   */
+  tileScores?: readonly TileChangeScore[] | null;
   /** Above-the-fold crops for the triage look. */
   aboveFoldImages: ModelImage[];
   /** Deterministic breakage facts from #19 (e.g. overflow), if any. */
@@ -32,8 +40,12 @@ export interface TriageRoute {
 export interface TriageDeps {
   client: ModelClient;
   model: string;
-  /** Max phash hamming distance counted as unchanged (default 5, matches #15). */
+  /** Max phash hamming distance counted as a candidate match (default 5, matches #15). */
   phashThreshold?: number;
+  /** Min per-tile SSIM to confirm a pHash match as unchanged (default ~0.99, #89). */
+  ssimThreshold?: number;
+  /** Max per-tile AA-aware pixel-diff ratio to confirm unchanged (default ~0.1%, #89). */
+  diffRatioThreshold?: number;
   maxPixels?: number;
   /**
    * Request multimodal `json_object` on the triage call (default true). Set false
@@ -60,7 +72,13 @@ const triageInstruction =
   '"obviousBreakage": string[]} where obviousBreakage lists overlap, unstyled HTML, ' +
   "broken images, or overflow you can see.";
 
-/** Whether every route has a baseline and matches it within threshold (nothing changed visually). */
+/**
+ * Cheap pHash PRE-FILTER only: whether every route has a baseline whose pHash
+ * matches within threshold. A match here is NOT sufficient to short-circuit —
+ * pHash is blind to small/localized changes (#89), so the triage gate confirms a
+ * match with a tile-wise sensitive diff (`allRoutesConfirmedUnchanged`) before
+ * concluding "unchanged". Retained for callers that want the raw pre-filter.
+ */
 export function allUnchanged(routes: TriageRoute[], threshold: number): boolean {
   return (
     routes.length > 0 &&
@@ -72,17 +90,27 @@ function dedupe(values: string[]): string[] {
   return [...new Set(values)];
 }
 
-/** Run the triage pass, short-circuiting on a phash match against the baseline. */
+/**
+ * Run the triage pass, short-circuiting only when every route is positively
+ * confirmed unchanged: pHash match (cheap pre-filter) AND a tile-wise
+ * change-sensitive diff below threshold (#89). A pHash match alone — which is
+ * blind to small color/text/spacing changes — never short-circuits; missing or
+ * ambiguous sensitive-diff input fails open to a deep review.
+ */
 export async function runTriage(deps: TriageDeps, routes: TriageRoute[]): Promise<TriageResult> {
-  const threshold = deps.phashThreshold ?? 5;
+  const changeOptions: BaselineChangeOptions = {
+    phashThreshold: deps.phashThreshold ?? 5,
+    ...(deps.ssimThreshold !== undefined ? { ssimThreshold: deps.ssimThreshold } : {}),
+    ...(deps.diffRatioThreshold !== undefined ? { diffRatioThreshold: deps.diffRatioThreshold } : {}),
+  };
 
-  if (allUnchanged(routes, threshold)) {
+  if (allRoutesConfirmedUnchanged(routes, changeOptions)) {
     return {
       needsDeepReview: false,
       suspectRoutes: [],
       obviousBreakage: [],
       shortCircuited: true,
-      summary: "No design changes detected (perceptual hash matches the baseline).",
+      summary: "No design changes detected (perceptual hash + tile-wise diff confirm the baseline).",
     };
   }
 
