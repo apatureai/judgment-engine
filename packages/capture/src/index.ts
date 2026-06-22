@@ -73,6 +73,13 @@ export type {
 export { CAPTURE_EPOCH_MS, PRELOAD_SKEW_MS, withDeterministicClock } from "./capture-clock.js";
 export type { PageClock, CapturePhases } from "./capture-clock.js";
 
+export {
+  MOTION_FREEZE_STYLESHEET,
+  REDUCED_MOTION_MEDIA,
+  freezeMotionForCapture,
+} from "./motion-freeze.js";
+export type { MotionFreezeInjector, MotionFreezePhases } from "./motion-freeze.js";
+
 export { isPrivateOrReservedIp, evaluateEgress, checkEgressForHost, DomainBudget } from "./egress.js";
 export type { EgressPolicyOptions, EgressDecision, DomainCaps, Resolver } from "./egress.js";
 
