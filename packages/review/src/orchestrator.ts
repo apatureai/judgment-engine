@@ -2,15 +2,13 @@ import { PIXEL_BUDGETS, UNSTABLE_CONFIDENCE_CEILING } from "@engine/capture";
 import type { CaptureContext, CaptureImage, CaptureInSandbox, GeometryRect } from "@engine/types";
 import {
   buildContextBlock,
-  selectGenomeRules,
+  retrieveGenomeRules,
   type ContextBlockInput,
   type Embedder,
   type GenomeIndex,
 } from "@engine/context";
 import {
   assembleCritique,
-  ENGINE_VERSION,
-  PROMPT_VERSION,
   resolvePassModel,
   runDeepPass,
   runTriage,
@@ -161,7 +159,9 @@ export async function runReview(input: ReviewInput, deps: ReviewDeps): Promise<E
   // A capture that produced no images can't ground any finding — short out to a
   // clean "nothing reviewed" result rather than running the model on nothing.
   if (capture.images.length === 0) {
-    return emptyResult(input, capture.captureVersion, "no captured routes");
+    return emptyFindingsResult(input, deps, capture.captureVersion, {
+      extraNotReviewed: ["no captured routes"],
+    });
   }
 
   // 3. Triage (#28). Short-circuits (no deep model call) when every captured
@@ -189,7 +189,7 @@ export async function runReview(input: ReviewInput, deps: ReviewDeps): Promise<E
 
   // 3a. Short-circuit: no design changes -> emit the triage result, no deep pass.
   if (!triage.needsDeepReview) {
-    return shortCircuitResult(input, capture.captureVersion, deepConfig.model, triage.summary);
+    return emptyFindingsResult(input, deps, capture.captureVersion, { overall: triage.summary });
   }
 
   // 4. Deep pass (#29) over the SUSPECT routes only. Thread the route's
@@ -199,12 +199,20 @@ export async function runReview(input: ReviewInput, deps: ReviewDeps): Promise<E
   const routesToReview = input.routes.filter((r) => suspect.has(r.route));
   const byRoute = new Map(input.routes.map((r) => [r.route, r]));
 
+  // Routes we'll actually deep-review (have a captured image), in deterministic order.
+  const reviewable = routesToReview.filter((r) => modelImagesFor(r.route, capture.images).length > 0);
+
+  // Batch the genome retrieval: embed every route's query in ONE embedder call
+  // (the Embedder takes a batch), then rank per route against the prebuilt index.
+  // Identical result to embedding each query separately — just one round-trip on
+  // the critical path instead of N serial ones (#113). Determinism preserved.
+  const genomeRulesByRoute = await selectGenomeRulesBatched(reviewable, deps);
+
   const deepRoutes: DeepPassRoute[] = [];
-  for (const r of routesToReview) {
+  for (const r of reviewable) {
     const images = modelImagesFor(r.route, capture.images);
-    if (images.length === 0) continue; // can't review a route with no captured image.
     const cfg = byRoute.get(r.route);
-    const genomeRules = await selectGenomeRulesFor(r, deps);
+    const genomeRules = genomeRulesByRoute.get(r.route) ?? [];
     deepRoutes.push({
       route: r.route,
       images,
@@ -260,53 +268,59 @@ export async function runReview(input: ReviewInput, deps: ReviewDeps): Promise<E
   return toEngineReviewResult(critique, input.wireOptions);
 }
 
-/** Retrieve the route's top-k genome rules (#104), if a genome index + embedder are injected. */
-async function selectGenomeRulesFor(route: ReviewRoute, deps: ReviewDeps): Promise<string[]> {
-  if (!deps.genomeIndex || !deps.embedder) return [];
-  // Query = the route itself (components/diff would extend this; route alone is
-  // a sound, deterministic query for the retrieval seam).
-  return selectGenomeRules(deps.genomeIndex, route.route, deps.embedder);
+/**
+ * Batch the per-route genome retrieval (#104, #113). The `Embedder` accepts a
+ * batch, so all route queries are embedded in ONE call, then each route is ranked
+ * against the prebuilt index. This is identical to calling `selectGenomeRules`
+ * per route (same query, same index, same deterministic ranking) but collapses N
+ * serial embedding round-trips on the critical path into one. Returns an empty map
+ * when no genome index + embedder are injected (the no-genome path).
+ */
+async function selectGenomeRulesBatched(
+  routes: ReviewRoute[],
+  deps: ReviewDeps,
+): Promise<Map<string, string[]>> {
+  const out = new Map<string, string[]>();
+  const { genomeIndex, embedder } = deps;
+  if (!genomeIndex || !embedder || genomeIndex.rules.length === 0 || routes.length === 0) {
+    return out;
+  }
+  // Query = the route itself (components/diff would extend this; route alone is a
+  // sound, deterministic query for the retrieval seam). One batched embed call.
+  const queries = routes.map((r) => r.route);
+  const vectors = await embedder(queries);
+  routes.forEach((r, i) => {
+    const queryVector = vectors[i];
+    if (!queryVector) return;
+    out.set(r.route, retrieveGenomeRules(genomeIndex, queryVector).map((g) => g.rule.text));
+  });
+  return out;
 }
 
-/** A clean wire result for a review that produced no findings (capture/short-circuit). */
-function emptyResult(input: ReviewInput, captureVersion: string, reason: string): EngineReviewResult {
-  return {
-    grade: "ship",
-    overall: "",
-    findings: [],
-    notReviewed: [...new Set([...(input.notReviewed ?? []), reason])],
-    artifacts: { annotatedScreenshots: [] },
-    screenshotRetentionSeconds: input.wireOptions.screenshotRetentionSeconds,
-    metadata: {
-      engineVersion: ENGINE_VERSION,
-      model: resolvePassModel(input.depth, undefined).model,
-      promptVersion: PROMPT_VERSION,
-      captureVersion,
-      uiDnaVersion: input.context.uiDnaVersion,
-    },
-  };
-}
-
-/** The triage short-circuit result: "no design changes", no deep pass spent. */
-function shortCircuitResult(
+/**
+ * A clean wire result for a review that produced no findings — both the empty
+ * capture and the triage short-circuit. Routed through the SAME builders as the
+ * main path (`assembleCritique` with no routes -> `toEngineReviewResult`) so it
+ * inherits the #68 non-empty version-stamp assertion and can't drift from the
+ * contract. The model is the resolved DEEP-pass model (passModels-aware), matching
+ * what the main path reports (#113).
+ */
+function emptyFindingsResult(
   input: ReviewInput,
+  deps: ReviewDeps,
   captureVersion: string,
-  model: string,
-  summary: string,
+  options: { overall?: string; extraNotReviewed?: string[] } = {},
 ): EngineReviewResult {
-  return {
-    grade: "ship",
-    overall: summary,
-    findings: [],
-    notReviewed: [...new Set(input.notReviewed ?? [])],
-    artifacts: { annotatedScreenshots: [] },
-    screenshotRetentionSeconds: input.wireOptions.screenshotRetentionSeconds,
-    metadata: {
-      engineVersion: ENGINE_VERSION,
-      model,
-      promptVersion: PROMPT_VERSION,
-      captureVersion,
-      uiDnaVersion: input.context.uiDnaVersion,
-    },
-  };
+  const deepConfig = resolvePassModel("deep", deps.passModels);
+  const critique = assembleCritique([], {
+    capturedRoutes: [],
+    notReviewed: [...(input.notReviewed ?? []), ...(options.extraNotReviewed ?? [])],
+    model: deepConfig.model,
+    captureVersion,
+    uiDnaVersion: input.context.uiDnaVersion,
+  });
+  // assembleCritique derives `overall` from route outputs (empty here); for the
+  // short-circuit we carry the triage summary through verbatim.
+  const stamped = options.overall !== undefined ? { ...critique, overall: options.overall } : critique;
+  return toEngineReviewResult(stamped, input.wireOptions);
 }

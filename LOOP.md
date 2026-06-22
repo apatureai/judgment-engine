@@ -51,6 +51,27 @@ apatureai/gate.
 
 ## Self-improvement log (newest first)
 
+- 2026-06-21 (run 19): shipped #113 — **orchestrator quality follow-ups** (three
+  pure refactors in `@engine/review` `runReview`, the non-blocking findings from
+  the PR #110 independent review, captured so they couldn't be lost). (1) The
+  empty-capture result stamped `resolvePassModel(input.depth)` — it reported the
+  *triage* model on `depth==="triage"` and ignored `deps.passModels`; now reports
+  the resolved **deep**-pass model (passModels-aware), matching the main path.
+  (2) Both the empty-capture and triage short-circuit results were hand-built wire
+  literals that bypassed the #68 version-stamp assertion — now routed through the
+  SAME builders as the main path (`assembleCritique([], …)` → `toEngineReviewResult`),
+  so they inherit the non-empty stamp and can't drift from the contract (the
+  short-circuit carries the triage summary through as `overall`). (3) Per-route
+  genome retrieval (#104) was awaited serially in the deep-pass loop (N embed
+  round-trips); now ONE batched `embedder([...queries])` up front + per-route
+  `retrieveGenomeRules` ranking — identical deterministic result, one round-trip.
+  Lesson: edge/short-circuit paths that hand-assemble a "happy empty" result are
+  exactly where a contract invariant (the version stamp) silently rots — route
+  every wire result through the one builder, even the empty ones. +5 tests (391
+  total): spy-embedder asserts a SINGLE batch; passModels override flows to the
+  empty-result model; both short-out paths pass `assertVersionStamped` + golden
+  shape. Mock model + stub capture + fake/spy embedder only. typecheck+test+lint
+  green; golden byte-unchanged.
 - 2026-06-21 (run 18): shipped #107 — **judge confidence calibration** (ECE/Brier
   + reliability table + seeded ECE bootstrap + optional PAVA isotonic map) in a
   new `@engine/eval/calibration.ts`. Pure eval stats, additive to the #46 suite;

@@ -15,6 +15,7 @@ import type {
   PassModelConfig,
 } from "@engine/critique";
 import { buildGenomeIndex, type Embedder } from "@engine/context";
+import { assertVersionStamped } from "@engine/critique";
 import { loadGoldenResult } from "@engine/types";
 import { describe, expect, it } from "vitest";
 import { runReview, type ReviewInput } from "../src/index.js";
@@ -107,8 +108,8 @@ function stubCapture(routes: string[], selectors: string[], opts: { unstable?: b
 }
 
 /** Deterministic bag-of-tokens embedder — no model. */
-const fakeEmbedder: Embedder = async (texts) =>
-  texts.map((t) => {
+function embedVectors(texts: readonly string[]): number[][] {
+  return texts.map((t) => {
     const lower = t.toLowerCase();
     return [
       lower.includes("pricing") ? 1 : 0,
@@ -117,6 +118,19 @@ const fakeEmbedder: Embedder = async (texts) =>
       lower.length % 7,
     ];
   });
+}
+
+const fakeEmbedder: Embedder = async (texts) => embedVectors(texts);
+
+/** A spy embedder that records each batch it was asked to embed (for call-count asserts). */
+function spyEmbedder(): { embedder: Embedder; batches: readonly string[][] } {
+  const batches: string[][] = [];
+  const embedder: Embedder = async (texts) => {
+    batches.push([...texts]);
+    return embedVectors(texts);
+  };
+  return { embedder, batches };
+}
 
 function baseInput(routes: string[], over: Partial<ReviewInput> = {}): ReviewInput {
   return {
@@ -345,5 +359,128 @@ describe("runReview — end-to-end orchestrator", () => {
     expect(result.findings).toHaveLength(0);
     // Grade floored to ship when no findings survive (#106).
     expect(result.grade).toBe("ship");
+  });
+
+  // -------------------------------------------------------------------------
+  // #113: quality follow-ups (model attribution, version-stamp routing, batch embed)
+  // -------------------------------------------------------------------------
+
+  it("#113: empty-capture result reports the resolved deep-pass model + a valid version stamp", async () => {
+    const routes = ["/pricing"];
+    const { factory } = scriptedModel(() => critiqueFor("/pricing", "major", "blocked"));
+
+    // depth: "triage" — the OLD emptyResult stamped resolvePassModel("triage") and
+    // would have reported the triage model here. It must report the deep-pass model
+    // (the model the rest of the pipeline reports), regardless of depth.
+    const result = await runReview(baseInput(routes, { depth: "triage" }), {
+      captureInSandbox: stubCapture(routes, ["#cta"], { empty: true }),
+      modelFactory: factory,
+    });
+
+    expect(result.grade).toBe("ship");
+    expect(result.notReviewed).toContain("no captured routes");
+    // Same model the main deep path reports (see the golden-shape test above).
+    expect(result.metadata.model).toBe("qwen3-vl-plus");
+    // Routed through buildResultMetadata: a valid, non-empty #68 version stamp.
+    expect(() => assertVersionStamped(result.metadata)).not.toThrow();
+    expect(result.metadata.captureVersion).toBe("stub-capture@1");
+    expect(result.metadata.uiDnaVersion).toBe("ui-dna@2026.06.12");
+  });
+
+  it("#113: empty-capture model honours passModels overrides (passModels-aware)", async () => {
+    const routes = ["/pricing"];
+    const { factory } = scriptedModel(() => critiqueFor("/pricing", "major", "blocked"));
+
+    const result = await runReview(baseInput(routes), {
+      captureInSandbox: stubCapture(routes, ["#cta"], { empty: true }),
+      modelFactory: factory,
+      passModels: { deep: { model: "custom-deep-model" } },
+    });
+
+    expect(result.metadata.model).toBe("custom-deep-model");
+    expect(() => assertVersionStamped(result.metadata)).not.toThrow();
+  });
+
+  it("#113: short-circuit result routes through the shared builders (golden-shape + valid stamp)", async () => {
+    const routes = ["/pricing"];
+    const { factory } = scriptedModel(() => critiqueFor("/pricing", "major", "blocked"));
+    const input = baseInput(routes, {
+      routes: [
+        {
+          route: "/pricing",
+          baselinePhash: "ffff",
+          currentPhash: "ffff",
+          tileScores: [{ ssim: 1, diffRatio: 0 }],
+        },
+      ],
+    });
+
+    const result = await runReview(input, {
+      captureInSandbox: stubCapture(routes, ["#cta"]),
+      modelFactory: factory,
+    });
+
+    expect(result.grade).toBe("ship");
+    expect(result.overall).toMatch(/no design changes/i);
+    // Same top-level + metadata keys as the cross-repo golden anchor.
+    const golden = loadGoldenResult();
+    expect(Object.keys(result).sort()).toEqual(Object.keys(golden).sort());
+    expect(Object.keys(result.metadata).sort()).toEqual(Object.keys(golden.metadata).sort());
+    // Routed through buildResultMetadata: the #68 version stamp is present + valid.
+    expect(() => assertVersionStamped(result.metadata)).not.toThrow();
+    expect(result.metadata.model).toBe("qwen3-vl-plus");
+  });
+
+  it("#113: genome embedding is invoked ONCE (batched) across routes, not per route", async () => {
+    const routes = ["/pricing", "/home"];
+    const { factory } = scriptedModel((route) =>
+      route === "/pricing"
+        ? critiqueFor("/pricing", "major", "needs_work", { dimension: "color_contrast", elementRef: "#cta" })
+        : critiqueFor("/home", "nit", "ship_with_nits", { dimension: "spacing", elementRef: "#hero" }),
+    );
+    const { embedder, batches } = spyEmbedder();
+    const genomeIndex = await buildGenomeIndex(
+      "ui-dna@2026.06.12",
+      [{ id: "r1", text: "Primary CTA must use the accent token", component: "button" }],
+      embedder,
+    );
+    // buildGenomeIndex embeds the rules once; reset so we measure only the review.
+    const buildCalls = batches.length;
+
+    const result = await runReview(baseInput(routes), {
+      captureInSandbox: stubCapture(routes, ["#cta", "#hero"]),
+      modelFactory: factory,
+      genomeIndex,
+      embedder,
+    });
+
+    // Both routes reviewed (the batched retrieval did not change results).
+    expect(result.findings.map((f) => f.route).sort()).toEqual(["/home", "/pricing"]);
+    // Exactly ONE embedder call for the two routes' queries — not N serial calls.
+    const reviewBatches = batches.slice(buildCalls);
+    expect(reviewBatches).toHaveLength(1);
+    expect(reviewBatches[0]).toEqual(["/pricing", "/home"]);
+  });
+
+  it("#113: batched genome retrieval yields identical rules to per-route selection", async () => {
+    const routes = ["/pricing"];
+    const { factory, calls } = scriptedModel(() => critiqueFor("/pricing", "minor", "needs_work"));
+    const genomeIndex = await buildGenomeIndex(
+      "ui-dna@2026.06.12",
+      [{ id: "r1", text: "Primary CTA must use the accent token", component: "button" }],
+      fakeEmbedder,
+    );
+
+    const result = await runReview(baseInput(routes), {
+      captureInSandbox: stubCapture(routes, ["#cta"]),
+      modelFactory: factory,
+      genomeIndex,
+      embedder: fakeEmbedder,
+    });
+
+    expect(result.findings).toHaveLength(1);
+    // The genome rule still reaches the deep-pass thinking prompt (unchanged behaviour).
+    const thinking = calls.find((c) => c.thinking);
+    expect(thinking?.messages.some((m) => m.content.includes("Primary CTA must use the accent token"))).toBe(true);
   });
 });
