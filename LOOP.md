@@ -51,6 +51,30 @@ apatureai/gate.
 
 ## Self-improvement log (newest first)
 
+- 2026-06-21 (run 18): shipped #107 — **judge confidence calibration** (ECE/Brier
+  + reliability table + seeded ECE bootstrap + optional PAVA isotonic map) in a
+  new `@engine/eval/calibration.ts`. Pure eval stats, additive to the #46 suite;
+  composes with #45 (golden ground truth supplies `{confidence, correct}`), #84
+  (same hand-derived-reference + seeded-mulberry32-bootstrap discipline), and the
+  eval gate #48/#71. Key point baked into the docs + the code header: the #33
+  0.55 floor and #70 0.6 ceiling are **derived from the measured reliability
+  curve, not guessed constants** — the actual threshold re-derivation RUNS IN THE
+  OFFLINE EVAL (the golden-set batch is the live seam), so this issue ships the
+  measurement + the optional monotonic remap, and leaves the live re-fit eval-
+  gated. +12 tests (386 total), golden unchanged. Learnings:
+  - **Hand-derive references with independent arithmetic** (the #84 rule, now
+    proven again): equal-width binning makes ECE trivially hand-checkable (one
+    populated bin → ECE = |mean−rate|), and PAVA on a 4-point [0,1,0,1] set pools
+    to clean knots y=[0,0.5,1] — pick fixtures whose math closes exactly to 1e-6.
+  - **Watch index re-export name clashes:** `BootstrapOptions` already came from
+    metrics.js; the calibration module's identically-named type had to be
+    re-exported as `CalibrationBootstrapOptions`. tsc -b catches it, but choosing
+    a distinct in-file name next time would be cleaner than aliasing at the barrel.
+  - This was a leaf research-filed eval issue (run 17's note ranks keystones
+    above these); picked because the remaining eval ACs were small + the trunk
+    (#109) already landed. Reliability-curve threshold derivation is the natural
+    next eval-gate wiring once the offline batch exists.
+
 - 2026-06-21 (run 17): shipped #109 — the **end-to-end review orchestrator**, the
   keystone that finally SEQUENCES the engine's pieces. New `@engine/review`
   package: `runReview` composes context→capture→triage→deep-pass→assemble→project

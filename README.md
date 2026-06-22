@@ -69,6 +69,11 @@ stubs and a mock model.
    rules, and any build facts.
 5. **Assemble** — the global validation tail, run once: hallucination gate →
    confidence ceiling → post-filter → grade reconciliation → version stamp.
+   The post-filter confidence floor and the unstable-capture ceiling are not
+   guessed constants: they are **derived from the measured reliability curve**
+   (`@engine/eval` calibration — ECE/Brier + reliability table over the golden
+   set's `{confidence, correct}` pairs) and re-derived on each model/prompt
+   change via the eval gate (the offline golden-set batch run is the live seam).
 6. **Wire projection** — project the internal `Critique` into the
    `EngineReviewResult` wire shape the consumer reads.
 

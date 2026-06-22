@@ -69,6 +69,21 @@ export type { SloTargets, SloCounts, SloResult } from "./slo.js";
 export { ModelPromptRegistry } from "./registry.js";
 export type { RegistryStatus, RegistryStamp, RegistryEntry } from "./registry.js";
 export {
+  expectedCalibrationError,
+  brierScore,
+  bootstrapEceCI,
+  fitMonotonicCalibration,
+  applyCalibration,
+} from "./calibration.js";
+export type {
+  CalibrationPair,
+  ReliabilityBin,
+  CalibrationReport,
+  EceCI,
+  BootstrapOptions as CalibrationBootstrapOptions,
+  CalibrationMap,
+} from "./calibration.js";
+export {
   DEFAULT_PROMOTION_TOLERANCES,
   beatsCurrentJudge,
   shadowPromotionDecision,
