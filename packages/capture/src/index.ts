@@ -80,6 +80,14 @@ export {
 } from "./motion-freeze.js";
 export type { MotionFreezeInjector, MotionFreezePhases } from "./motion-freeze.js";
 
+export {
+  GOTO_BUDGET_MS,
+  READY_WAIT_UNTIL,
+  awaitPageReady,
+  recheckFontsAfterScroll,
+} from "./page-readiness.js";
+export type { ReadinessOps, ReadinessOptions, ReadyWaitUntil } from "./page-readiness.js";
+
 export { isPrivateOrReservedIp, evaluateEgress, checkEgressForHost, DomainBudget } from "./egress.js";
 export type { EgressPolicyOptions, EgressDecision, DomainCaps, Resolver } from "./egress.js";
 
