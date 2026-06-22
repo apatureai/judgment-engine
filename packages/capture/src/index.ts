@@ -88,6 +88,13 @@ export {
 } from "./page-readiness.js";
 export type { ReadinessOps, ReadinessOptions, ReadyWaitUntil } from "./page-readiness.js";
 
+export {
+  LAZY_SETTLE_MS,
+  MAX_SCROLL_VIEWPORTS,
+  autoScrollForLazyLoad,
+} from "./lazy-load.js";
+export type { LazyLoadOps, LazyLoadOptions, LazyLoadResult } from "./lazy-load.js";
+
 export { isPrivateOrReservedIp, evaluateEgress, checkEgressForHost, DomainBudget } from "./egress.js";
 export type { EgressPolicyOptions, EgressDecision, DomainCaps, Resolver } from "./egress.js";
 
