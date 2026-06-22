@@ -95,6 +95,9 @@ export {
 } from "./lazy-load.js";
 export type { LazyLoadOps, LazyLoadOptions, LazyLoadResult } from "./lazy-load.js";
 
+export { planColorSchemeContexts, capturesDarkMode } from "./dark-mode.js";
+export type { ColorScheme, ColorSchemeContext } from "./dark-mode.js";
+
 export { isPrivateOrReservedIp, evaluateEgress, checkEgressForHost, DomainBudget } from "./egress.js";
 export type { EgressPolicyOptions, EgressDecision, DomainCaps, Resolver } from "./egress.js";
 
