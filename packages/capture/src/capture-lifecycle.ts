@@ -84,10 +84,12 @@ export async function runCaptureLifecycle(
 
   // --- post-scroll re-application: late lazy content can pull a new font, apply
   //     its own animation, or schedule new timers — so re-check fonts (#12),
-  //     RE-inject the freeze so it wins the cascade (#13), and re-pin the clock
-  //     (#102), in that order, immediately before capture. ---
+  //     re-apply the secondary CSS freeze + pause the animation timeline so even
+  //     a late high-specificity `!important` animation is frozen (#13), and
+  //     re-pin the clock (#102), in that order, immediately before capture. ---
   await recheckFontsAfterScroll(ops.readiness);
   await ops.freeze.addStyleSheet(MOTION_FREEZE_STYLESHEET);
+  await ops.freeze.freezeAnimations();
   await ops.clock.pauseAt(CAPTURE_EPOCH_MS);
 
   return { lazyLoad };

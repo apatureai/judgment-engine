@@ -27,6 +27,9 @@ function tracer(opts: { pageHeight?: number } = {}) {
       async addStyleSheet(content) {
         order.push(content === MOTION_FREEZE_STYLESHEET ? "freeze.style" : "freeze.style?");
       },
+      async freezeAnimations() {
+        order.push("freeze.animations");
+      },
     },
     readiness: {
       async goto(o) {
@@ -76,9 +79,11 @@ describe("runCaptureLifecycle (capture glue)", () => {
       // freeze time once settled
       `clock.pauseAt@${CAPTURE_EPOCH_MS}`,
       // (lazy-load scroll happens here)
-      // post-scroll: re-check fonts, RE-inject freeze, re-pin clock
+      // post-scroll: re-check fonts, re-apply CSS freeze, pause animation
+      // timeline (specificity-proof), re-pin clock
       "ready.fonts",
       "freeze.style",
+      "freeze.animations",
       `clock.pauseAt@${CAPTURE_EPOCH_MS}`,
     ]);
   });

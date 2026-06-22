@@ -51,6 +51,34 @@ apatureai/gate.
 
 ## Self-improvement log (newest first)
 
+- 2026-06-22 (run 20b): fixed a REAL blocker an unbiased PR-#115 review caught in
+  #13 (motion freeze). Bug: "re-inject the `*` kill sheet LAST so the late
+  animation loses the cascade" only holds at EQUAL specificity — CSS sorts
+  `!important` author declarations by SPECIFICITY before source order, so a late
+  `.spinner{animation:spin !important}` (0,1,0) beats `*{…!important}` (0,0,0)
+  regardless of order; the element was NOT frozen at capture. Fix: a CDP
+  `Animation.setPlaybackRate(0)` seam (`freezeAnimations()`) as the PRIMARY,
+  specificity-proof layer run last; the CSS sheet demoted to secondary/defense-in-
+  depth. 426 tests, golden untouched. Learnings:
+  - **A green test can assert something the runtime does not honor if the test
+    MODELS the mechanism wrong.** The original test modeled the CSS cascade as a
+    flat source-ordered list (`cascade.at(-1)` wins) and ignored specificity, so it
+    "proved" a guarantee real browsers break. When a test encodes a platform rule
+    (CSS cascade, event ordering, float math, timezone), model the rule's ACTUAL
+    tie-breakers, not a simplified version — otherwise the test certifies the bug.
+    Fix shape: the new test sorts `!important` by specificity THEN source order, and
+    includes a CSS-only control that goes RED to prove the primary fix is load-
+    bearing.
+  - **Prove a fix with a red→green toggle.** Temporarily deleted the
+    `freezeAnimations()` call → the high-specificity-spinner test failed `expected
+    false to be true`; restored → green. A fix whose test stays green when you
+    remove the fix isn't tested. (Force `tsc -b --force` between toggles — see the
+    incremental-dist gotcha below.)
+  - **CDP is just another injected seam.** `Animation.setPlaybackRate(0)` is bound
+    by the live worker (#11) via `context.newCDPSession(page)`; in tests it's a
+    stubbed `freezeAnimations()` on the same injector interface. No real browser/CDP
+    in tests — same inject-the-I/O discipline as every other live seam.
+
 - 2026-06-22 (run 20): reconciled stale issues + shipped the EM1 capture seams the
   earlier loop had wrongly skipped as "needs a live browser", then a hardening
   glue module. Closed 8 stale issues (#26/#30 critique, #15-#19 capture pure-logic,

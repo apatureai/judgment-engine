@@ -7,18 +7,30 @@
  * `capture-clock.ts`) freezes time-driven UI; this module freezes the CSS
  * motion that the clock does not touch.
  *
- * Fix: inject a kill stylesheet that zeroes animation/transition/scroll-behaviour
- * and emulate `prefers-reduced-motion: reduce`, then RE-INJECT the stylesheet
- * after the lazy-load scroll (#14). Late JS can append its own styles or mount
- * components after first paint; re-injecting LAST means the freeze rule wins on
- * cascade order (same `!important` specificity → later sheet wins), so a
- * late-applied animation is still frozen at capture. This mirrors the #13
- * re-injection discipline the clock pin (#102) already follows.
+ * Two layers, primary + secondary:
  *
- * This is the PURE ordering + stylesheet seam: the real `addStyleTag` /
- * `emulateMedia` and the goto/readiness/scroll phases are injected (the live
- * Playwright worker, #11, binds them). Fully unit-testable with a fake injector
- * + phase spies; no real browser.
+ * 1. PRIMARY — `freezeAnimations()`: pause the document's animation timeline at
+ *    the engine level (CDP `Animation.setPlaybackRate(0)`). This is specificity-
+ *    PROOF: it acts on the running animations directly, NOT through the cascade,
+ *    so a late `.spinner{animation:spin 1s infinite !important}` (specificity
+ *    0,1,0) is frozen just the same. Run LAST, after the lazy-load scroll, so
+ *    animations that late JS mounted are caught too.
+ *
+ * 2. SECONDARY — the CSS kill sheet + `prefers-reduced-motion: reduce`: zeroes
+ *    animation/transition/scroll-behaviour and suppresses media-query-gated
+ *    motion, re-injected after the scroll. This is DEFENSE IN DEPTH, not the
+ *    guarantee: an author `!important` rule with higher specificity than `*`
+ *    out-cascades it (CSS sorts `!important` author declarations by specificity
+ *    BEFORE source order, so re-injecting a `*`-only sheet "last" does NOT beat
+ *    `.cls !important` — the bug this layering fixes). It still handles the
+ *    common case (no-`!important` animations, transitions, scroll-behaviour,
+ *    reduced-motion-aware sites) cheaply and covers transitions, which the
+ *    Animation domain's `setPlaybackRate` does not.
+ *
+ * This is the PURE ordering + seam module: the real CDP `Animation.setPlaybackRate`,
+ * `addStyleTag` / `emulateMedia`, and the goto/readiness/scroll phases are
+ * injected (the live Playwright worker, #11, binds them). Fully unit-testable
+ * with a fake injector + phase spies; no real browser.
  */
 
 /**
@@ -43,12 +55,20 @@ export const MOTION_FREEZE_STYLESHEET = [
 export const REDUCED_MOTION_MEDIA = { name: "prefers-reduced-motion", value: "reduce" } as const;
 
 /**
- * The injection + media-emulation seam. The live worker binds these to
- * Playwright's `page.addStyleTag({ content })` and
- * `page.emulateMedia({ reducedMotion: "reduce" })`.
+ * The freeze seam. The live worker binds these to Playwright/CDP:
+ * - `freezeAnimations` → CDP `Animation.setPlaybackRate(0)` (the CDP session is
+ *   `context.newCDPSession(page)`; this is the specificity-proof primary layer);
+ * - `addStyleSheet` → `page.addStyleTag({ content })` (secondary CSS layer);
+ * - `emulateMedia` → `page.emulateMedia({ reducedMotion: "reduce" })`.
  */
 export interface MotionFreezeInjector {
-  /** Append a stylesheet to the document; later calls win on cascade order. */
+  /**
+   * Pause the document's animation timeline at the engine level (playback rate
+   * 0) so EVERY running CSS animation is frozen regardless of cascade
+   * specificity. The primary, specificity-proof freeze.
+   */
+  freezeAnimations(): Promise<void>;
+  /** Append a stylesheet to the document (secondary CSS layer). */
   addStyleSheet(content: string): Promise<void>;
   /** Emulate a media feature (`prefers-reduced-motion: reduce`). */
   emulateMedia(feature: { name: string; value: string }): Promise<void>;
@@ -65,13 +85,18 @@ export interface MotionFreezePhases {
 }
 
 /**
- * Run the capture lifecycle with CSS motion frozen (#13). Ordering:
+ * Run the capture lifecycle with motion frozen (#13). Ordering:
  *   emulateMedia(reduce) → addStyleSheet(freeze) → goto → awaitReadiness
- *   → scrollForLazyLoad → addStyleSheet(freeze)   // re-inject last
- * so motion is suppressed before first paint AND the freeze sheet is re-appended
- * after the scroll — winning the cascade over any styles late JS injected while
- * lazy content mounted. After this resolves the page has no in-flight CSS
- * motion, ready for the screenshot.
+ *   → scrollForLazyLoad → addStyleSheet(freeze) → freezeAnimations()
+ * so motion is suppressed before first paint (secondary CSS layer + reduced-
+ * motion), the CSS sheet is re-applied after the scroll for the common case, and
+ * — LAST — the animation timeline is paused at the engine level so EVERY running
+ * animation is frozen regardless of cascade specificity, including ones late JS
+ * mounted with a higher-specificity `!important` rule the CSS sheet can't beat.
+ * After this resolves the page has no in-flight motion, ready for the screenshot.
+ *
+ * `freezeAnimations()` runs last on purpose: it must see the final set of
+ * animations (post-scroll, post-late-mount) to pause them.
  *
  * Composed with `withDeterministicClock` (#102) by the worker (#11): the clock
  * pin handles JS-driven time, this handles CSS-driven motion.
@@ -85,7 +110,10 @@ export async function freezeMotionForCapture(
   await phases.goto();
   await phases.awaitReadiness();
   await phases.scrollForLazyLoad();
-  // Re-inject LAST so the freeze rule wins on cascade order over any animation
-  // late JS applied while lazy-loaded content mounted.
+  // Secondary CSS layer re-applied for the common (no-`!important`/low-specificity)
+  // case after late content mounted.
   await injector.addStyleSheet(MOTION_FREEZE_STYLESHEET);
+  // PRIMARY, specificity-proof freeze: pause the animation timeline so even a
+  // late high-specificity `!important` animation is frozen at capture.
+  await injector.freezeAnimations();
 }
