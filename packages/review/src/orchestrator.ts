@@ -1,4 +1,4 @@
-import { PIXEL_BUDGETS, UNSTABLE_CONFIDENCE_CEILING } from "@engine/capture";
+import { PIXEL_BUDGETS, UNSTABLE_CONFIDENCE_CEILING, pageHealthFootnote } from "@engine/capture";
 import type { CaptureContext, CaptureImage, CaptureInSandbox, GeometryRect } from "@engine/types";
 import {
   buildContextBlock,
@@ -264,8 +264,14 @@ export async function runReview(input: ReviewInput, deps: ReviewDeps): Promise<E
     uiDnaVersion: input.context.uiDnaVersion,
   });
 
-  // 6. Project to the cross-repo wire result Gate consumes (golden-shape).
-  return toEngineReviewResult(critique, input.wireOptions);
+  // 6. Project to the cross-repo wire result Gate consumes (golden-shape). The
+  //    page-health footnote (#20) — console errors / failed requests / blocked
+  //    fonts gathered during capture — is surfaced in `artifacts`, never mixed
+  //    into findings; a clean page yields null and omits the field (golden-safe).
+  return toEngineReviewResult(critique, {
+    ...input.wireOptions,
+    pageHealthFootnote: input.wireOptions.pageHealthFootnote ?? pageHealthFootnote(capture.pageHealth),
+  });
 }
 
 /**
