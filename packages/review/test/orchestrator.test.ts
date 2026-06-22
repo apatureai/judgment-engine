@@ -98,11 +98,19 @@ function geometryFor(routes: string[], selectors: string[]): GeometryRect[] {
 }
 
 /** Stub capture seam — deterministic, no browser. */
-function stubCapture(routes: string[], selectors: string[], opts: { unstable?: boolean; empty?: boolean } = {}): CaptureInSandbox {
+function stubCapture(
+  routes: string[],
+  selectors: string[],
+  opts: { unstable?: boolean; empty?: boolean; consoleErrors?: number; failedRequests?: number } = {},
+): CaptureInSandbox {
   return async (_url: string, _ctx: CaptureContext): Promise<Capture> => ({
     images: opts.empty ? [] : captureImagesFor(routes),
     geometry: opts.empty ? [] : geometryFor(routes, selectors),
-    pageHealth: { consoleErrors: 0, failedRequests: 0, unstable: opts.unstable ?? false },
+    pageHealth: {
+      consoleErrors: opts.consoleErrors ?? 0,
+      failedRequests: opts.failedRequests ?? 0,
+      unstable: opts.unstable ?? false,
+    },
     captureVersion: "stub-capture@1",
   });
 }
@@ -359,6 +367,50 @@ describe("runReview — end-to-end orchestrator", () => {
     expect(result.findings).toHaveLength(0);
     // Grade floored to ship when no findings survive (#106).
     expect(result.grade).toBe("ship");
+  });
+
+  // -------------------------------------------------------------------------
+  // #20: page-health footnote surfaced in delivery (artifacts), not findings
+  // -------------------------------------------------------------------------
+
+  it("#20: surfaces console-error/failed-request page health as an artifacts footnote, not a finding", async () => {
+    const routes = ["/pricing"];
+    const { factory } = scriptedModel(() => critiqueFor("/pricing", "major", "needs_work"));
+
+    const result = await runReview(baseInput(routes), {
+      captureInSandbox: stubCapture(routes, ["#cta"], { consoleErrors: 2, failedRequests: 1 }),
+      modelFactory: factory,
+    });
+
+    expect(result.artifacts.pageHealthFootnote).toBe(
+      "Page health: 2 console error(s), 1 failed request(s).",
+    );
+    // It rode in as a footnote, never as a design finding.
+    expect(result.findings.every((f) => !/console error|failed request/i.test(f.description))).toBe(true);
+  });
+
+  it("#20: omits the page-health footnote when the page is clean (golden-safe)", async () => {
+    const routes = ["/pricing"];
+    const { factory } = scriptedModel(() => critiqueFor("/pricing", "major", "needs_work"));
+
+    const result = await runReview(baseInput(routes), {
+      captureInSandbox: stubCapture(routes, ["#cta"]),
+      modelFactory: factory,
+    });
+
+    expect(result.artifacts).not.toHaveProperty("pageHealthFootnote");
+  });
+
+  it("#20: an unstable capture footnotes the instability for delivery", async () => {
+    const routes = ["/pricing"];
+    const { factory } = scriptedModel(() => critiqueFor("/pricing", "major", "needs_work"));
+
+    const result = await runReview(baseInput(routes), {
+      captureInSandbox: stubCapture(routes, ["#cta"], { unstable: true }),
+      modelFactory: factory,
+    });
+
+    expect(result.artifacts.pageHealthFootnote).toContain("page visually unstable during capture");
   });
 
   // -------------------------------------------------------------------------

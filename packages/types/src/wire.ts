@@ -33,6 +33,14 @@ export interface EngineReviewResult {
   artifacts: {
     annotatedScreenshots: Array<{ findingId: string; url: string }>;
     engineDebugUrl?: string;
+    /**
+     * Page-health footnote (#20): console errors / failed requests / blocked
+     * web fonts gathered during capture, surfaced as a delivery footnote and
+     * deliberately kept OUT of `findings` (an app-health signal, not a design
+     * critique). Additive + optional (schema v1, x-schema-version): omitted when
+     * the page was clean, so the golden wire result stays byte-compatible.
+     */
+    pageHealthFootnote?: string;
   };
   screenshotRetentionSeconds: number;
   metadata: ResultMetadata;

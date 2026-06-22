@@ -49,6 +49,14 @@ export interface WireProjectionOptions {
   artifactUrlFor?: (screenshotId: string) => string;
   /** Engine debug URL for this run, omitted from the wire result when absent. */
   engineDebugUrl?: string;
+  /**
+   * Page-health footnote (#20): the rendered console-error/failed-request/
+   * blocked-font note from `pageHealthFootnote(capture.pageHealth)`, or
+   * null/undefined when the page was clean. Surfaced in `artifacts` and never
+   * mixed into `findings`. Omitted from the wire result when absent, so a clean
+   * page leaves the result byte-identical to before.
+   */
+  pageHealthFootnote?: string | null;
   /** Screenshot retention seconds (tier retention policy, #51). */
   screenshotRetentionSeconds: number;
 }
@@ -90,6 +98,9 @@ export function toEngineReviewResult(critique: Critique, options: WireProjection
       annotatedScreenshots,
       // engineDebugUrl is optional on the wire — only set it when present.
       ...(options.engineDebugUrl !== undefined ? { engineDebugUrl: options.engineDebugUrl } : {}),
+      // Page-health footnote (#20) — only when capture reported something; a
+      // clean page omits the field so the wire result stays byte-compatible.
+      ...(options.pageHealthFootnote ? { pageHealthFootnote: options.pageHealthFootnote } : {}),
     },
     screenshotRetentionSeconds: options.screenshotRetentionSeconds,
     metadata: critique.metadata,

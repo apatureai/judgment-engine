@@ -87,6 +87,28 @@ describe("toEngineReviewResult (wire projection — cross-repo contract)", () =>
     expect(withUrl.artifacts.engineDebugUrl).toBe("https://e/d/1");
   });
 
+  it("surfaces a page-health footnote in artifacts when present, never in findings (#20)", () => {
+    const note = "Page health: 2 console error(s), 1 failed request(s).";
+    const result = toEngineReviewResult(critique(), {
+      screenshotRetentionSeconds: 60,
+      pageHealthFootnote: note,
+    });
+    expect(result.artifacts.pageHealthFootnote).toBe(note);
+    // The footnote is an artifact, not a design finding.
+    expect(result.findings.every((f) => f.description !== note && f.title !== note)).toBe(true);
+  });
+
+  it("omits the page-health footnote field entirely when the page is clean (#20, golden-safe)", () => {
+    const clean = toEngineReviewResult(critique(), { screenshotRetentionSeconds: 60 });
+    expect(Object.keys(clean.artifacts).sort()).toEqual(["annotatedScreenshots"]);
+    expect(clean.artifacts).not.toHaveProperty("pageHealthFootnote");
+    const nullNote = toEngineReviewResult(critique(), {
+      screenshotRetentionSeconds: 60,
+      pageHealthFootnote: null,
+    });
+    expect(nullNote.artifacts).not.toHaveProperty("pageHealthFootnote");
+  });
+
   it("carries the version stamp through untouched", () => {
     const result = toEngineReviewResult(critique(), { screenshotRetentionSeconds: 60 });
     expect(result.metadata).toEqual(critique().metadata);

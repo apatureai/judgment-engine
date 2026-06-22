@@ -73,6 +73,38 @@ export type {
 export { CAPTURE_EPOCH_MS, PRELOAD_SKEW_MS, withDeterministicClock } from "./capture-clock.js";
 export type { PageClock, CapturePhases } from "./capture-clock.js";
 
+export {
+  MOTION_FREEZE_STYLESHEET,
+  REDUCED_MOTION_MEDIA,
+  freezeMotionForCapture,
+} from "./motion-freeze.js";
+export type { MotionFreezeInjector, MotionFreezePhases } from "./motion-freeze.js";
+
+export {
+  GOTO_BUDGET_MS,
+  READY_WAIT_UNTIL,
+  awaitPageReady,
+  recheckFontsAfterScroll,
+} from "./page-readiness.js";
+export type { ReadinessOps, ReadinessOptions, ReadyWaitUntil } from "./page-readiness.js";
+
+export {
+  LAZY_SETTLE_MS,
+  MAX_SCROLL_VIEWPORTS,
+  autoScrollForLazyLoad,
+} from "./lazy-load.js";
+export type { LazyLoadOps, LazyLoadOptions, LazyLoadResult } from "./lazy-load.js";
+
+export { planColorSchemeContexts, capturesDarkMode } from "./dark-mode.js";
+export type { ColorScheme, ColorSchemeContext } from "./dark-mode.js";
+
+export { runCaptureLifecycle } from "./capture-lifecycle.js";
+export type {
+  CaptureLifecycleOps,
+  CaptureLifecycleOptions,
+  CaptureLifecycleResult,
+} from "./capture-lifecycle.js";
+
 export { isPrivateOrReservedIp, evaluateEgress, checkEgressForHost, DomainBudget } from "./egress.js";
 export type { EgressPolicyOptions, EgressDecision, DomainCaps, Resolver } from "./egress.js";
 
