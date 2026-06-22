@@ -98,6 +98,13 @@ export type { LazyLoadOps, LazyLoadOptions, LazyLoadResult } from "./lazy-load.j
 export { planColorSchemeContexts, capturesDarkMode } from "./dark-mode.js";
 export type { ColorScheme, ColorSchemeContext } from "./dark-mode.js";
 
+export { runCaptureLifecycle } from "./capture-lifecycle.js";
+export type {
+  CaptureLifecycleOps,
+  CaptureLifecycleOptions,
+  CaptureLifecycleResult,
+} from "./capture-lifecycle.js";
+
 export { isPrivateOrReservedIp, evaluateEgress, checkEgressForHost, DomainBudget } from "./egress.js";
 export type { EgressPolicyOptions, EgressDecision, DomainCaps, Resolver } from "./egress.js";
 

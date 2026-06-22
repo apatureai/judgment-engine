@@ -51,6 +51,54 @@ apatureai/gate.
 
 ## Self-improvement log (newest first)
 
+- 2026-06-22 (run 20): reconciled stale issues + shipped the EM1 capture seams the
+  earlier loop had wrongly skipped as "needs a live browser", then a hardening
+  glue module. Closed 8 stale issues (#26/#30 critique, #15-#19 capture pure-logic,
+  #2 CI), all verified against code on main. Built #13 (motion freeze), #20
+  (page-health footnote DELIVERY wiring), #12 (readiness protocol), #14 (lazy-load
+  + infinite-scroll), #21 (dark-mode plan), #50 (benchmark methodology doc), and a
+  hardening glue module (`runCaptureLifecycle`). 425 tests, golden untouched.
+  Learnings:
+  - **"Needs a live browser" was over-applied — most capture seams have a pure
+    ordering/decision core.** #12/#13/#14/#21 were all marked `[~] skipped: live
+    browser`, but each splits cleanly into a PURE seam (the protocol/plan: what
+    order to do things, what to inject, what to decide) and a LIVE seam (the actual
+    `page.goto`/`addStyleTag`/`scrollTo`). Exactly the `capture-clock.ts` (#102)
+    pattern that was ALREADY in the repo. The test injects the browser ops and
+    asserts the ordering/decision. Before skipping a capture issue as live-only,
+    ask "is there an ordering or decision a fake can exercise?" — there almost
+    always is. This refilled ~5 issues the backlog had written off.
+  - **The hardening gap was the COMPOSITION of the new seams, not a bug in them.**
+    After shipping five independent capture ordering-seams, nothing sequenced them
+    — the canonical order (clock-install before goto, freeze-reinject AFTER scroll,
+    clock-repin last) lived only in cross-referencing prose comments. The live
+    worker (#11) would have had to reconstruct it and could get it wrong silently.
+    Added `runCaptureLifecycle` as the one place the order is encoded + asserted.
+    Same shape as run-13 (wire projection) and run-16 (`assembleCritique`): per-
+    piece tests pass while the END-TO-END assembly is the unwritten seam. When you
+    ship N pieces that reference each other's order in comments, the glue is the
+    next gap.
+  - **`tsc -b` incremental can silently miss a NEW source file → vitest sees a
+    stale dist export = "X is not a function" while typecheck is green.** A new
+    `src/*.ts` didn't get emitted to `dist/` by incremental `tsc -b` (stale
+    `.tsbuildinfo`), so the vitest run that resolves `@engine/capture` through dist
+    failed `runCaptureLifecycle is not a function` even though `pnpm typecheck`
+    passed. Fix: `pnpm exec tsc -b --force` (or delete `*.tsbuildinfo`) after
+    adding a brand-new file to a package, before trusting the test run. Green
+    typecheck does NOT guarantee dist is current for the test resolver.
+  - **The working tree can reset mid-slice — re-verify a file landed before
+    building on it.** A Write'd source file + its test + an index edit vanished
+    (tree went clean at the last commit) between creation and build. Caught it by
+    `ls`-ing the file when a build error made no sense. After a surprising "file
+    not found"/"not a function", check `git status` + `ls` the file before
+    re-debugging; just re-create and re-verify rather than chasing a phantom.
+  - **Additive wire evolution is safe when the field is omitted-by-default.** #20's
+    delivery wiring added `artifacts.pageHealthFootnote?` to `EngineReviewResult`;
+    emitting it ONLY when non-null keeps the golden byte-identical (clean page →
+    field absent) AND keeps the existing `Object.keys(artifacts)` contract test
+    green. Optional + conditional-spread is the pattern for growing the wire
+    without a schema-version bump.
+
 - 2026-06-21 (run 19): shipped #113 — **orchestrator quality follow-ups** (three
   pure refactors in `@engine/review` `runReview`, the non-blocking findings from
   the PR #110 independent review, captured so they couldn't be lost). (1) The
