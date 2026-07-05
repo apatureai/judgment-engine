@@ -6,4 +6,11 @@ export { REPO_SECRET_KINDS, sealRepoSecret, openRepoSecret } from "./repo-secret
 export type { RepoSecretKind, RepoSecretScope } from "./repo-secrets.js";
 export { APP_SECRET_KEYS, EnvSecretStore } from "./store.js";
 export type { AppSecretKey, SecretStore } from "./store.js";
-export { REDACTED, redact } from "./redact.js";
+export {
+  REDACTED,
+  TRUNCATED_MAX_NODES,
+  TRUNCATED_MAX_DEPTH,
+  MAX_REDACT_DEPTH,
+  MAX_REDACT_NODES,
+  redact,
+} from "./redact.js";
