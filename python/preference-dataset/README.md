@@ -61,12 +61,32 @@ the boundary and the DVC `.dir` integrity check is identical to `pullDataset()`.
 
 - `kto.jsonl` — `{prompt, completion, label}` per tuple (`trl.KTOTrainer`).
 - `sft.jsonl` — `{prompt, completion}` for endorsed tuples only.
+- `dpo.jsonl` — `{prompt, chosen, rejected}` pairs (`trl.DPOTrainer` /
+  `trl.ORPOTrainer`). See below.
 - `dataset-card.json` — counts, class balance, per-dimension/severity/source
-  breakdown, a reproducible DVC-style `version`, and suggested KTO class weights.
+  breakdown, a reproducible DVC-style `version`, suggested KTO class weights, and
+  a `dpo` block with pair counts + skip provenance.
 
 `prompt` carries **references** (`imageRef`, `contextHash`, route, viewport), not
 pixels/text: resolving those object-storage artifacts is an ops seam (DVC / R2),
 kept out so this stays a pure transform.
+
+### DPO/ORPO pairing (#124)
+
+A DPO/ORPO pair is a team's *revealed preference between two candidate critiques
+of the same screen*, so the pairing key is the shared evidence: the rendered-UI
+screenshot (`imageRef`) **and** the repo-context hash (`contextHash`). Within
+each such context an **endorsed** finding becomes `chosen` and a **dismissed**
+finding becomes `rejected`; the full endorsed×dismissed cross-product is emitted.
+Because DPO requires the prompt to be byte-identical across `chosen`/`rejected`,
+the DPO `prompt` carries only that shared context (not the per-finding
+route/viewport, which may differ between the two findings).
+
+Contexts that cannot form a pair are **skipped and counted** (never silently
+dropped) in the card's `dpo` block: `skipped_only_endorsed`,
+`skipped_only_dismissed`, and `skipped_no_context` (a tuple missing `imageRef`
+or `contextHash`). Pairing is deterministic and input-order-independent: groups
+are visited in sorted-key order and both sides sorted by `findingId`.
 
 ## Usage
 

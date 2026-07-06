@@ -1,0 +1,146 @@
+[
+  {
+    "findingId": "fa-e-b",
+    "installationId": "inst-1",
+    "promptVersion": "v1",
+    "imageRef": "img-a",
+    "contextHash": "ctx-a",
+    "finding": {
+      "dimension": "typography",
+      "severity": "minor",
+      "route": "/pricing",
+      "viewport": "desktop",
+      "elementRef": "h1"
+    },
+    "verdict": "endorsed",
+    "label": "desirable",
+    "source": "thumbs",
+    "trainingGrade": true
+  },
+  {
+    "findingId": "fc-d-1",
+    "installationId": "inst-1",
+    "promptVersion": "v1",
+    "imageRef": "img-c",
+    "contextHash": "ctx-c",
+    "finding": {
+      "dimension": "brand",
+      "severity": "nit",
+      "route": "/contact",
+      "viewport": "desktop",
+      "elementRef": null
+    },
+    "verdict": "dismissed",
+    "label": "undesirable",
+    "source": "ignore",
+    "trainingGrade": true
+  },
+  {
+    "findingId": "fa-d-b",
+    "installationId": "inst-1",
+    "promptVersion": "v1",
+    "imageRef": "img-a",
+    "contextHash": "ctx-a",
+    "finding": {
+      "dimension": "consistency",
+      "severity": "major",
+      "route": "/pricing",
+      "viewport": "desktop",
+      "elementRef": "nav"
+    },
+    "verdict": "dismissed",
+    "label": "undesirable",
+    "source": "ignore",
+    "trainingGrade": true
+  },
+  {
+    "findingId": "fn-1",
+    "installationId": "inst-2",
+    "promptVersion": "v1",
+    "imageRef": null,
+    "contextHash": null,
+    "finding": {
+      "dimension": "accessibility",
+      "severity": "minor",
+      "route": "/about",
+      "viewport": "mobile",
+      "elementRef": null
+    },
+    "verdict": "endorsed",
+    "label": "desirable",
+    "source": "implicit",
+    "trainingGrade": true
+  },
+  {
+    "findingId": "fa-e-a",
+    "installationId": "inst-1",
+    "promptVersion": "v1",
+    "imageRef": "img-a",
+    "contextHash": "ctx-a",
+    "finding": {
+      "dimension": "spacing",
+      "severity": "minor",
+      "route": "/pricing",
+      "viewport": "desktop",
+      "elementRef": "main > section"
+    },
+    "verdict": "endorsed",
+    "label": "desirable",
+    "source": "thumbs",
+    "trainingGrade": true
+  },
+  {
+    "findingId": "fb-e-1",
+    "installationId": "inst-1",
+    "promptVersion": "v1",
+    "imageRef": "img-b",
+    "contextHash": "ctx-b",
+    "finding": {
+      "dimension": "color_contrast",
+      "severity": "major",
+      "route": "/home",
+      "viewport": "mobile",
+      "elementRef": null
+    },
+    "verdict": "endorsed",
+    "label": "desirable",
+    "source": "thumbs",
+    "trainingGrade": true
+  },
+  {
+    "findingId": "fa-d-a",
+    "installationId": "inst-1",
+    "promptVersion": "v1",
+    "imageRef": "img-a",
+    "contextHash": "ctx-a",
+    "finding": {
+      "dimension": "color_contrast",
+      "severity": "minor",
+      "route": "/pricing",
+      "viewport": "desktop",
+      "elementRef": "footer"
+    },
+    "verdict": "dismissed",
+    "label": "undesirable",
+    "source": "ignore",
+    "trainingGrade": true
+  },
+  {
+    "findingId": "fn-2",
+    "installationId": "inst-2",
+    "promptVersion": "v1",
+    "imageRef": "img-x",
+    "contextHash": null,
+    "finding": {
+      "dimension": "responsiveness",
+      "severity": "minor",
+      "route": "/dashboard",
+      "viewport": "tablet",
+      "elementRef": null
+    },
+    "verdict": "dismissed",
+    "label": "undesirable",
+    "source": "ignore",
+    "trainingGrade": true
+  }
+]
