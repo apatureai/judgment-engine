@@ -1,0 +1,56 @@
+[
+  {
+    "findingId": "finding-1",
+    "installationId": "inst-1",
+    "promptVersion": "v1",
+    "imageRef": "jobs/job-1/screenshots//pricing-desktop",
+    "contextHash": "ctx-abc",
+    "finding": {
+      "dimension": "spacing",
+      "severity": "minor",
+      "route": "/pricing",
+      "viewport": "desktop",
+      "elementRef": "main > section"
+    },
+    "verdict": "endorsed",
+    "label": "desirable",
+    "source": "thumbs",
+    "trainingGrade": true
+  },
+  {
+    "findingId": "finding-2",
+    "installationId": "inst-1",
+    "promptVersion": "v1",
+    "imageRef": "jobs/job-2/screenshots//home-mobile",
+    "contextHash": "ctx-def",
+    "finding": {
+      "dimension": "color_contrast",
+      "severity": "major",
+      "route": "/home",
+      "viewport": "mobile",
+      "elementRef": null
+    },
+    "verdict": "dismissed",
+    "label": "undesirable",
+    "source": "ignore",
+    "trainingGrade": true
+  },
+  {
+    "findingId": "finding-3",
+    "installationId": "inst-2",
+    "promptVersion": "v2",
+    "imageRef": null,
+    "contextHash": null,
+    "finding": {
+      "dimension": "typography",
+      "severity": "nit",
+      "route": "/about",
+      "viewport": "tablet",
+      "elementRef": "h1"
+    },
+    "verdict": "endorsed",
+    "label": "desirable",
+    "source": "implicit",
+    "trainingGrade": false
+  }
+]

@@ -1,0 +1,29 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "apature-preference-dataset"
+version = "0.0.1"
+description = "Offline prep of judgment-engine revealed-preference verdicts into KTO/SFT datasets for the owned judge (#78)."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "UNLICENSED" }
+dependencies = [
+  "pydantic>=2.6",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.0",
+]
+
+[project.scripts]
+preference-dataset = "preference_dataset.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/preference_dataset"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"

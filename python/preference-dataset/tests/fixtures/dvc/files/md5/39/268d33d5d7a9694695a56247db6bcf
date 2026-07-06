@@ -1,0 +1,1 @@
+{"contextHash":"ctx-abc","finding":{"dimension":"spacing","elementRef":"main > section","route":"/home","severity":"minor","viewport":"desktop"},"findingId":"a","imageRef":"jobs/job-1/screenshots//home-desktop","installationId":"inst-1","label":"desirable","promptVersion":"stub@0","trainingGrade":true,"verdict":"endorsed"}
