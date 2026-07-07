@@ -68,8 +68,47 @@ the boundary and the DVC `.dir` integrity check is identical to `pullDataset()`.
   a `dpo` block with pair counts + skip provenance.
 
 `prompt` carries **references** (`imageRef`, `contextHash`, route, viewport), not
-pixels/text: resolving those object-storage artifacts is an ops seam (DVC / R2),
-kept out so this stays a pure transform.
+pixels/text: resolving those object-storage artifacts is an ops seam (DVC / R2).
+`build` keeps it out so it stays a pure transform; the `resolve` step below
+closes that seam behind a pluggable resolver.
+
+## Resolve step (`resolve`) — hydrate refs into multimodal records
+
+`resolve` turns the reference-carrying tuples into training-ready multimodal
+records by mapping each `imageRef` (and, when present, `contextHash`) to a
+concrete local artifact via a pluggable **`ArtifactResolver`**. A record reuses
+`build.to_kto_row`'s `{prompt, completion, label}` and adds the hydrated image:
+
+```json
+{"prompt": {...}, "completion": {...}, "label": "desirable",
+ "image_path": "jobs/job-1/screenshots/pricing-desktop", "context_path": "ctx-abc"}
+```
+
+- `image_path` is stored **relative to the resolver root** (portable and
+  reproducible; a loader recomposes `root / image_path`). With `embed_bytes=True`
+  the record instead carries raw `image_bytes` for an in-memory HF `datasets`
+  loader (not JSONL-writable).
+- **Missing-artifact policy** (explicit, never a silent drop):
+  `imageRef is None` -> `skipped_no_ref`; `imageRef` set but the artifact absent
+  -> `on_missing="skip"` counts `skipped_missing`, `on_missing="error"` raises
+  `ArtifactNotFoundError`. The three buckets always sum to the input count.
+- `contextHash` is hydrated opportunistically (`context_path`, counted by
+  `context_resolved`); a missing context is non-fatal since context can ride
+  inline in the prompt.
+- Deterministic: tuples are visited in sorted `findingId` order; same input +
+  same fixture tree -> same records and counts.
+
+### Resolvers: fixture-only in v1, remote is a documented stub
+
+- **`LocalFixtureResolver(root)`** — the only implementation. Maps a ref to a
+  file under a local directory (`root / ref`), treating the ref as an opaque
+  object key; rejects refs that escape `root`. **No network, no credentials, no
+  secrets** — the tests run entirely against a committed fixture tree, no GPU.
+- **`RemoteArtifactResolver`** — a documented **interface stub** that raises
+  `NotImplementedError`. The production backend pulls artifacts from the DVC
+  remote / Cloudflare-R2 bucket `dvc-export.ts` pushes to, with object-store
+  credentials and a content-addressed cache. It is deliberately unbuilt here so
+  v1 stays network- and secret-free; wiring it is the follow-up (see PR).
 
 ### DPO/ORPO pairing (#124)
 
@@ -104,6 +143,13 @@ preference-dataset build --input tuples.jsonl --prompt-version v2 \
 preference-dataset build \
   --dvc-manifest fixtures/dvc/manifest.dir.json \
   --dvc-cache-root fixtures/dvc --out ./out
+
+# hydrate imageRef/contextHash refs into multimodal records (local fixture dir)
+preference-dataset resolve --input tuples.json \
+  --fixture-root ./artifacts --out ./out          # writes resolved.jsonl + resolve-report.json
+# fail instead of skipping when an artifact is missing:
+preference-dataset resolve --input tuples.json \
+  --fixture-root ./artifacts --on-missing error --out ./out
 ```
 
 ## Tests
