@@ -10,7 +10,8 @@
   },
   "pnpm": {
     "overrides": {
-      "ioredis": "^5.11.1"
+      "ioredis": "^5.11.1",
+      "vite": "6.4.3"
     }
   },
   "scripts": {
@@ -26,6 +27,6 @@
     "eslint": "^9.17.0",
     "typescript": "^5.7.2",
     "typescript-eslint": "^8.18.2",
-    "vitest": "^2.1.8"
+    "vitest": "3.2.6"
   }
 }

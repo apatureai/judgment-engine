@@ -1,6 +1,6 @@
 import { metrics, propagation } from "@opentelemetry/api";
 import { W3CTraceContextPropagator } from "@opentelemetry/core";
-import { Resource } from "@opentelemetry/resources";
+import { resourceFromAttributes } from "@opentelemetry/resources";
 import { MeterProvider, type MetricReader } from "@opentelemetry/sdk-metrics";
 import { NodeTracerProvider, type SpanProcessor } from "@opentelemetry/sdk-trace-node";
 import { ATTR_SERVICE_NAME, ATTR_SERVICE_VERSION } from "@opentelemetry/semantic-conventions";
@@ -27,7 +27,7 @@ export interface Telemetry {
  * registered so trace context survives the job-payload hop (`propagation.ts`).
  */
 export function initTelemetry(options: TelemetryOptions = {}): Telemetry {
-  const resource = new Resource({
+  const resource = resourceFromAttributes({
     [ATTR_SERVICE_NAME]: options.serviceName ?? "engine",
     [ATTR_SERVICE_VERSION]: options.serviceVersion ?? "0.0.0",
   });
