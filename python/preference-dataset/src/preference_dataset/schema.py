@@ -69,6 +69,10 @@ class PreferenceExample(BaseModel):
     finding: Finding
     verdict: Verdict
     label: Label
+    # TS declares `source` required + non-null, but the DVC-export test factory
+    # omits it; kept Optional so both shapes parse. Content-addressing reproduces
+    # the TS field set exactly (see `reader.dvc_content`): a source-omitted tuple
+    # hashes *without* a `source` key so its DVC id matches the TS side (#127).
     source: Optional[KtoSource] = None
     trainingGrade: bool
 

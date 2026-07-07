@@ -37,6 +37,35 @@ def md5hex(content: str) -> str:
     return hashlib.md5(content.encode("utf-8")).hexdigest()
 
 
+def dvc_content(ex: PreferenceExample) -> dict[str, Any]:
+    """The exact field set `dvc-export.ts` serializes for one tuple.
+
+    Mirrors `buildDvcDataset`'s `canonicalJson(ex)`: every field is kept with its
+    value — the nullable refs (`imageRef`/`contextHash`/`elementRef`) stay present
+    as `null` — EXCEPT `source`. The TS `PreferenceExample` always carries
+    `source`, but the DVC-export test factory omits it, and schema.py relaxes it
+    to Optional so *both* shapes parse. To reproduce the TS content address, a
+    tuple whose `source` was omitted must hash *without* a `source` key (#127);
+    a tuple that carried one hashes *with* it. A blanket `exclude_none` would be
+    wrong here — it would also drop the null refs the TS side keeps, diverging the
+    md5 for any source-omitted tuple that also has a null ref.
+    """
+    data = ex.model_dump()
+    if ex.source is None:
+        data.pop("source", None)
+    return data
+
+
+def dvc_object_md5(ex: PreferenceExample) -> str:
+    """DVC content address (cache-object md5) of one tuple.
+
+    Byte-identical to the per-tuple `md5(canonicalJson(ex))` that
+    `buildDvcDataset` in `dvc-export.ts` computes, so a Python-recomputed address
+    matches the id the TS side stored (dedup and the `.dir` version depend on it).
+    """
+    return md5hex(canonical_json(dvc_content(ex)))
+
+
 def dvc_cache_path(md5: str) -> str:
     """Remote/cache path DVC stores an object at — mirrors `dvcCachePath`."""
     if md5.endswith(".dir"):
@@ -106,7 +135,7 @@ def iter_dedup(examples: Iterable[PreferenceExample]) -> Iterator[PreferenceExam
     """Content-dedup identical tuples (same behaviour as the DVC layer)."""
     seen: set[str] = set()
     for ex in examples:
-        h = md5hex(canonical_json(ex.model_dump(exclude_none=False)))
+        h = dvc_object_md5(ex)
         if h in seen:
             continue
         seen.add(h)

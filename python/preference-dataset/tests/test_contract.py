@@ -89,11 +89,13 @@ def test_field_shapes_match_contract(contract: dict[str, Any]) -> None:
                 )
 
             if field["name"] == "source":
-                # KNOWN divergence (#127): the TS interface declares `source`
+                # DELIBERATE divergence (#127): the TS interface declares `source`
                 # required + non-null, but schema.py relaxes it to Optional so the
-                # DVC-export test-factory shape (which omits it) still parses. This
-                # assertion pins the current reconciliation; closing #127 (making
-                # `source` required) must update it deliberately.
+                # DVC-export test-factory shape (which omits it) still parses. #127
+                # was resolved at the content-addressing layer, NOT by tightening
+                # this field: a source-omitted tuple hashes without a `source` key
+                # (see `reader.dvc_content`), so `source` stays Optional by design.
+                # This assertion pins that reconciliation.
                 assert allows_none is True
                 assert info.is_required() is False
                 continue

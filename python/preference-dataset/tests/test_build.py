@@ -3,9 +3,10 @@ from pathlib import Path
 
 from preference_dataset.build import build, build_dpo, dataset_version, write_outputs
 from preference_dataset.cli import main
-from preference_dataset.reader import load
+from preference_dataset.reader import dvc_object_md5, load, read_dvc_dir
 
 FIX = Path(__file__).parent / "fixtures"
+DVC = FIX / "dvc"
 
 
 def _examples():
@@ -50,6 +51,31 @@ def test_training_grade_only_filter():
     res = build(_examples(), training_grade_only=True)
     assert res.card.total == 2  # finding-3 is trainingGrade=False
     assert res.card.training_grade == 2
+
+
+# --- DVC content-address reproduction (#127) ----------------------------------
+#
+# The `fixtures/dvc/` tree is real `buildDvcDataset()` output; BOTH tuples omit
+# `source` (the DVC-export test-factory shape). A Python-recomputed content
+# address must equal the TS side's — previously `dataset_version`/`iter_dedup`
+# re-hashed `exclude_none=False`, injecting `source:null` and diverging the id.
+
+
+def test_dvc_object_md5_matches_ts_content_address_for_source_omitted():
+    examples = read_dvc_dir(DVC / "manifest.dir.json", DVC)
+    assert any(e.source is None for e in examples), "fixture must be source-omitted"
+    want = {e["relpath"]: e["md5"] for e in json.loads((DVC / "manifest.dir.json").read_text())}
+    for ex in examples:
+        relpath = f"{ex.promptVersion}/{ex.findingId}.json"
+        assert dvc_object_md5(ex) == want[relpath], relpath
+
+
+def test_card_version_equals_ts_dvc_id_for_source_omitted_fixture():
+    examples = read_dvc_dir(DVC / "manifest.dir.json", DVC)
+    ts_dvc_version = (DVC / "VERSION").read_text().strip()
+    # The whole-set content address (the TS `.dir` id) is reproduced byte-for-byte.
+    assert dataset_version(examples) == ts_dvc_version
+    assert build(examples).card.version == ts_dvc_version
 
 
 def test_build_is_deterministic_and_order_independent():

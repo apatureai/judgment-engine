@@ -32,7 +32,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Iterable
 
-from .reader import canonical_json, md5hex
+from .reader import canonical_json, dvc_object_md5, md5hex
 from .schema import PreferenceExample
 
 
@@ -257,12 +257,27 @@ def build_card(
     )
 
 
+def _relpath_for(ex: PreferenceExample) -> str:
+    """Logical dataset path for a tuple — mirrors `relpathFor` in dvc-export.ts."""
+    return f"{ex.promptVersion}/{ex.findingId}.json"
+
+
 def dataset_version(examples: Iterable[PreferenceExample]) -> str:
-    """A DVC-style content address for the whole built set (reproducible)."""
-    listing = sorted(
-        md5hex(canonical_json(e.model_dump(exclude_none=False))) for e in examples
+    """The DVC dataset version id (`<md5>.dir`) for the built set.
+
+    Byte-identical to `buildDvcDataset()` in `dvc-export.ts`: each tuple becomes a
+    content-addressed cache entry `{md5, relpath}` (the md5 is the TS field set —
+    see `dvc_object_md5`), the listing is sorted by `relpath`, and the version is
+    the md5 of that `.dir` listing, suffixed `.dir`. Same tuples => the same id the
+    TS side computes, so a Python-built card's `version` equals the TS DVC content
+    address (previously it re-hashed `exclude_none=False`, injecting `source:null`
+    for source-omitted tuples and diverging the id — #127).
+    """
+    dir_listing = sorted(
+        ({"md5": dvc_object_md5(e), "relpath": _relpath_for(e)} for e in examples),
+        key=lambda entry: entry["relpath"],
     )
-    return f"{md5hex(canonical_json(listing))}.dir"
+    return f"{md5hex(canonical_json(dir_listing))}.dir"
 
 
 @dataclass

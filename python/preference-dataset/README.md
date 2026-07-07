@@ -64,8 +64,9 @@ the boundary and the DVC `.dir` integrity check is identical to `pullDataset()`.
 - `dpo.jsonl` — `{prompt, chosen, rejected}` pairs (`trl.DPOTrainer` /
   `trl.ORPOTrainer`). See below.
 - `dataset-card.json` — counts, class balance, per-dimension/severity/source
-  breakdown, a reproducible DVC-style `version`, suggested KTO class weights, and
-  a `dpo` block with pair counts + skip provenance.
+  breakdown, a reproducible DVC `version` (the same content-addressed `.dir` id
+  `dvc-export.ts` computes), suggested KTO class weights, and a `dpo` block with
+  pair counts + skip provenance.
 
 `prompt` carries **references** (`imageRef`, `contextHash`, route, viewport), not
 pixels/text: resolving those object-storage artifacts is an ops seam (DVC / R2).
