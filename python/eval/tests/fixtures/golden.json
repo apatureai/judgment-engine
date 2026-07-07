@@ -1,0 +1,92 @@
+{
+  "cases": [
+    {
+      "id": "c1",
+      "source": "own",
+      "captureRef": "cap://c1",
+      "labels": [
+        {
+          "raterId": "r1",
+          "grade": "needs_work",
+          "findings": [
+            { "dimension": "spacing", "severity": "minor", "route": "/home", "elementRef": "#hero" },
+            { "dimension": "color_contrast", "severity": "major", "route": "/home", "elementRef": "#cta" }
+          ]
+        },
+        {
+          "raterId": "r2",
+          "grade": "needs_work",
+          "findings": [
+            { "dimension": "spacing", "severity": "major", "route": "/home", "elementRef": "#hero" },
+            { "dimension": "typography", "severity": "nit", "route": "/home", "elementRef": "#title" }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "c2",
+      "source": "own",
+      "labels": [
+        {
+          "raterId": "r1",
+          "grade": "blocked",
+          "findings": [
+            { "dimension": "accessibility", "severity": "blocker", "route": "/checkout", "elementRef": "#pay" },
+            { "dimension": "spacing", "severity": "minor", "route": "/checkout", "elementRef": null }
+          ]
+        },
+        {
+          "raterId": "r2",
+          "grade": "blocked",
+          "findings": [
+            { "dimension": "accessibility", "severity": "blocker", "route": "/checkout", "elementRef": "#pay" },
+            { "dimension": "spacing", "severity": "minor", "route": "/checkout", "elementRef": null }
+          ]
+        },
+        {
+          "raterId": "r3",
+          "grade": "needs_work",
+          "findings": [
+            { "dimension": "accessibility", "severity": "major", "route": "/checkout", "elementRef": "#pay" }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "c3",
+      "source": "oss",
+      "labels": [
+        {
+          "raterId": "r1",
+          "grade": "ship_with_nits",
+          "findings": [
+            { "dimension": "typography", "severity": "nit", "route": "/about", "elementRef": "#h1" }
+          ]
+        },
+        {
+          "raterId": "r2",
+          "grade": "ship",
+          "findings": [
+            { "dimension": "typography", "severity": "nit", "route": "/about", "elementRef": "#h1" }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "c5",
+      "source": "own",
+      "labels": [
+        {
+          "raterId": "r1",
+          "grade": "ship",
+          "findings": []
+        },
+        {
+          "raterId": "r2",
+          "grade": "ship",
+          "findings": []
+        }
+      ]
+    }
+  ]
+}

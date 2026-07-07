@@ -1,0 +1,42 @@
+{
+  "checkpoint": "cand-ckpt-1",
+  "predictions": [
+    {
+      "caseId": "c1",
+      "grade": "needs_work",
+      "findings": [
+        {
+          "dimension": "spacing",
+          "severity": "minor",
+          "route": "/home",
+          "elementRef": "#hero",
+          "confidence": 0.82,
+          "viewport": "desktop",
+          "title": "Hero has cramped vertical rhythm",
+          "introducedByThisPr": true
+        },
+        { "dimension": "consistency", "severity": "minor", "route": "/home", "elementRef": "#nav" }
+      ]
+    },
+    {
+      "caseId": "c2",
+      "grade": "needs_work",
+      "findings": [
+        { "dimension": "accessibility", "severity": "blocker", "route": "/checkout", "elementRef": "#pay" }
+      ]
+    },
+    {
+      "caseId": "c3",
+      "grade": "ship",
+      "findings": [
+        { "dimension": "typography", "severity": "nit", "route": "/about", "elementRef": "#h1" },
+        { "dimension": "spacing", "severity": "nit", "route": "/about", "elementRef": "#footer" }
+      ]
+    },
+    {
+      "caseId": "c4",
+      "grade": "ship",
+      "findings": []
+    }
+  ]
+}

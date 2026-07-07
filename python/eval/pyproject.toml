@@ -1,0 +1,29 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "apature-eval"
+version = "0.0.1"
+description = "Offline batch-grader that scores an owned-judge candidate checkpoint against the packages/eval golden set (#125)."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "UNLICENSED" }
+dependencies = [
+  "pydantic>=2.6",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.0",
+]
+
+[project.scripts]
+apature-eval = "apature_eval.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/apature_eval"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
