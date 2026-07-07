@@ -8,7 +8,10 @@
   "types": "./dist/index.d.ts",
   "exports": { ".": { "types": "./dist/index.d.ts", "default": "./dist/index.js" } },
   "files": ["dist"],
-  "scripts": { "test": "vitest run" },
+  "scripts": {
+    "test": "vitest run",
+    "contract:gen": "node scripts/preference-contract.ts"
+  },
   "dependencies": {
     "@engine/db": "workspace:*",
     "@engine/storage": "workspace:*",

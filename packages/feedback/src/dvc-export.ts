@@ -70,8 +70,14 @@ function md5hex(content: string): string {
   return createHash("md5").update(content, "utf8").digest("hex");
 }
 
-/** Deterministic JSON with lexicographically sorted keys at every level. */
-function canonicalJson(value: unknown): string {
+/**
+ * Deterministic JSON with lexicographically sorted keys at every level. This is
+ * the byte-exact serialization the content addressing depends on; the Python
+ * mirror (`python/preference-dataset` `canonical_json`) reproduces it, and the
+ * schema contract (`contracts/preference-example.contract.json`) pins samples of
+ * its output so a drift on either side fails loudly.
+ */
+export function canonicalJson(value: unknown): string {
   if (value === null || typeof value !== "object") return JSON.stringify(value);
   if (Array.isArray(value)) return `[${value.map(canonicalJson).join(",")}]`;
   const obj = value as Record<string, unknown>;

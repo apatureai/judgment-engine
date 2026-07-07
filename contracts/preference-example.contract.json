@@ -1,0 +1,199 @@
+{
+  "$generatedBy": "packages/feedback/scripts/preference-contract.ts",
+  "$sources": [
+    "packages/types/src/findings.ts",
+    "packages/feedback/src/preference-export.ts",
+    "packages/feedback/src/dvc-export.ts"
+  ],
+  "$doc": "Canonical TS<->Python schema contract for PreferenceExample. Generated; regenerate with `pnpm --filter @engine/feedback contract:gen`. DO NOT EDIT BY HAND.",
+  "version": 1,
+  "enums": {
+    "Dimension": [
+      "visual_hierarchy",
+      "spacing",
+      "color_contrast",
+      "typography",
+      "consistency",
+      "responsiveness",
+      "accessibility",
+      "brand"
+    ],
+    "Severity": [
+      "nit",
+      "minor",
+      "major",
+      "blocker"
+    ],
+    "Viewport": [
+      "mobile",
+      "tablet",
+      "desktop"
+    ],
+    "KtoSource": [
+      "thumbs",
+      "ignore",
+      "implicit"
+    ],
+    "Verdict": [
+      "endorsed",
+      "dismissed"
+    ],
+    "Label": [
+      "desirable",
+      "undesirable"
+    ]
+  },
+  "types": {
+    "Finding": {
+      "fields": [
+        {
+          "name": "dimension",
+          "kind": "enum",
+          "enum": "Dimension",
+          "nullable": false,
+          "optional": false
+        },
+        {
+          "name": "severity",
+          "kind": "enum",
+          "enum": "Severity",
+          "nullable": false,
+          "optional": false
+        },
+        {
+          "name": "route",
+          "kind": "string",
+          "nullable": false,
+          "optional": false
+        },
+        {
+          "name": "viewport",
+          "kind": "enum",
+          "enum": "Viewport",
+          "nullable": false,
+          "optional": false
+        },
+        {
+          "name": "elementRef",
+          "kind": "string",
+          "nullable": true,
+          "optional": false
+        }
+      ]
+    },
+    "PreferenceExample": {
+      "fields": [
+        {
+          "name": "findingId",
+          "kind": "string",
+          "nullable": false,
+          "optional": false
+        },
+        {
+          "name": "installationId",
+          "kind": "string",
+          "nullable": false,
+          "optional": false
+        },
+        {
+          "name": "promptVersion",
+          "kind": "string",
+          "nullable": false,
+          "optional": false
+        },
+        {
+          "name": "imageRef",
+          "kind": "string",
+          "nullable": true,
+          "optional": false
+        },
+        {
+          "name": "contextHash",
+          "kind": "string",
+          "nullable": true,
+          "optional": false
+        },
+        {
+          "name": "finding",
+          "kind": "ref",
+          "ref": "Finding",
+          "nullable": false,
+          "optional": false
+        },
+        {
+          "name": "verdict",
+          "kind": "enum",
+          "enum": "Verdict",
+          "nullable": false,
+          "optional": false
+        },
+        {
+          "name": "label",
+          "kind": "enum",
+          "enum": "Label",
+          "nullable": false,
+          "optional": false
+        },
+        {
+          "name": "source",
+          "kind": "enum",
+          "enum": "KtoSource",
+          "nullable": false,
+          "optional": false
+        },
+        {
+          "name": "trainingGrade",
+          "kind": "boolean",
+          "nullable": false,
+          "optional": false
+        }
+      ]
+    }
+  },
+  "canonicalSamples": [
+    {
+      "name": "full-endorsed",
+      "example": {
+        "findingId": "finding-1",
+        "installationId": "inst-1",
+        "promptVersion": "stub@0",
+        "imageRef": "jobs/job-1/screenshot/home-desktop",
+        "contextHash": "ctx-abc",
+        "finding": {
+          "dimension": "spacing",
+          "severity": "minor",
+          "route": "/home",
+          "viewport": "desktop",
+          "elementRef": "main > section"
+        },
+        "verdict": "endorsed",
+        "label": "desirable",
+        "source": "thumbs",
+        "trainingGrade": true
+      },
+      "canonicalJson": "{\"contextHash\":\"ctx-abc\",\"finding\":{\"dimension\":\"spacing\",\"elementRef\":\"main > section\",\"route\":\"/home\",\"severity\":\"minor\",\"viewport\":\"desktop\"},\"findingId\":\"finding-1\",\"imageRef\":\"jobs/job-1/screenshot/home-desktop\",\"installationId\":\"inst-1\",\"label\":\"desirable\",\"promptVersion\":\"stub@0\",\"source\":\"thumbs\",\"trainingGrade\":true,\"verdict\":\"endorsed\"}"
+    },
+    {
+      "name": "dismissed-with-nulls",
+      "example": {
+        "findingId": "finding-2",
+        "installationId": "inst-2",
+        "promptVersion": "v2",
+        "imageRef": null,
+        "contextHash": null,
+        "finding": {
+          "dimension": "color_contrast",
+          "severity": "blocker",
+          "route": "/pricing",
+          "viewport": "mobile",
+          "elementRef": null
+        },
+        "verdict": "dismissed",
+        "label": "undesirable",
+        "source": "implicit",
+        "trainingGrade": false
+      },
+      "canonicalJson": "{\"contextHash\":null,\"finding\":{\"dimension\":\"color_contrast\",\"elementRef\":null,\"route\":\"/pricing\",\"severity\":\"blocker\",\"viewport\":\"mobile\"},\"findingId\":\"finding-2\",\"imageRef\":null,\"installationId\":\"inst-2\",\"label\":\"undesirable\",\"promptVersion\":\"v2\",\"source\":\"implicit\",\"trainingGrade\":false,\"verdict\":\"dismissed\"}"
+    }
+  ]
+}
