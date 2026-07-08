@@ -25,5 +25,7 @@ export default defineConfig({
   test: {
     include: ["packages/*/test/**/*.test.ts"],
     environment: "node",
+    // PGlite-backed migration tests can cold-start slowly when Vitest 4 runs the full package matrix.
+    testTimeout: 20_000,
   },
 });
