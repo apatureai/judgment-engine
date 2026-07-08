@@ -6,7 +6,7 @@
   "description": "Apature Judgment Engine - capture, critique, eval, and feedback substrate for the Apature surfaces.",
   "packageManager": "pnpm@9.15.0",
   "engines": {
-    "node": ">=20"
+    "node": ">=20.19.0"
   },
   "pnpm": {
     "overrides": {
@@ -24,7 +24,7 @@
   "devDependencies": {
     "@eslint/js": "^9.17.0",
     "@types/node": "^22.10.2",
-    "eslint": "^9.17.0",
+    "eslint": "^10.6.0",
     "typescript": "^5.7.2",
     "typescript-eslint": "^8.63.0",
     "vitest": "3.2.6"
