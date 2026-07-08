@@ -12,7 +12,8 @@
   "dependencies": {
     "@engine/types": "workspace:*",
     "postcss": "^8.5.16",
-    "tailwindcss": "^3.4.17",
+    "tailwindcss": "^4.3.2",
+    "tailwindcss-v3": "npm:tailwindcss@^3.4.19",
     "yaml": "^2.6.1"
   }
 }

@@ -1,5 +1,4 @@
-import type { Config } from "tailwindcss";
-import resolveConfig from "tailwindcss/resolveConfig";
+import resolveConfig from "tailwindcss-v3/resolveConfig";
 import type { TokenMap } from "./tokens.js";
 
 /**
@@ -61,7 +60,7 @@ export function extractTailwindTokens(theme: Record<string, unknown>): TokenMap 
  */
 export function resolveTailwindV3Tokens(userConfig: unknown): TokenMap | null {
   try {
-    const full = resolveConfig(userConfig as Config);
+    const full = resolveConfig(userConfig);
     return extractTailwindTokens(full.theme);
   } catch {
     return null;
