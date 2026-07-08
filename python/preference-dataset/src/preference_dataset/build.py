@@ -262,20 +262,32 @@ def _relpath_for(ex: PreferenceExample) -> str:
     return f"{ex.promptVersion}/{ex.findingId}.json"
 
 
+def _relpath_sort_key(relpath: str) -> bytes:
+    """Canonical DVC `.dir` relpath ordering, matching `dvc-export.ts`.
+
+    The contract sorts by raw UTF-8 bytes, not locale collation. That keeps the
+    dataset version stable across Python, Node, host locales, and ICU versions.
+    """
+    return relpath.encode("utf-8")
+
+
 def dataset_version(examples: Iterable[PreferenceExample]) -> str:
     """The DVC dataset version id (`<md5>.dir`) for the built set.
 
     Byte-identical to `buildDvcDataset()` in `dvc-export.ts`: each tuple becomes a
     content-addressed cache entry `{md5, relpath}` (the md5 is the TS field set —
-    see `dvc_object_md5`), the listing is sorted by `relpath`, and the version is
-    the md5 of that `.dir` listing, suffixed `.dir`. Same tuples => the same id the
-    TS side computes, so a Python-built card's `version` equals the TS DVC content
-    address (previously it re-hashed `exclude_none=False`, injecting `source:null`
-    for source-omitted tuples and diverging the id — #127).
+    see `dvc_object_md5`), the listing is sorted by canonical UTF-8 bytes of
+    `relpath`, and the version is the md5 of that `.dir` listing, suffixed `.dir`.
+    Same tuples => the same id the TS side computes, so a Python-built card's
+    `version` equals the TS DVC content address (previously it re-hashed
+    `exclude_none=False`, injecting `source:null` for source-omitted tuples and
+    diverging the id — #127). The byte-order relpath sort is locale- and
+    ICU-independent, so non-ASCII or punctuation-heavy relpaths do not diverge
+    across runtimes (#133).
     """
     dir_listing = sorted(
         ({"md5": dvc_object_md5(e), "relpath": _relpath_for(e)} for e in examples),
-        key=lambda entry: entry["relpath"],
+        key=lambda entry: _relpath_sort_key(entry["relpath"]),
     )
     return f"{md5hex(canonical_json(dir_listing))}.dir"
 

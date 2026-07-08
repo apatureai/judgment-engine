@@ -1,9 +1,22 @@
 import json
 from pathlib import Path
 
-from preference_dataset.build import build, build_dpo, dataset_version, write_outputs
+from preference_dataset.build import (
+    _relpath_for,
+    _relpath_sort_key,
+    build,
+    build_dpo,
+    dataset_version,
+    write_outputs,
+)
 from preference_dataset.cli import main
-from preference_dataset.reader import dvc_object_md5, load, read_dvc_dir
+from preference_dataset.reader import (
+    canonical_json,
+    dvc_object_md5,
+    load,
+    md5hex,
+    read_dvc_dir,
+)
 
 FIX = Path(__file__).parent / "fixtures"
 DVC = FIX / "dvc"
@@ -84,6 +97,53 @@ def test_build_is_deterministic_and_order_independent():
     v2 = dataset_version(list(reversed(ex)))
     assert v1 == v2
     assert build(ex).card.version == build(list(reversed(ex))).card.version
+
+
+# --- non-ASCII `.dir` relpath ordering (#133) ---------------------------------
+#
+# dvc-export.ts and this package both sort `.dir` listings by raw UTF-8 bytes of
+# `relpath`, not locale collation. This is the DVC contract, and keeps dataset
+# versions stable across Python, Node, host locales, and ICU versions.
+
+
+def test_relpath_sort_key_uses_canonical_utf8_byte_order():
+    relpaths = [
+        "v1/cafe.json", "v1/café.json", "v1/cafz.json",
+        "v1/Apple.json", "v1/apple.json",
+        "v1/naïve.json", "v1/naive.json",
+        "v1/résumé.json", "v1/resume.json",
+        "v1/a-b.json", "v1/ab.json", "v1/a_b.json", "v1/a@b.json", "v1/a.b.json",
+        "v1/finding-2.json", "v1/finding-10.json", "v1/finding_1.json", "v1/finding.1.json",
+        "v1/βeta.json", "v1/中.json", "v1/あ.json", "v1/я.json",
+    ]
+    utf8_order = [
+        "v1/Apple.json",
+        "v1/a-b.json", "v1/a.b.json", "v1/a@b.json", "v1/a_b.json", "v1/ab.json",
+        "v1/apple.json",
+        "v1/cafe.json", "v1/cafz.json", "v1/café.json",
+        "v1/finding-10.json", "v1/finding-2.json", "v1/finding.1.json", "v1/finding_1.json",
+        "v1/naive.json", "v1/naïve.json",
+        "v1/resume.json", "v1/résumé.json",
+        "v1/βeta.json", "v1/я.json", "v1/あ.json", "v1/中.json",
+    ]
+    assert sorted(relpaths, key=_relpath_sort_key) == utf8_order
+
+
+def test_dataset_version_sorts_dir_by_utf8_byte_order_not_locale():
+    base = _examples()[0]
+    examples = [
+        base.model_copy(update={"findingId": fid})
+        for fid in ("cafe", "café", "cafz", "apple", "Apple", "a-b", "a_b")
+    ]
+    entries = [{"md5": dvc_object_md5(e), "relpath": _relpath_for(e)} for e in examples]
+    byte_order_id = f'{md5hex(canonical_json(sorted(entries, key=lambda x: _relpath_sort_key(x["relpath"]))))}.dir'
+    locale_like_id = f'{md5hex(canonical_json(sorted(entries, key=lambda x: x["relpath"].casefold())))}.dir'
+
+    assert byte_order_id != locale_like_id  # locale-style ordering would diverge
+    assert dataset_version(examples) == byte_order_id  # conforms to the DVC contract
+    assert dataset_version(examples) != locale_like_id
+    # order-independent, like the rest of the DVC layer.
+    assert dataset_version(list(reversed(examples))) == byte_order_id
 
 
 def test_write_outputs_materializes_files(tmp_path):

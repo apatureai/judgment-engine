@@ -47,6 +47,51 @@ describe("buildDvcDataset", () => {
     expect(v1).toBe(v2);
   });
 
+  it("sorts .dir entries by canonical UTF-8 relpath bytes", () => {
+    const ids = [
+      "cafe",
+      "café",
+      "cafz",
+      "Apple",
+      "apple",
+      "a-b",
+      "a.b",
+      "a@b",
+      "a_b",
+      "ab",
+      "finding-2",
+      "finding-10",
+      "finding.1",
+      "finding_1",
+      "βeta",
+      "я",
+      "あ",
+      "中",
+    ];
+    const ds = buildDvcDataset(ids.map((findingId) => example({ findingId })));
+
+    expect(ds.dir.map((entry) => entry.relpath)).toEqual([
+      "stub@0/Apple.json",
+      "stub@0/a-b.json",
+      "stub@0/a.b.json",
+      "stub@0/a@b.json",
+      "stub@0/a_b.json",
+      "stub@0/ab.json",
+      "stub@0/apple.json",
+      "stub@0/cafe.json",
+      "stub@0/cafz.json",
+      "stub@0/café.json",
+      "stub@0/finding-10.json",
+      "stub@0/finding-2.json",
+      "stub@0/finding.1.json",
+      "stub@0/finding_1.json",
+      "stub@0/βeta.json",
+      "stub@0/я.json",
+      "stub@0/あ.json",
+      "stub@0/中.json",
+    ]);
+  });
+
   it("changing one tuple changes only that object's id (and the dir), not its siblings", () => {
     const a = example({ findingId: "a" });
     const b = example({ findingId: "b" });

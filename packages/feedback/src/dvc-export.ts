@@ -1,3 +1,4 @@
+import { Buffer } from "node:buffer";
 import { createHash } from "node:crypto";
 import type { ObjectStore } from "@engine/storage";
 import type { PreferenceExample } from "./preference-export.js";
@@ -10,9 +11,10 @@ import type { PreferenceExample } from "./preference-export.js";
  *
  *  - Every tuple is serialized to canonical JSON and addressed by `md5(content)`
  *    — DVC's default hash. Identical tuples dedup across versions.
- *  - The dataset version is a DVC **`.dir` object**: a sorted JSON listing of
- *    `{md5, relpath}` whose own md5 (suffixed `.dir`) is the version id. Same
- *    tuples ⇒ same version id (point-in-time reproducible).
+ *  - The dataset version is a DVC **`.dir` object**: a JSON listing of
+ *    `{md5, relpath}` sorted by canonical UTF-8 bytes of `relpath`; the
+ *    listing's own md5 (suffixed `.dir`) is the version id. Same tuples ⇒ same
+ *    version id (point-in-time reproducible).
  *  - Each entry carries lineage back to its finding / verdict / screenshot, so a
  *    training set is auditable tuple→source.
  *  - Data-subject deletion is a re-version that drops a subject's tuples; because
@@ -93,6 +95,11 @@ function relpathFor(example: PreferenceExample): string {
   return `${example.promptVersion}/${example.findingId}.json`;
 }
 
+/** Canonical DVC `.dir` relpath ordering, mirrored by python/preference-dataset. */
+function compareRelpathBytes(a: string, b: string): number {
+  return Buffer.from(a, "utf8").compare(Buffer.from(b, "utf8"));
+}
+
 /** Remote/cache path DVC stores an object at: `files/md5/<aa>/<rest>`. */
 export function dvcCachePath(md5: string): string {
   // `.dir` objects keep their suffix on the filename; split only the 32-hex head.
@@ -125,12 +132,12 @@ export function buildDvcDataset(examples: PreferenceExample[]): DvcDataset {
     });
   }
 
-  objects.sort((a, b) => a.relpath.localeCompare(b.relpath));
-  lineage.sort((a, b) => a.relpath.localeCompare(b.relpath));
+  objects.sort((a, b) => compareRelpathBytes(a.relpath, b.relpath));
+  lineage.sort((a, b) => compareRelpathBytes(a.relpath, b.relpath));
 
   const dir: DvcDirEntry[] = objects.map((o) => ({ md5: o.md5, relpath: o.relpath }));
-  // DVC serializes the `.dir` listing compactly with sorted relpaths; its md5
-  // (+ `.dir`) is the directory's content address — i.e. the dataset version.
+  // DVC serializes the `.dir` listing compactly with canonical relpath ordering;
+  // its md5 (+ `.dir`) is the directory's content address, i.e. the dataset version.
   const version = `${md5hex(canonicalJson(dir))}.dir`;
 
   return { version, dir, objects, lineage };

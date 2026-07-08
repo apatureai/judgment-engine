@@ -47,8 +47,10 @@ so a schema drift on the TS side fails loudly here instead of silently poisoning
 a training set. `verdict` and `label` must agree (`endorsed`⇔`desirable`).
 
 `canonical_json` reproduces `dvc-export.ts`'s `canonicalJson` (sorted keys,
-compact separators, UTF-8), so md5 content-addresses match byte-for-byte across
-the boundary and the DVC `.dir` integrity check is identical to `pullDataset()`.
+compact separators, UTF-8), and the DVC `.dir` listing is sorted by canonical
+UTF-8 bytes of `relpath` on both sides. That keeps md5 content-addresses and
+dataset `version` ids byte-for-byte stable across Python, Node, host locales,
+and ICU versions; the integrity check is identical to `pullDataset()`.
 
 ## Inputs it accepts
 
