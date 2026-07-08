@@ -1,0 +1,554 @@
+//! Perceptual near-duplicate detection for capture screenshots.
+//!
+//! Retries, reruns, and superseded pushes produce screenshots that are pixel-different
+//! but perceptually identical. Every duplicate that reaches the judge burns VLM tokens
+//! (the COGS center), so the capture pipeline hashes each screenshot and skips frames
+//! that are near-duplicates of one already judged for the same `(pr, head_sha, route)`.
+//!
+//! Two 64-bit hashes are provided:
+//!
+//! - [`dhash`] — difference hash over a 9x8 box-filtered grid. Pure integer math, so
+//!   the value is bit-exact across platforms and languages; it is the cross-language
+//!   golden contract (see `golden/vectors.json` and the mirror TypeScript
+//!   implementation in `packages/capture/test/dedup-golden.test.ts`).
+//! - [`phash`] — DCT hash: 32x32 box-filter downscale, 2D DCT-II, median threshold on
+//!   the 8x8 low-frequency block. Coefficients are scaled by 64 and rounded (6
+//!   fractional bits) before the median compare so that sub-ulp differences between
+//!   platform `cos` implementations cannot flip bits while low-amplitude structure
+//!   in flat screenshot-like images still survives quantization.
+//!
+//! The library is deterministic by construction: no RNG, no clocks, no I/O, no unsafe.
+
+#![forbid(unsafe_code)]
+
+/// Half-open pixel range `[start, end)` of destination cell `i` when downscaling a
+/// source axis of length `src` to `dst` cells. When `src < dst`, cells reuse the
+/// nearest source pixel so every cell is non-empty.
+fn cell_bounds(i: usize, src: usize, dst: usize) -> (usize, usize) {
+    let start = i * src / dst;
+    let end = (i + 1) * src / dst;
+    if end <= start {
+        (start, start + 1)
+    } else {
+        (start, end)
+    }
+}
+
+fn assert_dims(gray: &[u8], w: usize, h: usize) {
+    assert!(w > 0 && h > 0, "image dimensions must be non-zero");
+    assert_eq!(gray.len(), w * h, "gray buffer length must equal w * h");
+}
+
+/// Difference hash of a grayscale image (row-major, one byte per pixel).
+///
+/// The image is box-filtered down to a 9-wide by 8-tall grid of floor-averaged
+/// luminance values. Each of the 64 bits compares horizontal neighbours: scanning
+/// rows top-to-bottom and columns left-to-right, the hash is shifted left one bit
+/// and the low bit is set when `cell[row][col] < cell[row][col + 1]`.
+///
+/// Integer math only, so the result is bit-exact across platforms and languages.
+///
+/// # Panics
+/// Panics if `w == 0`, `h == 0`, or `gray.len() != w * h`.
+pub fn dhash(gray: &[u8], w: usize, h: usize) -> u64 {
+    assert_dims(gray, w, h);
+    let mut grid = [[0u64; 9]; 8];
+    for (row, grid_row) in grid.iter_mut().enumerate() {
+        let (y0, y1) = cell_bounds(row, h, 8);
+        for (col, cell) in grid_row.iter_mut().enumerate() {
+            let (x0, x1) = cell_bounds(col, w, 9);
+            let mut sum: u64 = 0;
+            for y in y0..y1 {
+                for x in x0..x1 {
+                    sum += u64::from(gray[y * w + x]);
+                }
+            }
+            let count = ((y1 - y0) * (x1 - x0)) as u64;
+            *cell = sum / count;
+        }
+    }
+    let mut hash = 0u64;
+    for row in &grid {
+        for col in 0..8 {
+            hash <<= 1;
+            if row[col] < row[col + 1] {
+                hash |= 1;
+            }
+        }
+    }
+    hash
+}
+
+const PHASH_SIZE: usize = 32;
+const PHASH_BLOCK: usize = 8;
+
+/// DCT perceptual hash of a grayscale image (row-major, one byte per pixel).
+///
+/// The image is box-filtered down to 32x32 mean luminance values, transformed with an
+/// orthonormal 2D DCT-II, and the 8x8 low-frequency block (including DC) is kept.
+/// Each coefficient is scaled by 64 and rounded to the nearest integer — this
+/// quantization makes the hash immune to last-ulp differences between platform
+/// `cos`/floating-point implementations (analytically-zero coefficients of symmetric
+/// images land on exact 0 instead of ±1e-13 noise) while keeping 6 fractional bits so
+/// low-amplitude structure in flat screenshot-like content survives. Bits are emitted
+/// row-major over the block, shifting left and setting the low bit when the quantized
+/// coefficient exceeds the lower median of all 64 quantized coefficients.
+///
+/// # Panics
+/// Panics if `w == 0`, `h == 0`, or `gray.len() != w * h`.
+pub fn phash(gray: &[u8], w: usize, h: usize) -> u64 {
+    assert_dims(gray, w, h);
+
+    // 32x32 box-filter downscale to mean luminance (f64).
+    let mut img = [[0f64; PHASH_SIZE]; PHASH_SIZE];
+    for (row, img_row) in img.iter_mut().enumerate() {
+        let (y0, y1) = cell_bounds(row, h, PHASH_SIZE);
+        for (col, px) in img_row.iter_mut().enumerate() {
+            let (x0, x1) = cell_bounds(col, w, PHASH_SIZE);
+            let mut sum: u64 = 0;
+            for y in y0..y1 {
+                for x in x0..x1 {
+                    sum += u64::from(gray[y * w + x]);
+                }
+            }
+            let count = ((y1 - y0) * (x1 - x0)) as f64;
+            *px = sum as f64 / count;
+        }
+    }
+
+    // Orthonormal DCT-II basis for the first PHASH_BLOCK frequencies of a
+    // PHASH_SIZE-point axis: basis[u][x] = c(u) * cos((2x + 1) * u * pi / (2 * N)).
+    let n = PHASH_SIZE as f64;
+    let mut basis = [[0f64; PHASH_SIZE]; PHASH_BLOCK];
+    for (u, basis_u) in basis.iter_mut().enumerate() {
+        let scale = if u == 0 {
+            (1.0 / n).sqrt()
+        } else {
+            (2.0 / n).sqrt()
+        };
+        for (x, b) in basis_u.iter_mut().enumerate() {
+            *b = scale
+                * ((2.0 * x as f64 + 1.0) * u as f64 * std::f64::consts::PI / (2.0 * n)).cos();
+        }
+    }
+
+    // Separable 2D DCT-II, keeping only the PHASH_BLOCK x PHASH_BLOCK output block.
+    let mut rows = [[0f64; PHASH_BLOCK]; PHASH_SIZE];
+    for y in 0..PHASH_SIZE {
+        for u in 0..PHASH_BLOCK {
+            let mut acc = 0.0;
+            for x in 0..PHASH_SIZE {
+                acc += img[y][x] * basis[u][x];
+            }
+            rows[y][u] = acc;
+        }
+    }
+    let mut quantized = [0i64; PHASH_BLOCK * PHASH_BLOCK];
+    for v in 0..PHASH_BLOCK {
+        for u in 0..PHASH_BLOCK {
+            let mut acc = 0.0;
+            for y in 0..PHASH_SIZE {
+                acc += rows[y][u] * basis[v][y];
+            }
+            // Scale by 64 (6 fractional bits) before rounding: platform cos/fma noise
+            // is ~1e-13 (~1e-11 after scaling — far below the 0.5 rounding threshold),
+            // but real low-amplitude structure in flat screenshot-like images lives in
+            // coefficients well under 1.0 and must survive quantization, or every
+            // smooth page collapses to a near-zero hash and false near-dup matches.
+            quantized[v * PHASH_BLOCK + u] = (acc * 64.0).round() as i64;
+        }
+    }
+
+    let mut sorted = quantized;
+    sorted.sort_unstable();
+    let median = sorted[PHASH_BLOCK * PHASH_BLOCK / 2 - 1]; // lower median of 64 values
+
+    let mut hash = 0u64;
+    for q in &quantized {
+        hash <<= 1;
+        if *q > median {
+            hash |= 1;
+        }
+    }
+    hash
+}
+
+/// Number of differing bits between two 64-bit hashes.
+pub fn hamming(a: u64, b: u64) -> u32 {
+    (a ^ b).count_ones()
+}
+
+/// Whether two hashes are within `threshold` differing bits of each other.
+/// A threshold of about 10 works well for [`dhash`] near-duplicate detection.
+pub fn is_near_duplicate(a: u64, b: u64, threshold: u32) -> bool {
+    hamming(a, b) <= threshold
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::golden;
+
+    // --- synthetic image generators (mirrored in golden/vectors.json and in the
+    // TypeScript golden test; integer math only so all implementations agree) ---
+
+    fn gradient_h(w: usize, h: usize, shift: usize) -> Vec<u8> {
+        let mut px = Vec::with_capacity(w * h);
+        for _y in 0..h {
+            for x in 0..w {
+                let sx = (x + shift).min(w - 1);
+                px.push((sx * 255 / (w - 1)) as u8);
+            }
+        }
+        px
+    }
+
+    fn gradient_v(w: usize, h: usize) -> Vec<u8> {
+        let mut px = Vec::with_capacity(w * h);
+        for y in 0..h {
+            for _x in 0..w {
+                px.push((y * 255 / (h - 1)) as u8);
+            }
+        }
+        px
+    }
+
+    fn inverted_gradient_h(w: usize, h: usize) -> Vec<u8> {
+        gradient_h(w, h, 0).iter().map(|p| 255 - p).collect()
+    }
+
+    fn checkerboard(w: usize, h: usize, block: usize) -> Vec<u8> {
+        let mut px = Vec::with_capacity(w * h);
+        for y in 0..h {
+            for x in 0..w {
+                px.push(if (x / block + y / block).is_multiple_of(2) {
+                    0
+                } else {
+                    255
+                });
+            }
+        }
+        px
+    }
+
+    /// Numerical-recipes LCG; pixel = top byte of the 32-bit state.
+    fn lcg_noise(w: usize, h: usize, seed: u32) -> Vec<u8> {
+        let mut s = seed;
+        let mut px = Vec::with_capacity(w * h);
+        for _ in 0..w * h {
+            s = s.wrapping_mul(1_664_525).wrapping_add(1_013_904_223);
+            px.push((s >> 24) as u8);
+        }
+        px
+    }
+
+    fn brightened(px: &[u8], delta: u8) -> Vec<u8> {
+        px.iter().map(|p| p.saturating_add(delta)).collect()
+    }
+
+    fn next_lcg(s: &mut u64) -> u64 {
+        // 64-bit LCG (Knuth MMIX constants) for property tests.
+        *s = s
+            .wrapping_mul(6_364_136_223_846_793_005)
+            .wrapping_add(1_442_695_040_888_963_407);
+        *s
+    }
+
+    #[test]
+    fn identical_images_have_zero_distance() {
+        let img = lcg_noise(64, 48, 7);
+        assert_eq!(hamming(dhash(&img, 64, 48), dhash(&img, 64, 48)), 0);
+        assert_eq!(hamming(phash(&img, 64, 48), phash(&img, 64, 48)), 0);
+    }
+
+    #[test]
+    fn one_pixel_shift_is_a_near_duplicate() {
+        let base = gradient_h(64, 48, 0);
+        let shifted = gradient_h(64, 48, 1);
+        let d = hamming(dhash(&base, 64, 48), dhash(&shifted, 64, 48));
+        assert!(d <= 10, "dhash distance for 1px shift was {d}");
+        assert!(is_near_duplicate(
+            dhash(&base, 64, 48),
+            dhash(&shifted, 64, 48),
+            10
+        ));
+        let p = hamming(phash(&base, 64, 48), phash(&shifted, 64, 48));
+        assert!(p <= 10, "phash distance for 1px shift was {p}");
+    }
+
+    #[test]
+    fn small_brightness_change_is_a_near_duplicate() {
+        let base = lcg_noise(64, 48, 42);
+        let bright = brightened(&base, 4);
+        let d = hamming(dhash(&base, 64, 48), dhash(&bright, 64, 48));
+        assert!(d <= 10, "dhash distance for +4 brightness was {d}");
+        let p = hamming(phash(&base, 64, 48), phash(&bright, 64, 48));
+        assert!(p <= 10, "phash distance for +4 brightness was {p}");
+    }
+
+    #[test]
+    fn structurally_different_images_are_far_apart() {
+        let grad = gradient_h(64, 48, 0);
+        let checker = checkerboard(64, 48, 8);
+        let inverted = inverted_gradient_h(64, 48);
+        let vertical = gradient_v(64, 48);
+        let d_checker = hamming(dhash(&grad, 64, 48), dhash(&checker, 64, 48));
+        assert!(
+            d_checker > 20,
+            "gradient vs checkerboard dhash distance was {d_checker}"
+        );
+        let d_inv = hamming(dhash(&grad, 64, 48), dhash(&inverted, 64, 48));
+        assert!(
+            d_inv > 20,
+            "gradient vs inverted dhash distance was {d_inv}"
+        );
+        let d_vert = hamming(dhash(&grad, 64, 48), dhash(&vertical, 64, 48));
+        assert!(
+            d_vert > 20,
+            "horizontal vs vertical gradient dhash distance was {d_vert}"
+        );
+        // phash caveat, pinned rather than hidden: analytically-sparse synthetic
+        // images (pure gradients, exact checkerboards) have almost-all-zero DCT
+        // spectra, so BOTH phash values sit near zero and their Hamming distance is
+        // small — the canonical pHash algorithm behaves the same way. Separation on
+        // such structured-but-flat content is dhash's job (asserted above); phash
+        // earns its keep on noise-like natural content (asserted below). Keep the
+        // distance nonzero here so the two spectra at least never collapse together.
+        let p_checker = hamming(phash(&grad, 64, 48), phash(&checker, 64, 48));
+        assert!(
+            p_checker > 0,
+            "gradient vs checkerboard phash collapsed to equal hashes"
+        );
+        assert!(!is_near_duplicate(
+            dhash(&grad, 64, 48),
+            dhash(&checker, 64, 48),
+            10
+        ));
+    }
+
+    #[test]
+    fn phash_separates_unrelated_natural_content() {
+        // Independent noise images model unrelated screenshot content: their DCT
+        // spectra are dense, so the median-threshold bits are informative and two
+        // unrelated images should disagree on roughly half of them.
+        for (s1, s2) in [(1u32, 2u32), (3, 999), (42, 4242)] {
+            let a = lcg_noise(64, 48, s1);
+            let b = lcg_noise(64, 48, s2);
+            let p = hamming(phash(&a, 64, 48), phash(&b, 64, 48));
+            assert!(
+                p > 20,
+                "phash distance for unrelated noise (seeds {s1},{s2}) was {p}"
+            );
+        }
+    }
+
+    #[test]
+    fn hashing_is_deterministic_across_reconstructions() {
+        for seed in [1u32, 2, 3, 999] {
+            let a = lcg_noise(96, 64, seed);
+            let b = lcg_noise(96, 64, seed);
+            assert_eq!(dhash(&a, 96, 64), dhash(&b, 96, 64));
+            assert_eq!(phash(&a, 96, 64), phash(&b, 96, 64));
+        }
+    }
+
+    #[test]
+    fn hamming_is_a_metric() {
+        let mut s = 0xDEADBEEFu64;
+        for _ in 0..200 {
+            let a = next_lcg(&mut s);
+            let b = next_lcg(&mut s);
+            let c = next_lcg(&mut s);
+            assert_eq!(hamming(a, a), 0);
+            assert_eq!(hamming(a, b), hamming(b, a), "symmetry");
+            assert!(
+                hamming(a, c) <= hamming(a, b) + hamming(b, c),
+                "triangle inequality: d({a},{c}) > d({a},{b}) + d({b},{c})"
+            );
+        }
+    }
+
+    #[test]
+    fn tiny_and_exact_grid_sizes_work() {
+        let one = [128u8];
+        assert_eq!(hamming(dhash(&one, 1, 1), dhash(&one, 1, 1)), 0);
+        let _ = phash(&one, 1, 1);
+        let exact = lcg_noise(9, 8, 5);
+        let _ = dhash(&exact, 9, 8);
+        let exact32 = lcg_noise(32, 32, 5);
+        let _ = phash(&exact32, 32, 32);
+    }
+
+    #[test]
+    #[should_panic(expected = "gray buffer length must equal w * h")]
+    fn wrong_buffer_length_panics() {
+        let _ = dhash(&[0u8; 10], 4, 4);
+    }
+
+    #[test]
+    fn golden_vectors_match_checked_in_file() {
+        // The checked-in JSON is the cross-language contract (the TypeScript test in
+        // packages/capture/test/dedup-golden.test.ts consumes it). Regenerate with:
+        //   cargo run --example gen_golden > golden/vectors.json
+        assert_eq!(
+            golden::render_golden_json(),
+            include_str!("../golden/vectors.json"),
+            "golden/vectors.json is stale; regenerate with `cargo run --example gen_golden > golden/vectors.json`"
+        );
+    }
+
+    #[test]
+    fn golden_hashes_are_what_the_file_says() {
+        for v in golden::golden_vectors() {
+            let (px, w, h) = v.image();
+            assert_eq!(
+                format!("{:016x}", dhash(&px, w, h)),
+                v.dhash_hex,
+                "{}",
+                v.name
+            );
+            assert_eq!(
+                format!("{:016x}", phash(&px, w, h)),
+                v.phash_hex,
+                "{}",
+                v.name
+            );
+        }
+    }
+}
+
+/// Golden-vector definitions shared by the sync test and the `gen_golden` example.
+/// Not part of the public dedup API; exposed only so the example binary can render
+/// the checked-in `golden/vectors.json`.
+#[doc(hidden)]
+pub mod golden {
+    use super::{dhash, phash};
+
+    pub struct GoldenVector {
+        pub name: &'static str,
+        pub kind: &'static str,
+        pub w: usize,
+        pub h: usize,
+        pub param: usize,
+        pub dhash_hex: String,
+        pub phash_hex: String,
+    }
+
+    impl GoldenVector {
+        pub fn image(&self) -> (Vec<u8>, usize, usize) {
+            (
+                generate(self.kind, self.w, self.h, self.param),
+                self.w,
+                self.h,
+            )
+        }
+    }
+
+    /// Deterministic generators mirrored byte-for-byte in the TypeScript golden test.
+    pub fn generate(kind: &str, w: usize, h: usize, param: usize) -> Vec<u8> {
+        let mut px = Vec::with_capacity(w * h);
+        match kind {
+            // param = horizontal shift in pixels
+            "gradient-h" => {
+                for _y in 0..h {
+                    for x in 0..w {
+                        let sx = (x + param).min(w - 1);
+                        px.push((sx * 255 / (w - 1)) as u8);
+                    }
+                }
+            }
+            "gradient-v" => {
+                for y in 0..h {
+                    for _x in 0..w {
+                        px.push((y * 255 / (h - 1)) as u8);
+                    }
+                }
+            }
+            "inverted-gradient-h" => {
+                for _y in 0..h {
+                    for x in 0..w {
+                        px.push(255 - (x * 255 / (w - 1)) as u8);
+                    }
+                }
+            }
+            // param = block size in pixels
+            "checkerboard" => {
+                for y in 0..h {
+                    for x in 0..w {
+                        px.push(if (x / param + y / param).is_multiple_of(2) {
+                            0
+                        } else {
+                            255
+                        });
+                    }
+                }
+            }
+            // param = LCG seed; pixel = top byte of 32-bit state
+            "lcg-noise" => {
+                let mut s = param as u32;
+                for _ in 0..w * h {
+                    s = s.wrapping_mul(1_664_525).wrapping_add(1_013_904_223);
+                    px.push((s >> 24) as u8);
+                }
+            }
+            other => panic!("unknown generator kind: {other}"),
+        }
+        px
+    }
+
+    pub fn golden_vectors() -> Vec<GoldenVector> {
+        let specs: [(&str, &str, usize, usize, usize); 6] = [
+            ("gradient-h-64x48", "gradient-h", 64, 48, 0),
+            ("gradient-h-64x48-shift1", "gradient-h", 64, 48, 1),
+            ("gradient-v-64x48", "gradient-v", 64, 48, 0),
+            (
+                "inverted-gradient-h-64x48",
+                "inverted-gradient-h",
+                64,
+                48,
+                0,
+            ),
+            ("checkerboard-64x48-b8", "checkerboard", 64, 48, 8),
+            ("lcg-noise-64x48-seed42", "lcg-noise", 64, 48, 42),
+        ];
+        specs
+            .iter()
+            .map(|&(name, kind, w, h, param)| {
+                let px = generate(kind, w, h, param);
+                GoldenVector {
+                    name,
+                    kind,
+                    w,
+                    h,
+                    param,
+                    dhash_hex: format!("{:016x}", dhash(&px, w, h)),
+                    phash_hex: format!("{:016x}", phash(&px, w, h)),
+                }
+            })
+            .collect()
+    }
+
+    /// Canonical serialization of the golden vectors (the exact bytes of
+    /// `golden/vectors.json`).
+    pub fn render_golden_json() -> String {
+        let mut out = String::from(
+            "{\n  \"$comment\": \"Cross-language golden vectors for capture-dedup. Generated by `cargo run --example gen_golden > golden/vectors.json`; consumed by src/lib.rs tests and packages/capture/test/dedup-golden.test.ts. dhash is the cross-language contract (integer math); phash is Rust-reference only.\",\n  \"vectors\": [\n",
+        );
+        let vectors = golden_vectors();
+        for (i, v) in vectors.iter().enumerate() {
+            out.push_str(&format!(
+                "    {{ \"name\": \"{}\", \"kind\": \"{}\", \"w\": {}, \"h\": {}, \"param\": {}, \"dhash\": \"{}\", \"phash\": \"{}\" }}{}\n",
+                v.name,
+                v.kind,
+                v.w,
+                v.h,
+                v.param,
+                v.dhash_hex,
+                v.phash_hex,
+                if i + 1 == vectors.len() { "" } else { "," }
+            ));
+        }
+        out.push_str("  ]\n}\n");
+        out
+    }
+}

@@ -1,0 +1,13 @@
+[package]
+name = "capture-dedup"
+version = "0.1.0"
+edition = "2021"
+description = "Perceptual near-duplicate detection for capture screenshots (dhash + DCT phash). Deterministic, std-only, no unsafe."
+license = "UNLICENSED"
+publish = false
+
+[dependencies]
+
+[lib]
+name = "capture_dedup"
+path = "src/lib.rs"

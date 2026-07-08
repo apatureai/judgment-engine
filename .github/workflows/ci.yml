@@ -75,3 +75,24 @@ jobs:
       - name: Test
         run: uv run pytest
         working-directory: ${{ matrix.package }}
+
+  rust:
+    name: rust · capture-dedup
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+
+      - name: Test
+        run: cargo test --manifest-path rust/capture-dedup/Cargo.toml
+
+      - name: Clippy
+        run: cargo clippy --manifest-path rust/capture-dedup/Cargo.toml --all-targets -- -D warnings
+
+      - name: Format
+        run: cargo fmt --manifest-path rust/capture-dedup/Cargo.toml --check
