@@ -10,6 +10,6 @@
   "dependencies": {
     "@engine/capture": "workspace:*",
     "@engine/types": "workspace:*",
-    "zod": "^3.24.1"
+    "zod": "^4.4.3"
   }
 }
