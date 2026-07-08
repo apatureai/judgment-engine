@@ -14,6 +14,6 @@
     "@engine/types": "workspace:*"
   },
   "devDependencies": {
-    "@electric-sql/pglite": "^0.2.0"
+    "@electric-sql/pglite": "^0.5.4"
   }
 }

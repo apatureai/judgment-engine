@@ -17,6 +17,6 @@
   },
   "devDependencies": {
     "@engine/db": "workspace:*",
-    "@electric-sql/pglite": "^0.2.0"
+    "@electric-sql/pglite": "^0.5.4"
   }
 }

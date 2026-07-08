@@ -10,7 +10,7 @@
   "files": ["dist"],
   "scripts": { "test": "vitest run" },
   "dependencies": {
-    "@aws-sdk/client-s3": "^3.717.0",
-    "@aws-sdk/s3-request-presigner": "^3.717.0"
+    "@aws-sdk/client-s3": "^3.1081.0",
+    "@aws-sdk/s3-request-presigner": "^3.1081.0"
   }
 }
