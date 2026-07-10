@@ -8,10 +8,19 @@
  * Only dhash is mirrored: phash intentionally stays Rust-reference-only (its
  * float DCT is quantized for determinism, but re-implementing it here would
  * just duplicate the reference without adding contract value).
+ *
+ * The `pairs` section carries Rust-computed ssim/diff_ratio tile scores. Those
+ * are float math, so they are NOT re-derived here; instead they are fed
+ * through the change-detection decision seam (`detectBaselineChange`) to
+ * cross-validate the producer/consumer contract end to end: Rust scores for
+ * identical images must decide "confirmed unchanged", scores for structurally
+ * different images must decide "changed" — even when pHash matches (the exact
+ * blindness the seam exists to catch).
  */
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
+import { detectBaselineChange } from "../src/change-detection.js";
 
 interface GoldenVector {
   name: string;
@@ -23,11 +32,23 @@ interface GoldenVector {
   phash: string;
 }
 
+interface GoldenPair {
+  a: string;
+  b: string;
+  threshold: number;
+  ssim: number;
+  diff_ratio: number;
+}
+
 const goldenPath = fileURLToPath(
   new URL("../../../rust/capture-dedup/golden/vectors.json", import.meta.url),
 );
-const vectors = (JSON.parse(readFileSync(goldenPath, "utf8")) as { vectors: GoldenVector[] })
-  .vectors;
+const golden = JSON.parse(readFileSync(goldenPath, "utf8")) as {
+  vectors: GoldenVector[];
+  pairs: GoldenPair[];
+};
+const vectors = golden.vectors;
+const pairs = golden.pairs;
 
 /** Mirrors the Rust generators byte-for-byte (integer math only). */
 function generate(kind: string, w: number, h: number, param: number): Uint8Array {
@@ -101,4 +122,57 @@ describe("capture-dedup cross-language golden contract", () => {
       expect(dhash(px, v.w, v.h).toString(16).padStart(16, "0")).toBe(v.dhash);
     },
   );
+});
+
+describe("Rust tile scores drive the change-detection decision seam", () => {
+  // Both hashes equal ⇒ pHash matches ⇒ the decision rests entirely on the
+  // tile scores, which is exactly the confirm path these kernels exist for.
+  const phashMatch = { baselinePhash: "00", currentPhash: "00" };
+  const pairFor = (a: string, b: string): GoldenPair => {
+    const p = pairs.find((p) => p.a === a && p.b === b);
+    if (!p) throw new Error(`golden pair missing: ${a} vs ${b}`);
+    return p;
+  };
+
+  it("ships identical and structurally-different golden pairs", () => {
+    expect(pairs.length).toBeGreaterThanOrEqual(4);
+    for (const p of pairs) {
+      expect(p.ssim).toBeGreaterThanOrEqual(0);
+      expect(p.ssim).toBeLessThanOrEqual(1);
+      expect(p.diff_ratio).toBeGreaterThanOrEqual(0);
+      expect(p.diff_ratio).toBeLessThanOrEqual(1);
+    }
+  });
+
+  it.each(pairs.filter((p) => p.a === p.b).map((p) => [p.a, p] as const))(
+    "identical-pair scores confirm unchanged (%s)",
+    (_name, p) => {
+      for (const tile of [{ ssim: p.ssim }, { diffRatio: p.diff_ratio }]) {
+        expect(detectBaselineChange({ ...phashMatch, tileScores: [tile] })).toEqual({
+          changed: false,
+          reason: "confirmed_unchanged",
+        });
+      }
+    },
+  );
+
+  it("near-duplicate scores (1px gradient shift) confirm unchanged", () => {
+    const p = pairFor("gradient-h-64x48", "gradient-h-64x48-shift1");
+    expect(
+      detectBaselineChange({ ...phashMatch, tileScores: [{ ssim: p.ssim }] }),
+    ).toEqual({ changed: false, reason: "confirmed_unchanged" });
+  });
+
+  it.each(
+    pairs
+      .filter((p) => p.a !== p.b && p.b !== "gradient-h-64x48-shift1")
+      .map((p) => [`${p.a} vs ${p.b}`, p] as const),
+  )("structurally-different scores decide changed despite a pHash match (%s)", (_name, p) => {
+    for (const tile of [{ ssim: p.ssim }, { diffRatio: p.diff_ratio }]) {
+      expect(detectBaselineChange({ ...phashMatch, tileScores: [tile] })).toEqual({
+        changed: true,
+        reason: "tile_changed",
+      });
+    }
+  });
 });

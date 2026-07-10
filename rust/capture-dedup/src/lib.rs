@@ -173,6 +173,209 @@ pub fn phash(gray: &[u8], w: usize, h: usize) -> u64 {
     hash
 }
 
+// --- change-sensitive tile scores (the capture-worker side of the
+// packages/capture/src/change-detection.ts decision seam) ---
+//
+// The pure TS seam consumes per-tile `ssim` / `diffRatio` scores in [0, 1] to
+// CONFIRM a pHash match before short-circuiting the deep review; these kernels
+// are the producer of those scores. Hashes stay the cheap pre-filter; SSIM and
+// the AA-aware pixel diff are the expensive, change-sensitive confirmation.
+
+const SSIM_WINDOW: usize = 8;
+const SSIM_STRIDE: usize = 4;
+// Standard SSIM stabilizers: C1 = (k1*L)^2, C2 = (k2*L)^2 with k1 = 0.01,
+// k2 = 0.03, L = 255.
+const SSIM_C1: f64 = 6.5025;
+const SSIM_C2: f64 = 58.5225;
+
+/// Window start offsets along one axis: every `stride` positions, plus a final
+/// end-aligned window so the trailing pixels are always covered. A single
+/// full-axis window when the axis is shorter than `win`.
+fn window_starts(len: usize, win: usize, stride: usize) -> Vec<usize> {
+    if len <= win {
+        return vec![0];
+    }
+    let mut starts: Vec<usize> = (0..=len - win).step_by(stride).collect();
+    if *starts.last().expect("non-empty by construction") != len - win {
+        starts.push(len - win);
+    }
+    starts
+}
+
+/// Mean structural similarity (SSIM) of two grayscale images (row-major, one
+/// byte per pixel), in `[0, 1]`; `1.0` means identical.
+///
+/// Standard SSIM (Wang et al. 2004) over an 8x8 sliding window with stride 4
+/// (stride > 1 trades the canonical dense/Gaussian window for a 16x cheaper
+/// scan; on screenshot content the per-window scores vary slowly, so the mean
+/// is stable) using `k1 = 0.01`, `k2 = 0.03`, `L = 255` and uniform (box)
+/// window weighting. Windows are end-aligned at the right/bottom edges so
+/// every pixel is covered; images smaller than the window use one full-image
+/// window.
+///
+/// Deterministic: per-window moments are exact integer sums; the closed-form
+/// SSIM expression is a fixed sequence of IEEE-754 f64 ops, so results are
+/// bit-identical across platforms. The mean is clamped at 0 (per-window SSIM
+/// can be marginally negative on anticorrelated content; the TileChangeScore
+/// contract is `[0, 1]`).
+///
+/// # Panics
+/// Panics if `w == 0`, `h == 0`, or either buffer's length is not `w * h`.
+pub fn ssim(a: &[u8], b: &[u8], w: usize, h: usize) -> f64 {
+    assert_dims(a, w, h);
+    assert_dims(b, w, h);
+    let ys = window_starts(h, SSIM_WINDOW, SSIM_STRIDE);
+    let xs = window_starts(w, SSIM_WINDOW, SSIM_STRIDE);
+    let wh = SSIM_WINDOW.min(h);
+    let ww = SSIM_WINDOW.min(w);
+    let n = (wh * ww) as f64;
+    let mut total = 0.0;
+    for &y0 in &ys {
+        for &x0 in &xs {
+            let (mut sa, mut sb, mut saa, mut sbb, mut sab) = (0u64, 0u64, 0u64, 0u64, 0u64);
+            for y in y0..y0 + wh {
+                let row = y * w;
+                for x in x0..x0 + ww {
+                    let pa = u64::from(a[row + x]);
+                    let pb = u64::from(b[row + x]);
+                    sa += pa;
+                    sb += pb;
+                    saa += pa * pa;
+                    sbb += pb * pb;
+                    sab += pa * pb;
+                }
+            }
+            let ma = sa as f64 / n;
+            let mb = sb as f64 / n;
+            // Population (biased) variance/covariance, matching the reference
+            // SSIM formulation.
+            let va = saa as f64 / n - ma * ma;
+            let vb = sbb as f64 / n - mb * mb;
+            let cov = sab as f64 / n - ma * mb;
+            total += ((2.0 * ma * mb + SSIM_C1) * (2.0 * cov + SSIM_C2))
+                / ((ma * ma + mb * mb + SSIM_C1) * (va + vb + SSIM_C2));
+        }
+    }
+    (total / (ys.len() * xs.len()) as f64).max(0.0)
+}
+
+/// True when more than two of the pixel's 3x3 neighbours (image-border virtual
+/// neighbours count once) share its exact value — i.e. the pixel sits in a
+/// locally flat region. Direct grayscale port of pixelmatch's
+/// `hasManySiblings`.
+fn has_many_siblings(img: &[u8], x: usize, y: usize, w: usize, h: usize) -> bool {
+    let mut equal = usize::from(x == 0 || x == w - 1 || y == 0 || y == h - 1);
+    let val = img[y * w + x];
+    for ny in y.saturating_sub(1)..=(y + 1).min(h - 1) {
+        for nx in x.saturating_sub(1)..=(x + 1).min(w - 1) {
+            if (nx, ny) != (x, y) && img[ny * w + nx] == val {
+                equal += 1;
+                if equal > 2 {
+                    return true;
+                }
+            }
+        }
+    }
+    false
+}
+
+/// Anti-aliasing heuristic for a differing pixel at `(x, y)` of `img`
+/// (grayscale adaptation of pixelmatch's `antialiased`; pixelmatch already
+/// judges AA on brightness deltas, so the adaptation is dropping the YIQ color
+/// step, not changing the logic): the pixel is a likely AA artifact when its
+/// 3x3 neighbourhood in `img` has at most two equal siblings but both a darker
+/// and a brighter sibling (a steep local gradient), and the darkest or
+/// brightest such sibling sits in a locally flat region of BOTH images — i.e.
+/// the surrounding structure is unchanged and only the edge blend moved.
+fn antialiased(img: &[u8], other: &[u8], x: usize, y: usize, w: usize, h: usize) -> bool {
+    let center = i32::from(img[y * w + x]);
+    let mut equal = usize::from(x == 0 || x == w - 1 || y == 0 || y == h - 1);
+    let (mut min_d, mut max_d) = (0i32, 0i32);
+    let (mut min_pos, mut max_pos) = ((0usize, 0usize), (0usize, 0usize));
+    for ny in y.saturating_sub(1)..=(y + 1).min(h - 1) {
+        for nx in x.saturating_sub(1)..=(x + 1).min(w - 1) {
+            if (nx, ny) == (x, y) {
+                continue;
+            }
+            let delta = i32::from(img[ny * w + nx]) - center;
+            if delta == 0 {
+                // More than two equal siblings: flat area, definitely not AA.
+                equal += 1;
+                if equal > 2 {
+                    return false;
+                }
+            } else if delta < min_d {
+                min_d = delta;
+                min_pos = (nx, ny);
+            } else if delta > max_d {
+                max_d = delta;
+                max_pos = (nx, ny);
+            }
+        }
+    }
+    // No darker or no brighter sibling: not the middle of an edge blend.
+    if min_d == 0 || max_d == 0 {
+        return false;
+    }
+    (has_many_siblings(img, min_pos.0, min_pos.1, w, h)
+        && has_many_siblings(other, min_pos.0, min_pos.1, w, h))
+        || (has_many_siblings(img, max_pos.0, max_pos.1, w, h)
+            && has_many_siblings(other, max_pos.0, max_pos.1, w, h))
+}
+
+/// AA-aware pixel-diff ratio of two grayscale images (row-major, one byte per
+/// pixel): the fraction of pixels in `[0, 1]` whose absolute brightness
+/// difference exceeds `threshold` AND that are not classified as anti-aliasing
+/// artifacts (see [`antialiased`]; a pixel is excused when either image's
+/// neighbourhood explains it as a moved edge blend). `0.0` means no visible
+/// change. `threshold ≈ 25` (~10% of the 8-bit range, in the spirit of
+/// pixelmatch's default 0.1 sensitivity) works well for screenshot content.
+///
+/// Deterministic: integer math except the final ratio division.
+///
+/// # Panics
+/// Panics if `w == 0`, `h == 0`, or either buffer's length is not `w * h`.
+pub fn diff_ratio(a: &[u8], b: &[u8], w: usize, h: usize, threshold: u8) -> f64 {
+    assert_dims(a, w, h);
+    assert_dims(b, w, h);
+    let mut changed = 0usize;
+    for y in 0..h {
+        for x in 0..w {
+            let d = (i32::from(a[y * w + x]) - i32::from(b[y * w + x])).unsigned_abs();
+            if d > u32::from(threshold)
+                && !antialiased(a, b, x, y, w, h)
+                && !antialiased(b, a, x, y, w, h)
+            {
+                changed += 1;
+            }
+        }
+    }
+    changed as f64 / (w * h) as f64
+}
+
+/// Both change-sensitive scores for one tile — the single call the capture
+/// worker makes per tile to feed `TileChangeScore` in
+/// `packages/capture/src/change-detection.ts`.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct TileScore {
+    /// Mean SSIM in `[0, 1]`; `1.0` = identical (see [`ssim`]).
+    pub ssim: f64,
+    /// AA-aware changed-pixel fraction in `[0, 1]`; `0.0` = identical
+    /// (see [`diff_ratio`]).
+    pub diff_ratio: f64,
+}
+
+/// Compute [`ssim`] and [`diff_ratio`] for one tile pair.
+///
+/// # Panics
+/// Panics if `w == 0`, `h == 0`, or either buffer's length is not `w * h`.
+pub fn tile_score(a: &[u8], b: &[u8], w: usize, h: usize, threshold: u8) -> TileScore {
+    TileScore {
+        ssim: ssim(a, b, w, h),
+        diff_ratio: diff_ratio(a, b, w, h, threshold),
+    }
+}
+
 /// Number of differing bits between two 64-bit hashes.
 pub fn hamming(a: u64, b: u64) -> u32 {
     (a ^ b).count_ones()
@@ -385,6 +588,175 @@ mod tests {
         let _ = dhash(&[0u8; 10], 4, 4);
     }
 
+    // --- change-sensitive tile scores (ssim / diff_ratio / tile_score) ---
+
+    const DIFF_THRESHOLD: u8 = 25;
+
+    /// Hard vertical edge (0 → 255) at column `c` with a single-pixel
+    /// anti-aliasing ramp (128) on the edge column — the classic artifact a
+    /// sub-pixel layout shift produces.
+    fn aa_ramp_edge(w: usize, h: usize, c: usize) -> Vec<u8> {
+        let mut px = Vec::with_capacity(w * h);
+        for _y in 0..h {
+            for x in 0..w {
+                px.push(match x.cmp(&c) {
+                    std::cmp::Ordering::Less => 0,
+                    std::cmp::Ordering::Equal => 128,
+                    std::cmp::Ordering::Greater => 255,
+                });
+            }
+        }
+        px
+    }
+
+    #[test]
+    fn identical_images_score_perfect() {
+        // Exact equality is intentional: for a == b every per-window SSIM
+        // numerator/denominator pair is the same computed expression, so each
+        // window is exactly 1.0 and the mean of exact 1.0s is exactly 1.0.
+        let img = lcg_noise(64, 48, 7);
+        assert_eq!(ssim(&img, &img, 64, 48), 1.0);
+        assert_eq!(diff_ratio(&img, &img, 64, 48, DIFF_THRESHOLD), 0.0);
+        let score = tile_score(&img, &img, 64, 48, DIFF_THRESHOLD);
+        assert_eq!(
+            score,
+            TileScore {
+                ssim: 1.0,
+                diff_ratio: 0.0
+            }
+        );
+    }
+
+    #[test]
+    fn small_brightness_shift_scores_as_unchanged() {
+        // +4 brightness: perfectly correlated structure, means shift slightly
+        // ⇒ SSIM stays above the 0.99 decision threshold and no pixel clears
+        // the diff threshold.
+        let base = lcg_noise(64, 48, 42);
+        let bright = brightened(&base, 4);
+        let s = ssim(&base, &bright, 64, 48);
+        assert!(s > 0.99, "ssim for +4 brightness was {s}");
+        assert_eq!(diff_ratio(&base, &bright, 64, 48, DIFF_THRESHOLD), 0.0);
+    }
+
+    #[test]
+    fn structurally_different_images_score_as_changed() {
+        let grad = gradient_h(64, 48, 0);
+        let checker = checkerboard(64, 48, 8);
+        let s = ssim(&grad, &checker, 64, 48);
+        assert!(s < 0.5, "gradient vs checkerboard ssim was {s}");
+        let d = diff_ratio(&grad, &checker, 64, 48, DIFF_THRESHOLD);
+        assert!(d > 0.3, "gradient vs checkerboard diff_ratio was {d}");
+    }
+
+    #[test]
+    fn antialiasing_shift_counts_fewer_pixels_than_naive_diff() {
+        // A 1px shift of an anti-aliased hard edge: the naive diff flags the
+        // whole edge (two full columns clear the threshold), while the AA
+        // heuristic recognizes every one of those pixels as a moved edge blend.
+        let (w, h) = (32usize, 16usize);
+        let a = aa_ramp_edge(w, h, 8);
+        let b = aa_ramp_edge(w, h, 9);
+        let naive: usize = a
+            .iter()
+            .zip(&b)
+            .filter(|(pa, pb)| {
+                (i32::from(**pa) - i32::from(**pb)).unsigned_abs() > u32::from(DIFF_THRESHOLD)
+            })
+            .count();
+        assert_eq!(naive, 2 * h, "expected the two edge columns to differ");
+        let aa_changed = diff_ratio(&a, &b, w, h, DIFF_THRESHOLD) * (w * h) as f64;
+        assert!(
+            aa_changed < naive as f64,
+            "AA-aware diff ({aa_changed}) should count fewer pixels than naive ({naive})"
+        );
+        assert_eq!(aa_changed, 0.0, "the pure edge shift should be all-AA");
+    }
+
+    #[test]
+    fn tile_scores_are_symmetric_and_in_range() {
+        let mut s = 0xC0FFEEu64;
+        for _ in 0..20 {
+            let seed_a = next_lcg(&mut s) as u32;
+            let seed_b = next_lcg(&mut s) as u32;
+            let a = lcg_noise(48, 32, seed_a);
+            let b = lcg_noise(48, 32, seed_b);
+            assert_eq!(ssim(&a, &a, 48, 32), 1.0);
+            assert_eq!(diff_ratio(&a, &a, 48, 32, DIFF_THRESHOLD), 0.0);
+            // Both kernels are symmetric expressions, so bit-equality holds.
+            assert_eq!(ssim(&a, &b, 48, 32), ssim(&b, &a, 48, 32));
+            assert_eq!(
+                diff_ratio(&a, &b, 48, 32, DIFF_THRESHOLD),
+                diff_ratio(&b, &a, 48, 32, DIFF_THRESHOLD)
+            );
+            let score = tile_score(&a, &b, 48, 32, DIFF_THRESHOLD);
+            assert!((0.0..=1.0).contains(&score.ssim), "ssim {}", score.ssim);
+            assert!(
+                (0.0..=1.0).contains(&score.diff_ratio),
+                "diff_ratio {}",
+                score.diff_ratio
+            );
+        }
+    }
+
+    #[test]
+    fn tile_scores_are_deterministic_across_reconstructions() {
+        for seed in [1u32, 2, 999] {
+            let a1 = lcg_noise(96, 64, seed);
+            let a2 = lcg_noise(96, 64, seed);
+            let b1 = lcg_noise(96, 64, seed + 1);
+            let b2 = lcg_noise(96, 64, seed + 1);
+            assert_eq!(
+                tile_score(&a1, &b1, 96, 64, DIFF_THRESHOLD),
+                tile_score(&a2, &b2, 96, 64, DIFF_THRESHOLD)
+            );
+        }
+    }
+
+    #[test]
+    fn tiny_images_score_without_panicking() {
+        // Below the 8x8 SSIM window ⇒ single full-image window.
+        let one = [128u8];
+        assert_eq!(ssim(&one, &one, 1, 1), 1.0);
+        assert_eq!(diff_ratio(&one, &one, 1, 1, DIFF_THRESHOLD), 0.0);
+        let a = lcg_noise(5, 3, 1);
+        let b = lcg_noise(5, 3, 2);
+        let score = tile_score(&a, &b, 5, 3, DIFF_THRESHOLD);
+        assert!((0.0..=1.0).contains(&score.ssim));
+        assert!((0.0..=1.0).contains(&score.diff_ratio));
+    }
+
+    #[test]
+    #[should_panic(expected = "gray buffer length must equal w * h")]
+    fn ssim_wrong_buffer_length_panics() {
+        let _ = ssim(&[0u8; 10], &[0u8; 16], 4, 4);
+    }
+
+    #[test]
+    fn golden_pair_scores_are_what_the_file_says() {
+        for p in golden::golden_pairs() {
+            let (pa, w, h) = golden::golden_vectors()
+                .iter()
+                .find(|v| v.name == p.a)
+                .expect("pair image a")
+                .image();
+            let (pb, _, _) = golden::golden_vectors()
+                .iter()
+                .find(|v| v.name == p.b)
+                .expect("pair image b")
+                .image();
+            let score = tile_score(&pa, &pb, w, h, p.threshold);
+            assert_eq!(format!("{:.12}", score.ssim), p.ssim, "{} vs {}", p.a, p.b);
+            assert_eq!(
+                format!("{:.12}", score.diff_ratio),
+                p.diff_ratio,
+                "{} vs {}",
+                p.a,
+                p.b
+            );
+        }
+    }
+
     #[test]
     fn golden_vectors_match_checked_in_file() {
         // The checked-in JSON is the cross-language contract (the TypeScript test in
@@ -422,7 +794,7 @@ mod tests {
 /// the checked-in `golden/vectors.json`.
 #[doc(hidden)]
 pub mod golden {
-    use super::{dhash, phash};
+    use super::{dhash, phash, tile_score};
 
     pub struct GoldenVector {
         pub name: &'static str,
@@ -528,11 +900,65 @@ pub mod golden {
             .collect()
     }
 
+    /// Change-sensitive scores for a named pair of golden images. The pairs
+    /// cover the decision seam's cases: identical (confirm-unchanged), a 1px
+    /// shift (near-duplicate), and structurally different content (must decide
+    /// changed even though pHash may be blind to it).
+    pub struct GoldenPair {
+        pub a: &'static str,
+        pub b: &'static str,
+        /// AA-aware diff brightness threshold (see `diff_ratio`).
+        pub threshold: u8,
+        /// `ssim` formatted with 12 fractional digits (f64 ops are IEEE-exact,
+        /// so the value is bit-stable across platforms).
+        pub ssim: String,
+        /// `diff_ratio` formatted with 12 fractional digits.
+        pub diff_ratio: String,
+    }
+
+    /// Fixed diff threshold used for all golden pairs (~10% of the 8-bit
+    /// range, in the spirit of pixelmatch's default 0.1 sensitivity).
+    pub const GOLDEN_DIFF_THRESHOLD: u8 = 25;
+
+    pub fn golden_pairs() -> Vec<GoldenPair> {
+        let pair_names: [(&str, &str); 6] = [
+            ("gradient-h-64x48", "gradient-h-64x48"),
+            ("lcg-noise-64x48-seed42", "lcg-noise-64x48-seed42"),
+            ("gradient-h-64x48", "gradient-h-64x48-shift1"),
+            ("gradient-h-64x48", "gradient-v-64x48"),
+            ("gradient-h-64x48", "inverted-gradient-h-64x48"),
+            ("gradient-h-64x48", "checkerboard-64x48-b8"),
+        ];
+        let vectors = golden_vectors();
+        let image = |name: &str| -> (Vec<u8>, usize, usize) {
+            vectors
+                .iter()
+                .find(|v| v.name == name)
+                .unwrap_or_else(|| panic!("unknown golden image: {name}"))
+                .image()
+        };
+        pair_names
+            .iter()
+            .map(|&(a, b)| {
+                let (pa, w, h) = image(a);
+                let (pb, _, _) = image(b);
+                let score = tile_score(&pa, &pb, w, h, GOLDEN_DIFF_THRESHOLD);
+                GoldenPair {
+                    a,
+                    b,
+                    threshold: GOLDEN_DIFF_THRESHOLD,
+                    ssim: format!("{:.12}", score.ssim),
+                    diff_ratio: format!("{:.12}", score.diff_ratio),
+                }
+            })
+            .collect()
+    }
+
     /// Canonical serialization of the golden vectors (the exact bytes of
     /// `golden/vectors.json`).
     pub fn render_golden_json() -> String {
         let mut out = String::from(
-            "{\n  \"$comment\": \"Cross-language golden vectors for capture-dedup. Generated by `cargo run --example gen_golden > golden/vectors.json`; consumed by src/lib.rs tests and packages/capture/test/dedup-golden.test.ts. dhash is the cross-language contract (integer math); phash is Rust-reference only.\",\n  \"vectors\": [\n",
+            "{\n  \"$comment\": \"Cross-language golden vectors for capture-dedup. Generated by `cargo run --example gen_golden > golden/vectors.json`; consumed by src/lib.rs tests and packages/capture/test/dedup-golden.test.ts. dhash is the cross-language contract (integer math); phash is Rust-reference only. pairs carry Rust-computed ssim/diff_ratio tile scores; the TS test feeds them through the change-detection decision seam rather than re-deriving the float math.\",\n  \"vectors\": [\n",
         );
         let vectors = golden_vectors();
         for (i, v) in vectors.iter().enumerate() {
@@ -546,6 +972,19 @@ pub mod golden {
                 v.dhash_hex,
                 v.phash_hex,
                 if i + 1 == vectors.len() { "" } else { "," }
+            ));
+        }
+        out.push_str("  ],\n  \"pairs\": [\n");
+        let pairs = golden_pairs();
+        for (i, p) in pairs.iter().enumerate() {
+            out.push_str(&format!(
+                "    {{ \"a\": \"{}\", \"b\": \"{}\", \"threshold\": {}, \"ssim\": {}, \"diff_ratio\": {} }}{}\n",
+                p.a,
+                p.b,
+                p.threshold,
+                p.ssim,
+                p.diff_ratio,
+                if i + 1 == pairs.len() { "" } else { "," }
             ));
         }
         out.push_str("  ]\n}\n");
