@@ -13,6 +13,12 @@ describe("wire contract (cross-repo anchor with Gate)", () => {
     expect(typeof golden.screenshotRetentionSeconds).toBe("number");
   });
 
+  it("carries the engine-owned result-level confidence: the min over finding confidences (#150)", () => {
+    expect(typeof golden.confidence).toBe("number");
+    const least = Math.min(...golden.findings.map((f) => f.confidence ?? 1));
+    expect(golden.confidence).toBe(least);
+  });
+
   it("guards every WireFinding field name + type (so the wire type can't drift from the fixture)", () => {
     const f = golden.findings[0];
     if (!f) throw new Error("golden fixture must carry at least one finding to anchor the contract");
@@ -26,9 +32,13 @@ describe("wire contract (cross-repo anchor with Gate)", () => {
     expect(f.element === null || typeof f.element === "string").toBe(true);
     expect(f.screenshotId === null || typeof f.screenshotId === "string").toBe(true);
     expect(f.suggestion === null || typeof f.suggestion === "string").toBe(true);
+    // Engine-produced confidence (#150): additive on schema v1, always emitted.
+    expect(typeof f.confidence).toBe("number");
+    expect(f.confidence).toBeGreaterThanOrEqual(0);
+    expect(f.confidence).toBeLessThanOrEqual(1);
     // No extra/renamed keys vs the WireFinding contract.
     expect(Object.keys(f).sort()).toEqual(
-      ["description", "element", "id", "route", "screenshotId", "severity", "suggestion", "title", "viewport"],
+      ["confidence", "description", "element", "id", "route", "screenshotId", "severity", "suggestion", "title", "viewport"],
     );
     // annotatedScreenshots entries keep their {findingId, url} shape.
     const a = golden.artifacts.annotatedScreenshots[0];

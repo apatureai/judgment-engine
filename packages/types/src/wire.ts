@@ -23,11 +23,27 @@ export interface WireFinding {
   element: string | null;
   screenshotId: string | null;
   suggestion: string | null;
+  /**
+   * Engine-produced confidence 0..1, already capped by the capture
+   * confidence-ceiling (TRD §5). Additive + optional (schema v1,
+   * x-schema-version, #150): the projection always emits it going forward;
+   * it is optional only so results stored before the field existed still
+   * type-check honestly. Consumers must not fabricate a value when absent.
+   */
+  confidence?: number;
 }
 
 export interface EngineReviewResult {
   grade: WireGrade;
   overall: string;
+  /**
+   * Result-level confidence 0..1 (#150): the MINIMUM over the findings'
+   * confidences (conservative — the result is only as trustworthy as its
+   * least-confident finding), `1` for a clean no-findings result. Engine-owned
+   * aggregation so consumers never each invent their own. Additive + optional
+   * for pre-#150 stored results, always emitted going forward.
+   */
+  confidence?: number;
   findings: WireFinding[];
   notReviewed: string[];
   artifacts: {

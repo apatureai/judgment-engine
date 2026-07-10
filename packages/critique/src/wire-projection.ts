@@ -5,8 +5,11 @@ import type { Critique, EngineReviewResult, Finding, WireFinding } from "@engine
  * `EngineReviewResult` (TRD §2/§8). This IS the cross-repo contract boundary with
  * Gate: the async job API returns this shape, and it must stay byte-compatible
  * with `fixtures/gate-review-result.golden.json`. The internal `Finding` is the
- * rich form (dimension/confidence/introducedByThisPr) — those internal fields
- * are DROPPED here; the wire form is the projected, stable subset Gate renders.
+ * rich form (dimension/confidence/introducedByThisPr) — dimension and
+ * introducedByThisPr are DROPPED here (internal-only), while `confidence`
+ * passes through per finding since #150 (it is the engine's calibrated,
+ * ceiling-capped signal; consumers like MCP Review must not fabricate one).
+ * The wire form stays the projected, stable subset Gate renders.
  *
  * Pure. The screenshot-id and artifact-URL resolution are injected (the worker
  * binds them to the captured-image set + the object-store signed-URL base);
@@ -75,7 +78,19 @@ function toWireFinding(finding: Finding, index: number, options: WireProjectionO
     element: finding.elementRef,
     screenshotId,
     suggestion: finding.suggestion,
+    // Already ceiling-capped upstream (#70); passed through, never recomputed (#150).
+    confidence: finding.confidence,
   };
+}
+
+/**
+ * Result-level confidence (#150): the minimum over finding confidences — the
+ * result is only as trustworthy as its least-confident finding — and `1` for a
+ * clean no-findings result. Defined HERE, once, so no consumer invents its own
+ * aggregate.
+ */
+function resultConfidence(findings: readonly Finding[]): number {
+  return findings.reduce((least, f) => Math.min(least, f.confidence), 1);
 }
 
 /** Project the internal critique into the cross-repo wire result Gate consumes. */
@@ -92,6 +107,7 @@ export function toEngineReviewResult(critique: Critique, options: WireProjection
   return {
     grade: critique.grade,
     overall: critique.overall,
+    confidence: resultConfidence(critique.findings),
     findings,
     notReviewed: critique.notReviewed,
     artifacts: {

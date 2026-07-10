@@ -44,7 +44,7 @@ describe("toEngineReviewResult (wire projection — cross-repo contract)", () =>
     expect(Object.keys(result.metadata).sort()).toEqual(Object.keys(golden.metadata).sort());
   });
 
-  it("passes title/description through and DROPS internal-only fields (dimension/confidence/introducedByThisPr)", () => {
+  it("passes title/description/confidence through and DROPS internal-only fields (dimension/introducedByThisPr)", () => {
     const result = toEngineReviewResult(critique(), { screenshotRetentionSeconds: 60 });
     const f = result.findings[0]!;
     expect(f).toMatchObject({
@@ -57,13 +57,28 @@ describe("toEngineReviewResult (wire projection — cross-repo contract)", () =>
       element: "button[data-testid='cta-primary']",
       screenshotId: null,
       suggestion: "Apply the --color-accent token.",
+      // #150: the engine's ceiling-capped signal crosses the wire untouched.
+      confidence: 0.9,
     });
     expect(f).not.toHaveProperty("dimension");
-    expect(f).not.toHaveProperty("confidence");
     expect(f).not.toHaveProperty("introducedByThisPr");
     expect(result.grade).toBe("needs_work");
     expect(result.notReviewed).toEqual(["route /checkout (no preview)"]);
     expect(result.screenshotRetentionSeconds).toBe(60);
+  });
+
+  it("aggregates result-level confidence as the min over findings, 1 for a clean result (#150)", () => {
+    const mixed = toEngineReviewResult(
+      critique({
+        findings: [finding({ confidence: 0.92 }), finding({ confidence: 0.61 }), finding({ confidence: 0.85 })],
+      }),
+      { screenshotRetentionSeconds: 60 },
+    );
+    expect(mixed.confidence).toBe(0.61);
+    expect(mixed.findings.map((f) => f.confidence)).toEqual([0.92, 0.61, 0.85]);
+
+    const clean = toEngineReviewResult(critique({ findings: [] }), { screenshotRetentionSeconds: 60 });
+    expect(clean.confidence).toBe(1);
   });
 
   it("assigns stable 1-based ids and wires annotated screenshots for findings that have one", () => {
