@@ -94,3 +94,10 @@ export type {
   ShadowPromotionInput,
   ShadowPromotionDecision,
 } from "./shadow-promotion.js";
+
+export {
+  CONTRACT_VECTORS,
+  contractPairs,
+  renderCalibrationContract,
+} from "./calibration-contract.js";
+export type { ContractVectorSpec } from "./calibration-contract.js";

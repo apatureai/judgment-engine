@@ -6,9 +6,20 @@
   "description": "Eval harness: synthetic canaries, golden-set metrics, regression + quality gate, model/prompt registry.",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
-  "exports": { ".": { "types": "./dist/index.d.ts", "default": "./dist/index.js" } },
-  "files": ["dist"],
-  "scripts": { "test": "vitest run" },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "test": "vitest run",
+    "gen:calibration-contract": "tsc -b && node scripts/gen-calibration-contract.ts",
+    "build": "tsc -b"
+  },
   "dependencies": {
     "@engine/db": "workspace:*",
     "@engine/types": "workspace:*"

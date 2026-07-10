@@ -1,0 +1,245 @@
+{
+  "$comment": "Cross-repo calibration contract (@engine/eval is canonical; sigil mirrors — sigil#2). Regenerate: pnpm --filter @engine/eval gen:calibration-contract. Consumed by packages/eval tests here and by sigil's calibration-contract test.",
+  "vectors": [
+    {
+      "name": "uniform-200",
+      "seed": 42,
+      "count": 200,
+      "bins": 10,
+      "ece": 0.07275,
+      "brier": 0.17717499999999992,
+      "reliability": [
+        {
+          "lower": 0,
+          "upper": 0.1,
+          "count": 18,
+          "predictedMean": 0.04444444444444445,
+          "empiricalRate": 0.1111111111111111
+        },
+        {
+          "lower": 0.1,
+          "upper": 0.2,
+          "count": 16,
+          "predictedMean": 0.14531249999999998,
+          "empiricalRate": 0.1875
+        },
+        {
+          "lower": 0.2,
+          "upper": 0.30000000000000004,
+          "count": 27,
+          "predictedMean": 0.23981481481481484,
+          "empiricalRate": 0.14814814814814814
+        },
+        {
+          "lower": 0.30000000000000004,
+          "upper": 0.4,
+          "count": 13,
+          "predictedMean": 0.3480769230769231,
+          "empiricalRate": 0.3076923076923077
+        },
+        {
+          "lower": 0.4,
+          "upper": 0.5,
+          "count": 18,
+          "predictedMean": 0.4388888888888889,
+          "empiricalRate": 0.5555555555555556
+        },
+        {
+          "lower": 0.5,
+          "upper": 0.6000000000000001,
+          "count": 21,
+          "predictedMean": 0.5357142857142857,
+          "empiricalRate": 0.6190476190476191
+        },
+        {
+          "lower": 0.6000000000000001,
+          "upper": 0.7000000000000001,
+          "count": 27,
+          "predictedMean": 0.6620370370370369,
+          "empiricalRate": 0.5185185185185185
+        },
+        {
+          "lower": 0.7000000000000001,
+          "upper": 0.8,
+          "count": 18,
+          "predictedMean": 0.7555555555555556,
+          "empiricalRate": 0.7777777777777778
+        },
+        {
+          "lower": 0.8,
+          "upper": 0.9,
+          "count": 20,
+          "predictedMean": 0.825,
+          "empiricalRate": 0.75
+        },
+        {
+          "lower": 0.9,
+          "upper": 1,
+          "count": 22,
+          "predictedMean": 0.956818181818182,
+          "empiricalRate": 0.9545454545454546
+        }
+      ]
+    },
+    {
+      "name": "uniform-37",
+      "seed": 7,
+      "count": 37,
+      "bins": 10,
+      "ece": 0.10337837837837836,
+      "brier": 0.13795608108108104,
+      "reliability": [
+        {
+          "lower": 0,
+          "upper": 0.1,
+          "count": 3,
+          "predictedMean": 0.025000000000000005,
+          "empiricalRate": 0
+        },
+        {
+          "lower": 0.1,
+          "upper": 0.2,
+          "count": 4,
+          "predictedMean": 0.11875,
+          "empiricalRate": 0
+        },
+        {
+          "lower": 0.2,
+          "upper": 0.30000000000000004,
+          "count": 5,
+          "predictedMean": 0.25999999999999995,
+          "empiricalRate": 0.2
+        },
+        {
+          "lower": 0.30000000000000004,
+          "upper": 0.4,
+          "count": 3,
+          "predictedMean": 0.3416666666666666,
+          "empiricalRate": 0.3333333333333333
+        },
+        {
+          "lower": 0.4,
+          "upper": 0.5,
+          "count": 2,
+          "predictedMean": 0.44999999999999996,
+          "empiricalRate": 0.5
+        },
+        {
+          "lower": 0.5,
+          "upper": 0.6000000000000001,
+          "count": 7,
+          "predictedMean": 0.5321428571428571,
+          "empiricalRate": 0.5714285714285714
+        },
+        {
+          "lower": 0.6000000000000001,
+          "upper": 0.7000000000000001,
+          "count": 4,
+          "predictedMean": 0.6625,
+          "empiricalRate": 1
+        },
+        {
+          "lower": 0.7000000000000001,
+          "upper": 0.8,
+          "count": 0,
+          "predictedMean": 0,
+          "empiricalRate": 0
+        },
+        {
+          "lower": 0.8,
+          "upper": 0.9,
+          "count": 3,
+          "predictedMean": 0.8416666666666667,
+          "empiricalRate": 1
+        },
+        {
+          "lower": 0.9,
+          "upper": 1,
+          "count": 6,
+          "predictedMean": 0.9583333333333334,
+          "empiricalRate": 0.8333333333333334
+        }
+      ]
+    },
+    {
+      "name": "uniform-1000",
+      "seed": 20260710,
+      "count": 1000,
+      "bins": 10,
+      "ece": 0.033099999999999956,
+      "brier": 0.16629249999999984,
+      "reliability": [
+        {
+          "lower": 0,
+          "upper": 0.1,
+          "count": 100,
+          "predictedMean": 0.041499999999999995,
+          "empiricalRate": 0.02
+        },
+        {
+          "lower": 0.1,
+          "upper": 0.2,
+          "count": 102,
+          "predictedMean": 0.133578431372549,
+          "empiricalRate": 0.18627450980392157
+        },
+        {
+          "lower": 0.2,
+          "upper": 0.30000000000000004,
+          "count": 122,
+          "predictedMean": 0.24918032786885244,
+          "empiricalRate": 0.27049180327868855
+        },
+        {
+          "lower": 0.30000000000000004,
+          "upper": 0.4,
+          "count": 64,
+          "predictedMean": 0.35,
+          "empiricalRate": 0.390625
+        },
+        {
+          "lower": 0.4,
+          "upper": 0.5,
+          "count": 117,
+          "predictedMean": 0.43525641025641004,
+          "empiricalRate": 0.4358974358974359
+        },
+        {
+          "lower": 0.5,
+          "upper": 0.6000000000000001,
+          "count": 116,
+          "predictedMean": 0.5515086206896551,
+          "empiricalRate": 0.6379310344827587
+        },
+        {
+          "lower": 0.6000000000000001,
+          "upper": 0.7000000000000001,
+          "count": 93,
+          "predictedMean": 0.6623655913978491,
+          "empiricalRate": 0.6236559139784946
+        },
+        {
+          "lower": 0.7000000000000001,
+          "upper": 0.8,
+          "count": 71,
+          "predictedMean": 0.75,
+          "empiricalRate": 0.7323943661971831
+        },
+        {
+          "lower": 0.8,
+          "upper": 0.9,
+          "count": 102,
+          "predictedMean": 0.8389705882352941,
+          "empiricalRate": 0.8823529411764706
+        },
+        {
+          "lower": 0.9,
+          "upper": 1,
+          "count": 113,
+          "predictedMean": 0.9469026548672562,
+          "empiricalRate": 0.9380530973451328
+        }
+      ]
+    }
+  ]
+}
