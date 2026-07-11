@@ -1,6 +1,10 @@
 import type { EngineReviewResult } from "@engine/types";
 import { runReview, type ReviewDeps, type ReviewInput } from "./orchestrator.js";
 
+export type ReviewDepsProvider<TJob> =
+  | ReviewDeps
+  | ((job: TJob, input: ReviewInput) => ReviewDeps | Promise<ReviewDeps>);
+
 /**
  * Adapt the pure `runReview` orchestrator into a job processor: a function that
  * takes a job and returns the wire result the async job API persists. The API
@@ -16,10 +20,11 @@ import { runReview, type ReviewDeps, type ReviewInput } from "./orchestrator.js"
  */
 export function createReviewProcessor<TJob>(
   toReviewInput: (job: TJob) => ReviewInput | Promise<ReviewInput>,
-  deps: ReviewDeps,
+  deps: ReviewDepsProvider<TJob>,
 ): (job: TJob) => Promise<EngineReviewResult> {
   return async (job: TJob): Promise<EngineReviewResult> => {
     const input = await toReviewInput(job);
-    return runReview(input, deps);
+    const resolvedDeps = typeof deps === "function" ? await deps(job, input) : deps;
+    return runReview(input, resolvedDeps);
   };
 }

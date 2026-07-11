@@ -99,4 +99,22 @@ describe("DashScopeModelClient (#27)", () => {
     await client.complete({ ...deepRequest, thinking: false }, { signal: controller.signal });
     expect(seenSignal).toBe(controller.signal);
   });
+
+  it("awaits short-lived signed image URLs before calling the model", async () => {
+    let seen: ChatCreateParams | undefined;
+    const create = async (params: ChatCreateParams) => {
+      seen = params;
+      return fakeStream([{ choices: [{ delta: { content: "{}" }, finish_reason: "stop" }] }]);
+    };
+    const client = new DashScopeModelClient(create, {
+      resolveImageUrl: async (image) => `https://artifacts.example/${image.objectKey}?signed=1`,
+    });
+    await client.complete({ ...deepRequest, thinking: false });
+    const userMsg = (seen?.messages[1] ?? {}) as {
+      content: Array<{ type: string; image_url?: { url: string } }>;
+    };
+    expect(userMsg.content.find((part) => part.type === "image_url")?.image_url?.url).toBe(
+      "https://artifacts.example/jobs/1/s/a.png?signed=1",
+    );
+  });
 });

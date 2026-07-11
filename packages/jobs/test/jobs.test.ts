@@ -150,6 +150,29 @@ describe("cooperative cancellation (#66)", () => {
   });
 });
 
+describe("bounded worker retry", () => {
+  it("requeues below the attempt budget and fails at the budget", async () => {
+    const { job } = await store.enqueue(baseInput);
+    await store.claimNext();
+    expect(await store.retryOrFail(job.id, "transient", 2)).toBe("queued");
+    expect((await store.get(job.id))?.status).toBe("queued");
+
+    await store.claimNext();
+    expect(await store.retryOrFail(job.id, "still broken", 2)).toBe("failed");
+    const failed = await store.get(job.id);
+    expect(failed?.status).toBe("failed");
+    expect(failed?.error).toBe("still broken");
+  });
+
+  it("never requeues a cancelling job", async () => {
+    const { job } = await store.enqueue(baseInput);
+    await store.claimNext();
+    await store.requestCancel(job.id);
+    expect(await store.retryOrFail(job.id, "late failure", 3)).toBeNull();
+    expect((await store.get(job.id))?.status).toBe("cancelling");
+  });
+});
+
 describe("CancellationCoordinator", () => {
   it("registers an abortable signal and runs the kill seam on cancel", async () => {
     const killed: string[] = [];

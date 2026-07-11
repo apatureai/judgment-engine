@@ -164,12 +164,14 @@ export class JobStore {
   }
 
   /** Mark a running job succeeded with a pointer to its result in object storage. */
-  async complete(id: string, resultPointer: string): Promise<void> {
-    await this.exec.query(
+  async complete(id: string, resultPointer: string): Promise<boolean> {
+    const { rows } = await this.exec.query<{ id: string }>(
       `UPDATE jobs SET status = 'succeeded', result_pointer = $2, finished_at = now()
-       WHERE id = $1 AND status = 'running'`,
+       WHERE id = $1 AND status = 'running'
+       RETURNING id`,
       [id, resultPointer],
     );
+    return rows.length === 1;
   }
 
   /** Mark a running job failed with an error message. */
@@ -179,6 +181,32 @@ export class JobStore {
        WHERE id = $1 AND status = 'running'`,
       [id, error],
     );
+  }
+
+  /**
+   * Retry a failed attempt while it is below the bounded attempt budget, or
+   * atomically mark it terminal. A cancelled/cancelling job is never requeued.
+   * Returns the resulting state, or null when the worker lost ownership.
+   */
+  async retryOrFail(
+    id: string,
+    error: string,
+    maxAttempts: number,
+  ): Promise<"queued" | "failed" | null> {
+    if (!Number.isInteger(maxAttempts) || maxAttempts < 1) {
+      throw new Error("maxAttempts must be a positive integer");
+    }
+    const { rows } = await this.exec.query<{ status: "queued" | "failed" }>(
+      `UPDATE jobs
+         SET status = CASE WHEN attempts < $3 THEN 'queued' ELSE 'failed' END,
+             error = $2,
+             started_at = CASE WHEN attempts < $3 THEN NULL ELSE started_at END,
+             finished_at = CASE WHEN attempts < $3 THEN NULL ELSE now() END
+       WHERE id = $1 AND status = 'running'
+       RETURNING status`,
+      [id, error, maxAttempts],
+    );
+    return rows[0]?.status ?? null;
   }
 
   /**

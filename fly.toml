@@ -1,0 +1,37 @@
+app = "apature-judgment-engine"
+primary_region = "iad"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  NODE_ENV = "production"
+  PORT = "8080"
+  WORKER_POLL_MS = "5000"
+  WORKER_MAX_ATTEMPTS = "3"
+
+[deploy]
+  release_command = "node packages/db/dist/cli/migrate.js"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+  min_machines_running = 1
+
+  [[http_service.checks]]
+    interval = "15s"
+    timeout = "3s"
+    grace_period = "10s"
+    method = "GET"
+    path = "/readyz"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "1024mb"
+
+# Scale-out workers can run the same image with:
+#   node packages/runtime/dist/worker-main.js
+# The default API process also runs one worker so a single-machine staging
+# deployment exercises submit -> LISTEN/poll -> claim -> review end to end.

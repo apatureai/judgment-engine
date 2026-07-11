@@ -26,6 +26,8 @@ export interface JobApiOptions {
   now?: () => number;
   /** Worker step; defaults to a version-stamped stub result. */
   processor?: JobProcessor;
+  /** Production roots must provide the real processor; the EM0 stub is test/dev only. */
+  production?: boolean;
   /** Cooperative-cancellation coordinator (#66); when set, DELETE aborts inference + microVM. */
   coordinator?: CancellationCoordinator;
 }
@@ -85,6 +87,9 @@ function defaultProcessor(job: JobRecord): Promise<EngineReviewResult> {
  * `x-schema-version` header + version metadata.
  */
 export function createJobApi(options: JobApiOptions) {
+  if (options.production && !options.processor) {
+    throw new Error("production Job API requires an explicit review processor");
+  }
   const consumer = options.consumer ?? "gate";
   const intentType = options.intentType ?? "pr_review";
   const processor = options.processor ?? defaultProcessor;
@@ -206,12 +211,20 @@ export function createJobApi(options: JobApiOptions) {
   async function processJob(jobId: string): Promise<EngineReviewResult> {
     const job = await options.store.get(jobId);
     if (!job) throw new Error(`job ${jobId} not found`);
+    if (job.status !== "running") throw new Error(`job ${jobId} is not running`);
     const result = await processor(job);
     const pointer = objectKey(jobId, "critique", "result.json");
     await options.objectStore.put(pointer, JSON.stringify(result), {
       contentType: "application/json",
     });
-    await options.store.complete(jobId, pointer);
+    const published = await options.store.complete(jobId, pointer);
+    if (!published) {
+      // Cancellation can win after inference but before publication. The DB
+      // transition is the linearization point; remove the unreferenced object
+      // so a canceled/superseded job leaves no publishable result artifact.
+      await options.objectStore.delete(pointer);
+      throw new Error(`job ${jobId} left running state before publication`);
+    }
     return result;
   }
 

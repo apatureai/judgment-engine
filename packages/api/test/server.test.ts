@@ -19,6 +19,12 @@ beforeEach(async () => {
   api = createJobApi({ store, objectStore, secret: SECRET });
 });
 
+it("refuses to start a production API with the EM0 stub processor", () => {
+  expect(() => createJobApi({ store, objectStore, secret: SECRET, production: true })).toThrow(
+    /requires an explicit review processor/,
+  );
+});
+
 function signed(
   method: string,
   path: string,
@@ -135,10 +141,11 @@ describe("DELETE /jobs/:id (cooperative cancel)", () => {
     expect(killed).toEqual([jobId]);
 
     // A late processJob writes NO result for a job that left `running`.
-    await api.processJob(jobId);
+    await expect(api.processJob(jobId)).rejects.toThrow(/not running/);
     const afterProcess = await store.get(jobId);
     expect(afterProcess?.status).toBe("cancelling");
     expect(afterProcess?.resultPointer).toBeNull();
+    expect(await objectStore.get(`jobs/${jobId}/critique/result.json`)).toBeNull();
 
     // Worker finalizes -> canceled -> consumer sees terminal failed.
     await store.markCanceled(jobId);
@@ -150,6 +157,41 @@ describe("DELETE /jobs/:id (cooperative cancel)", () => {
     const post = await api.handle(signed("POST", "/jobs", "1", submission("k5")));
     const jobId = (post.body as { jobId: string }).jobId;
     expect((await api.handle(signed("DELETE", `/jobs/${jobId}`, "2"))).status).toBe(404);
+  });
+
+  it("deletes a result artifact when cancellation wins the publication race", async () => {
+    let jobId = "";
+    api = createJobApi({
+      store,
+      objectStore,
+      secret: SECRET,
+      processor: async (job) => {
+        jobId = job.id;
+        await store.requestCancel(job.id);
+        return {
+          grade: "ship",
+          overall: "late result",
+          findings: [],
+          notReviewed: [],
+          artifacts: { annotatedScreenshots: [] },
+          screenshotRetentionSeconds: 0,
+          metadata: {
+            engineVersion: "1",
+            model: "test",
+            promptVersion: "test",
+            captureVersion: "test",
+            uiDnaVersion: null,
+          },
+        };
+      },
+    });
+    const post = await api.handle(signed("POST", "/jobs", "1", submission("publish-race")));
+    jobId = (post.body as { jobId: string }).jobId;
+    await store.claimNext();
+
+    await expect(api.processJob(jobId)).rejects.toThrow(/before publication/);
+    expect((await store.get(jobId))?.status).toBe("cancelling");
+    expect(await objectStore.get(`jobs/${jobId}/critique/result.json`)).toBeNull();
   });
 });
 

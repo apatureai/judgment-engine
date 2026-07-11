@@ -1,0 +1,32 @@
+{
+  "name": "@engine/runtime",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Production API and worker composition roots for the Judgment Engine.",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": { ".": { "types": "./dist/index.d.ts", "default": "./dist/index.js" } },
+  "files": ["dist"],
+  "scripts": { "test": "vitest run" },
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.1081.0",
+    "@engine/api": "workspace:*",
+    "@engine/context": "workspace:*",
+    "@engine/critique": "workspace:*",
+    "@engine/db": "workspace:*",
+    "@engine/jobs": "workspace:*",
+    "@engine/observability": "workspace:*",
+    "@engine/review": "workspace:*",
+    "@engine/secrets": "workspace:*",
+    "@engine/storage": "workspace:*",
+    "@engine/types": "workspace:*",
+    "openai": "^6.46.0",
+    "pg": "^8.22.0",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "^0.5.4",
+    "@types/pg": "^8.11.10"
+  }
+}

@@ -9,9 +9,10 @@ import { hallucinationGate } from "./hallucination-gate.js";
 import { postFilter } from "./post-filter.js";
 import { parseCritiqueOutput } from "./schema.js";
 import { buildResultMetadata } from "./version-stamp.js";
+import { SYSTEM_PROMPT_VERSION } from "./prompt.js";
 
 export const ENGINE_VERSION = "0.0.0";
-export const PROMPT_VERSION = "stub@0";
+export const PROMPT_VERSION = `system-prompt@${SYSTEM_PROMPT_VERSION}`;
 const DEFAULT_CAPTURE_VERSION = "stub@0";
 
 /** Injectable dependencies — the seam that keeps model backends swappable per pass. */

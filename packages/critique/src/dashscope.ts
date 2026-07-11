@@ -56,7 +56,7 @@ export type ChatCompletionsCreate = (
 ) => Promise<AsyncIterable<ChatChunk>>;
 
 /** Resolve an object-storage key to a (signed) URL the model can fetch (#6). */
-export type ImageUrlResolver = (image: ModelImage) => string;
+export type ImageUrlResolver = (image: ModelImage) => string | Promise<string>;
 
 export interface DashScopeOptions {
   /** Temperature for the Thinking/deep pass. */
@@ -64,17 +64,22 @@ export interface DashScopeOptions {
   resolveImageUrl?: ImageUrlResolver;
 }
 
-function toOpenAIMessages(messages: ModelMessage[], resolveUrl: ImageUrlResolver): unknown[] {
-  return messages.map((m) => {
+async function toOpenAIMessages(messages: ModelMessage[], resolveUrl: ImageUrlResolver): Promise<unknown[]> {
+  return Promise.all(messages.map(async (m) => {
     if (!m.images || m.images.length === 0) return { role: m.role, content: m.content };
     return {
       role: m.role,
       content: [
         { type: "text", text: m.content },
-        ...m.images.map((img) => ({ type: "image_url", image_url: { url: resolveUrl(img) } })),
+        ...await Promise.all(
+          m.images.map(async (img) => ({
+            type: "image_url",
+            image_url: { url: await resolveUrl(img) },
+          })),
+        ),
       ],
     };
-  });
+  }));
 }
 
 export class DashScopeModelClient implements ModelClient {
@@ -111,7 +116,7 @@ export class DashScopeModelClient implements ModelClient {
     const stream = await this.create(
       {
         model: request.model,
-        messages: toOpenAIMessages(request.messages, this.resolveUrl),
+        messages: await toOpenAIMessages(request.messages, this.resolveUrl),
         stream: true,
         stream_options: { include_usage: true },
         temperature: request.thinking ? this.thinkingTemperature : undefined,

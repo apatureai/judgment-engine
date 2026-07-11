@@ -1,5 +1,9 @@
 import type { JobRecord } from "@engine/jobs";
-import { createReviewProcessor, type ReviewDeps, type ReviewInput } from "@engine/review";
+import {
+  createReviewProcessor,
+  type ReviewDepsProvider,
+  type ReviewInput,
+} from "@engine/review";
 import type { EngineReviewResult } from "@engine/types";
 import type { JobProcessor } from "./server.js";
 
@@ -22,7 +26,7 @@ import type { JobProcessor } from "./server.js";
  */
 export function createJobReviewProcessor(
   toReviewInput: (job: JobRecord) => ReviewInput | Promise<ReviewInput>,
-  deps: ReviewDeps,
+  deps: ReviewDepsProvider<JobRecord>,
 ): JobProcessor {
   const processor = createReviewProcessor<JobRecord>(toReviewInput, deps);
   return (job: JobRecord): Promise<EngineReviewResult> => processor(job);

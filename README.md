@@ -127,6 +127,7 @@ context+genome → capture → triage ──(unchanged)──▶ "no design chan
 | `@engine/api` | The async job API (`POST`/`GET`/`DELETE /jobs`), HMAC verification, depth→model routing, and the job→review processor binding. |
 | `@engine/jobs` | Postgres job store (`pg_notify` dispatch, idempotency, `SKIP LOCKED` claim), cancellation coordinator, priority. |
 | `@engine/review` | **The end-to-end orchestrator** (`runReview`) that composes everything above into one pipeline, plus the job-processor adapter. |
+| `@engine/runtime` | Production composition: Node HTTP adapter, validated durable request mapping, real model/capture/genome bindings, Postgres LISTEN worker, health checks, and shutdown/drain. |
 
 ## Current status
 
@@ -154,6 +155,34 @@ cd judgment-engine
 pnpm install
 pnpm typecheck && pnpm test && pnpm lint
 ```
+
+## Production runtime
+
+`packages/runtime/src/api-main.ts` is the deployable composition root. It starts
+the HTTP API and one worker so a staging machine exercises the full durable path;
+`worker-main.ts` is the scale-out worker-only entrypoint. Production startup has
+no mock/stub fallback: it exits before listening unless Postgres, HMAC, object
+storage, model, and isolated-capture configuration is present.
+
+Required secrets: `DATABASE_URL`, `ENGINE_HMAC_SECRET`, `MODEL_API_KEY`,
+`OBJECT_STORE_ACCESS_KEY_ID`, `OBJECT_STORE_SECRET_ACCESS_KEY`, and
+`CAPTURE_API_TOKEN`. Required non-secret configuration: `MODEL_BASE_URL`,
+`CAPTURE_ENDPOINT`, and `OBJECT_STORE_BUCKET`. `OBJECT_STORE_ENDPOINT`/`REGION`
+select R2 or S3; `TRIAGE_MODEL`, `DEEP_MODEL`, and `MODEL_BACKEND` keep providers
+behind the engine adapter. UI-DNA grounding is enabled only when
+`GENOME_ENDPOINT`, `GENOME_API_TOKEN`, and `EMBEDDING_MODEL` are configured.
+
+`GET /livez` reports process liveness. `GET /readyz` reports database,
+capture-fleet, and worker capacity separately. The worker uses Postgres `LISTEN`
+on `engine_jobs` with a bounded polling fallback, `SKIP LOCKED` claims, bounded
+retry, and graceful drain. `Dockerfile` and `fly.toml` are the staging image and
+service configuration; migrations run as the Fly release command.
+
+The API consumes Gate's versioned `GateReviewRequest` body directly. Tenant and
+depth must match the HMAC-scoped durable job. `GENOME_ENDPOINT` targets Source of
+Truth's approved `/v1/repos/{repo_id}/ui-dna` read contract; the engine resolves
+the repository's approved snapshot itself instead of trusting a caller-supplied
+genome version.
 
 The deep docs:
 

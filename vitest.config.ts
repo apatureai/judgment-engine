@@ -20,6 +20,7 @@ export default defineConfig({
       "@engine/eval": fromRoot("./packages/eval/src/index.ts"),
       "@engine/feedback": fromRoot("./packages/feedback/src/index.ts"),
       "@engine/review": fromRoot("./packages/review/src/index.ts"),
+      "@engine/runtime": fromRoot("./packages/runtime/src/index.ts"),
     },
   },
   test: {

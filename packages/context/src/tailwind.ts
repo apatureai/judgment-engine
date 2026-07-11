@@ -1,4 +1,4 @@
-import resolveConfig from "tailwindcss-v3/resolveConfig";
+import resolveConfig from "tailwindcss-v3/resolveConfig.js";
 import type { TokenMap } from "./tokens.js";
 
 /**
