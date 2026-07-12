@@ -6,6 +6,8 @@ import { InMemoryObjectStore } from "@engine/storage";
 import type { Capture, CaptureContext, CaptureInSandbox } from "@engine/types";
 import { PGlite } from "@electric-sql/pglite";
 import { spawnSync } from "node:child_process";
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it } from "vitest";
 import {
   createEngineRuntime,
@@ -20,6 +22,12 @@ import {
 
 const SECRET = "runtime-hmac-secret";
 const VIEWPORT = "desktop" as const;
+const drill = JSON.parse(
+  readFileSync(fileURLToPath(new URL("./fixtures/genome-lifecycle-drill.golden.json", import.meta.url)), "utf8"),
+) as {
+  sourceOfTruth: { snapshotId: string; itemIds: string[] };
+  judgmentEngine: { uiDnaVersion: string; ruleCount: number; groundingObserved: boolean };
+};
 
 function reviewRequest() {
   return {
@@ -135,23 +143,25 @@ describe("approved genome adapter", () => {
         requestedUrl = String(input);
         requestedInstallation = new Headers(init?.headers).get("x-apature-installation-id") ?? "";
         return new Response(JSON.stringify({
-          snapshot: { id: "dna@approved", approval_state: "approved" },
+          snapshot: { id: drill.sourceOfTruth.snapshotId, approval_state: "approved" },
           items: [{
-            field_id: "component.button.radius",
-            kind: "component",
-            value: { radius: "8px" },
-            applicability: { component_kinds: ["Button"] },
+            field_id: drill.sourceOfTruth.itemIds[0],
+            kind: "token",
+            value: { token: "--color-brand", value: "#0a0a0a", group: "color" },
+            applicability: {},
           }],
         }), { status: 200, headers: { "content-type": "application/json" } });
       },
     );
 
     await expect(resolver.resolve("apatureai/demo", "tenant_1")).resolves.toEqual({
-      version: "dna@approved",
+      version: drill.judgmentEngine.uiDnaVersion,
       rules: [{
-        id: "component.button.radius",
-        text: JSON.stringify({ kind: "component", value: { radius: "8px" } }),
-        component: "Button",
+        id: drill.sourceOfTruth.itemIds[0],
+        text: JSON.stringify({
+          kind: "token",
+          value: { token: "--color-brand", value: "#0a0a0a", group: "color" },
+        }),
       }],
     });
     expect(requestedUrl).toBe("https://source.apature.test/v1/repos/apatureai%2Fdemo/ui-dna?max_items=100");

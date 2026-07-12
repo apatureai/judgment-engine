@@ -1,5 +1,14 @@
 # Apature Judgment Engine
 
+## Genome lifecycle conformance (added July 11, 2026)
+
+The cross-repository drill in `apatureai/ui-dna#57` feeds Source of Truth's
+digest-verified approved bundle through `HttpGenomeResolver`, builds the existing
+selective genome index, and proves the retrieved rules reach the deep critique
+prompt. The generated runtime golden pins the exact approved UI DNA version that
+must appear in result metadata; a served-version mismatch remains visible in the
+stamp. The fixture path uses injected capture/model/embedding seams only.
+
 The Judgment Engine turns a generic vision model into a **trusted design reviewer**.
 A raw call to a vision model can read a screenshot, but it will also confidently
 invent problems that aren't there — and one hallucinated "blocker" ends a customer

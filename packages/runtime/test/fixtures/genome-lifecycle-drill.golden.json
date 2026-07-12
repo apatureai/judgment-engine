@@ -1,0 +1,42 @@
+{
+  "contract": "genome-lifecycle-drill/1",
+  "repository": "apatureai/genome-drill",
+  "draft": {
+    "dnaVersion": "cc236ee428de11f1158d780c5a71f487092dcef9deba38b4a9ae4db53bf17475",
+    "contentDigest": "sha256:65ad3893ea4db16f53074a464830b4f6f0cc9aa898877f5b782afdc37250efac",
+    "state": "draft"
+  },
+  "consultant": {
+    "phase": "approved",
+    "approvedDnaVersion": "96a53cf1a2bbf1e0eb675c00f24d3928fbce0bd38400115ae042d1d9bc52643e",
+    "authoritativeVersionChanged": true,
+    "auditKinds": [
+      "session.created",
+      "session.transition",
+      "session.transition",
+      "session.transition",
+      "session.transition",
+      "session.transition"
+    ]
+  },
+  "sourceOfTruth": {
+    "snapshotId": "96a53cf1a2bbf1e0eb675c00f24d3928fbce0bd38400115ae042d1d9bc52643e",
+    "contentDigest": "sha256:62254ddfbb7184e08724de0e077faf94be59c933e3befa4a48eefae185628f45",
+    "itemIds": [
+      "tokens/color/--color-brand",
+      "tokens/spacing/--spacing-gap"
+    ],
+    "httpMcpEqual": true
+  },
+  "judgmentEngine": {
+    "uiDnaVersion": "96a53cf1a2bbf1e0eb675c00f24d3928fbce0bd38400115ae042d1d9bc52643e",
+    "ruleCount": 2,
+    "groundingObserved": true,
+    "mismatchStamp": "stale-ui-dna-version"
+  },
+  "failures": {
+    "unapprovedRejected": true,
+    "staleDigestRejected": true,
+    "mismatchVisible": true
+  }
+}
