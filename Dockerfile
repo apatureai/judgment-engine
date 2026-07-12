@@ -1,6 +1,6 @@
 # Judgment Engine API + worker image. Runtime secrets are injected by Fly;
 # credentials and model/capture endpoints are never baked into an image layer.
-FROM node:20-slim AS base
+FROM node:24-slim AS base
 ENV PNPM_HOME=/pnpm
 ENV PATH="$PNPM_HOME:$PATH"
 RUN corepack enable
