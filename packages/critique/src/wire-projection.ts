@@ -5,10 +5,10 @@ import type { Critique, EngineReviewResult, Finding, WireFinding } from "@engine
  * `EngineReviewResult` (TRD §2/§8). This IS the cross-repo contract boundary with
  * Gate: the async job API returns this shape, and it must stay byte-compatible
  * with `fixtures/gate-review-result.golden.json`. The internal `Finding` is the
- * rich form (dimension/confidence/introducedByThisPr) — dimension and
- * introducedByThisPr are DROPPED here (internal-only), while `confidence`
- * passes through per finding since #150 (it is the engine's calibrated,
- * ceiling-capped signal; consumers like MCP Review must not fabricate one).
+ * rich form (dimension/confidence/introducedByThisPr). `introducedByThisPr` is
+ * DROPPED here (internal-only), while `confidence` (since #150) and `dimension`
+ * (since #159) pass through per finding: consumers like MCP Review group outcomes
+ * by the calibrated confidence + rubric dimension and must not fabricate either.
  * The wire form stays the projected, stable subset Gate renders.
  *
  * Pure. The screenshot-id and artifact-URL resolution are injected (the worker
@@ -69,6 +69,9 @@ function toWireFinding(finding: Finding, index: number, options: WireProjectionO
   const screenshotId = options.screenshotIdFor?.(finding, index) ?? null;
   return {
     id: wireFindingId(index),
+    // #159: the validated internal rubric dimension crosses the wire verbatim —
+    // never derived from severity/title. Consumers group outcomes by it.
+    dimension: finding.dimension,
     severity: finding.severity,
     // Pass the model-emitted title through; fall back to a derived one only if blank.
     title: finding.title.trim().length > 0 ? finding.title : deriveTitle(finding.description),

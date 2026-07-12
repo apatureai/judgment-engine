@@ -13,8 +13,29 @@ export const SCHEMA_VERSION = "1";
 
 export type WireGrade = "ship" | "ship_with_nits" | "needs_work" | "blocked";
 
+/** The 8-dimension design rubric on the wire — the closed enum, mirrored from the internal `Dimension` (#159). */
+export type WireDimension =
+  | "visual_hierarchy"
+  | "spacing"
+  | "color_contrast"
+  | "typography"
+  | "consistency"
+  | "responsiveness"
+  | "accessibility"
+  | "brand";
+
 export interface WireFinding {
   id: string;
+  /**
+   * The rubric dimension the engine selected for this finding (#159). Emitted
+   * DIRECTLY from the validated internal finding — never derived from title,
+   * severity, or prose. Additive + optional (schema v1, x-schema-version, like
+   * `confidence` in #150): the projection always emits it going forward; it is
+   * optional only so results stored before the field existed still type-check.
+   * Consumers must not synthesize a value when absent (legacy = explicitly
+   * unavailable, never a fake dimension).
+   */
+  dimension?: WireDimension;
   severity: "nit" | "minor" | "major" | "blocker";
   title: string;
   description: string;

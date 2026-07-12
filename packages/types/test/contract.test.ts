@@ -36,9 +36,14 @@ describe("wire contract (cross-repo anchor with Gate)", () => {
     expect(typeof f.confidence).toBe("number");
     expect(f.confidence).toBeGreaterThanOrEqual(0);
     expect(f.confidence).toBeLessThanOrEqual(1);
+    // Rubric dimension (#159): the closed eight-value enum, additive on schema v1.
+    expect([
+      "visual_hierarchy", "spacing", "color_contrast", "typography",
+      "consistency", "responsiveness", "accessibility", "brand",
+    ]).toContain(f.dimension);
     // No extra/renamed keys vs the WireFinding contract.
     expect(Object.keys(f).sort()).toEqual(
-      ["confidence", "description", "element", "id", "route", "screenshotId", "severity", "suggestion", "title", "viewport"],
+      ["confidence", "description", "dimension", "element", "id", "route", "screenshotId", "severity", "suggestion", "title", "viewport"],
     );
     // annotatedScreenshots entries keep their {findingId, url} shape.
     const a = golden.artifacts.annotatedScreenshots[0];

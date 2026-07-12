@@ -44,7 +44,7 @@ describe("toEngineReviewResult (wire projection — cross-repo contract)", () =>
     expect(Object.keys(result.metadata).sort()).toEqual(Object.keys(golden.metadata).sort());
   });
 
-  it("passes title/description/confidence through and DROPS internal-only fields (dimension/introducedByThisPr)", () => {
+  it("passes title/description/confidence/dimension through and DROPS only internal-only introducedByThisPr", () => {
     const result = toEngineReviewResult(critique(), { screenshotRetentionSeconds: 60 });
     const f = result.findings[0]!;
     expect(f).toMatchObject({
@@ -59,8 +59,9 @@ describe("toEngineReviewResult (wire projection — cross-repo contract)", () =>
       suggestion: "Apply the --color-accent token.",
       // #150: the engine's ceiling-capped signal crosses the wire untouched.
       confidence: 0.9,
+      // #159: the rubric dimension crosses the wire verbatim (no longer dropped).
+      dimension: "color_contrast",
     });
-    expect(f).not.toHaveProperty("dimension");
     expect(f).not.toHaveProperty("introducedByThisPr");
     expect(result.grade).toBe("needs_work");
     expect(result.notReviewed).toEqual(["route /checkout (no preview)"]);
