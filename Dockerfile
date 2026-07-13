@@ -1,6 +1,6 @@
 # Judgment Engine API + worker image. Runtime secrets are injected by Fly;
 # credentials and model/capture endpoints are never baked into an image layer.
-FROM node:24-slim AS base
+FROM node:24-trixie-slim AS base
 ENV PNPM_HOME=/pnpm
 ENV PATH="$PNPM_HOME:$PATH"
 RUN corepack enable
@@ -11,17 +11,20 @@ COPY pnpm-lock.yaml pnpm-workspace.yaml package.json tsconfig.base.json tsconfig
 COPY packages ./packages
 RUN pnpm install --frozen-lockfile
 RUN pnpm build
-# `pnpm prune` is not workspace-aware and removes package-local links needed by
-# the runtime. Re-install from the warmed store so the final graph is prod-only
-# while retaining all workspace package and transitive dependency links.
-RUN pnpm install --prod --frozen-lockfile --offline
+# Materialize only the runtime package's production dependency closure. This
+# avoids shipping the root test/build toolchain.
+RUN pnpm --filter @engine/runtime deploy --prod /prod/runtime
 
-FROM base AS runtime
+FROM node:24-trixie-slim AS runtime
 ENV NODE_ENV=production
 ENV PORT=8080
-COPY --from=build /app/node_modules ./node_modules
-COPY --from=build /app/packages ./packages
-COPY --from=build /app/package.json ./package.json
-COPY --from=build /app/pnpm-workspace.yaml ./pnpm-workspace.yaml
+WORKDIR /app
+# npm/corepack are build-time tools. Removing them keeps their dependency trees
+# out of the production attack surface.
+RUN apt-get update && apt-get install -y --no-install-recommends liblzma5 \
+  && rm -rf /var/lib/apt/lists/* \
+  && rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx \
+  /usr/local/bin/corepack /usr/local/bin/pnpm /usr/local/bin/pnpx /usr/local/bin/yarn /usr/local/bin/yarnpkg
+COPY --from=build /prod/runtime ./
 EXPOSE 8080
-CMD ["node", "packages/runtime/dist/api-main.js"]
+CMD ["node", "dist/api-main.js"]

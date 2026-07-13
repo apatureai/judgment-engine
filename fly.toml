@@ -11,7 +11,7 @@ primary_region = "iad"
   WORKER_MAX_ATTEMPTS = "3"
 
 [deploy]
-  release_command = "node packages/db/dist/cli/migrate.js"
+  release_command = "node node_modules/@engine/db/dist/cli/migrate.js"
 
 [http_service]
   internal_port = 8080
@@ -32,6 +32,6 @@ primary_region = "iad"
   memory = "1024mb"
 
 # Scale-out workers can run the same image with:
-#   node packages/runtime/dist/worker-main.js
+#   node dist/worker-main.js
 # The default API process also runs one worker so a single-machine staging
 # deployment exercises submit -> LISTEN/poll -> claim -> review end to end.
