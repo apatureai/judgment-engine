@@ -68,6 +68,13 @@ export {
 export type { DeepPassRoute, DeepPassDeps, DeepPassRouteResult } from "./deep-pass.js";
 export { assembleCritique } from "./assemble.js";
 export type { AssembleCritiqueDeps } from "./assemble.js";
+// ui-dna#64 consumer side: suppress blocking when grounded on a revoked version.
+export {
+  authorizeGrounding,
+  enforceGroundingAuthority,
+  inMemoryGroundingAuthority,
+} from "./authority.js";
+export type { AuthorityStatus, AuthorityStatusRef, GroundingAuthorization } from "./authority.js";
 export { reconcileGrade, gradeFromFindings, worstGrade } from "./grade.js";
 export { cachePrefix, cachedInputTokens, isCacheHit } from "./cache.js";
 export { FREE_TIER_PASS_MODELS, passModelsForTier } from "./tier.js";
