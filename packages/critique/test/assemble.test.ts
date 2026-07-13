@@ -1,4 +1,4 @@
-import type { Finding } from "@engine/types";
+import type { CalibrationRuntimeBinding, Finding } from "@engine/types";
 import { describe, expect, it } from "vitest";
 import { assembleCritique, type DeepPassRouteResult } from "../src/index.js";
 
@@ -21,12 +21,36 @@ const routeResult = (
   output: DeepPassRouteResult["output"],
 ): DeepPassRouteResult => ({ route, output });
 
+const calibration: CalibrationRuntimeBinding = {
+  reference: {
+    reportId: "report-1",
+    reportHash: `sha256:${"a".repeat(64)}`,
+    calibrationVersion: "isotonic@1",
+    confidenceSource: "post_hoc_isotonic",
+  },
+  identity: {
+    model: "qwen3-vl-plus",
+    promptVersion: "system-prompt@v3",
+    engineVersion: "0.0.0",
+    captureVersion: "stub@0",
+    rubricVersion: "design-rubric@1",
+  },
+  promotionMode: "blocking",
+  thresholds: {
+    postFilterMinConfidence: 0.55,
+    blockingMinConfidence: 0.8,
+    unstableCaptureMaxConfidence: 0.6,
+  },
+  calibrate: (raw) => raw,
+};
+
 const baseDeps = {
   capturedRoutes: ["/pricing", "/home"],
   geometrySelectors: ["#cta", ".grid", "#hero"],
   model: "qwen3-vl-plus",
   captureVersion: "stub@0",
   uiDnaVersion: null,
+  calibration,
 };
 
 describe("assembleCritique (#29 → Critique aggregation, hardening)", () => {
@@ -94,10 +118,35 @@ describe("assembleCritique (#29 → Critique aggregation, hardening)", () => {
           notReviewed: [],
         }),
       ],
-      { ...baseDeps, confidenceCeiling: 0.6 },
+      { ...baseDeps, captureUnstable: true },
     );
     expect(out.validation.captureUnstable).toBe(true);
     expect(out.findings[0]?.confidence).toBeLessThanOrEqual(0.6);
+  });
+
+  it("fails display confidence and blocking closed after a model swap", () => {
+    const out = assembleCritique(
+      [
+        routeResult("/pricing", {
+          grade: "blocked",
+          overall: "x",
+          findings: [finding({ severity: "blocker" })],
+          notReviewed: [],
+        }),
+      ],
+      {
+        ...baseDeps,
+        calibration: {
+          ...calibration,
+          identity: { ...calibration.identity, model: "retired-model" },
+        },
+      },
+    );
+
+    expect(out.calibration).toBeUndefined();
+    expect(out.blockingEnabled).toBe(false);
+    expect(out.confidenceUnavailableReason).toBe("mismatched_calibration_report");
+    expect(out.grade).toBe("needs_work");
   });
 
   it("stamps the version metadata and defaults grade to ship with no valid routes", () => {

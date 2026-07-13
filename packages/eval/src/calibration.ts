@@ -5,11 +5,9 @@
  *
  * The 2025-26 literature is consistent: LLM/VLM-as-judge verbalized confidence
  * is severely overconfident and saturated (clusters at 0.9-1.0 while accuracy is
- * far lower; reported ECE 39-74%). The engine gates on this signal — a 0.55
- * post-filter floor (#33) and a 0.6 unstable-capture ceiling (#70) — so the
- * thresholds must be DERIVED from the measured reliability curve and re-derived
- * on each model/prompt change via the eval gate (#48/#71), not hand-picked
- * constants. This module measures that curve.
+ * far lower; reported ECE 39-74%). `CalibrationReportV1` serializes the map and
+ * thresholds derived from this measured reliability evidence. No serving path
+ * may fall back to the historical hand-picked floor/ceiling.
  *
  * Provides:
  *   - `expectedCalibrationError(pairs, bins?)` — binned ECE + a reliability table
@@ -197,6 +195,17 @@ export function bootstrapEceCI(
 /** A monotonic non-decreasing calibration map: raw confidence -> calibrated probability. */
 export type CalibrationMap = (raw: number) => number;
 
+export interface CalibrationKnotV1 {
+  raw: number;
+  calibrated: number;
+}
+
+/** Serializable replacement for the old closure-only isotonic map. */
+export interface CalibrationTransformV1 {
+  kind: "isotonic_v1";
+  knots: CalibrationKnotV1[];
+}
+
 /**
  * Fit a post-hoc monotonic calibration map via **isotonic regression** (the
  * Pool Adjacent Violators Algorithm, PAVA). The empirical correct-rate is a
@@ -211,8 +220,16 @@ export type CalibrationMap = (raw: number) => number;
  * Pure / deterministic: same pairs -> same map. Adoption is eval-gated (#48/#71);
  * the offline golden-set run that produces the pairs is the live seam.
  */
-export function fitMonotonicCalibration(pairs: readonly CalibrationPair[]): CalibrationMap {
-  const identity: CalibrationMap = (raw: number) => Math.min(1, Math.max(0, raw));
+export function fitSerializableMonotonicCalibration(
+  pairs: readonly CalibrationPair[],
+): CalibrationTransformV1 {
+  const identity: CalibrationTransformV1 = {
+    kind: "isotonic_v1",
+    knots: [
+      { raw: 0, calibrated: 0 },
+      { raw: 1, calibrated: 1 },
+    ],
+  };
   if (pairs.length === 0) return identity;
 
   // Sort by confidence; break ties on outcome so equal-x points pool stably.
@@ -221,16 +238,31 @@ export function fitMonotonicCalibration(pairs: readonly CalibrationPair[]): Cali
     return identity; // all confidences identical -> no monotonic signal
   }
 
-  // PAVA: each pair starts as a block (x = confidence, y = outcome, weight 1).
-  // Merge adjacent blocks while the sequence of block means decreases.
+  // PAVA starts from one weighted block per DISTINCT confidence. Real judge
+  // outputs are heavily quantized (many 0.9/0.95 values); leaving ties as
+  // separate points would serialize duplicate raw knots, which are ambiguous to
+  // reconstruct and rejected by CalibrationReportV1 validation.
   interface Block {
     x: number; // weighted-mean confidence
     y: number; // weighted-mean outcome (the fitted calibrated value)
     w: number;
   }
-  const blocks: Block[] = [];
+  const grouped: Block[] = [];
   for (const p of sorted) {
-    let block: Block = { x: p.confidence, y: asOutcome(p.correct), w: 1 };
+    const last = grouped[grouped.length - 1];
+    if (last?.x === p.confidence) {
+      const w = last.w + 1;
+      last.y = (last.y * last.w + asOutcome(p.correct)) / w;
+      last.w = w;
+    } else {
+      grouped.push({ x: p.confidence, y: asOutcome(p.correct), w: 1 });
+    }
+  }
+
+  // Merge adjacent blocks while the sequence of weighted outcome means falls.
+  const blocks: Block[] = [];
+  for (const initial of grouped) {
+    let block: Block = { ...initial };
     while (blocks.length > 0 && (blocks[blocks.length - 1] as Block).y > block.y) {
       const prev = blocks.pop() as Block;
       const w = prev.w + block.w;
@@ -243,23 +275,39 @@ export function fitMonotonicCalibration(pairs: readonly CalibrationPair[]): Cali
     blocks.push(block);
   }
 
-  const xs = blocks.map((b) => b.x);
-  const ys = blocks.map((b) => b.y);
+  const knots = blocks.map((block) => ({ raw: block.x, calibrated: block.y }));
+  const first = knots[0];
+  const last = knots[knots.length - 1];
+  if (first && first.raw > 0) knots.unshift({ raw: 0, calibrated: first.calibrated });
+  if (last && last.raw < 1) knots.push({ raw: 1, calibrated: last.calibrated });
+  return { kind: "isotonic_v1", knots };
+}
 
-  return (raw: number) => {
-    const x = Math.min(1, Math.max(0, raw));
-    if (x <= (xs[0] as number)) return Math.min(1, Math.max(0, ys[0] as number));
-    if (x >= (xs[xs.length - 1] as number)) return Math.min(1, Math.max(0, ys[ys.length - 1] as number));
-    // Linear interpolation between the two surrounding block knots.
-    let i = 0;
-    while (i < xs.length - 1 && (xs[i + 1] as number) < x) i++;
-    const x0 = xs[i] as number;
-    const x1 = xs[i + 1] as number;
-    const y0 = ys[i] as number;
-    const y1 = ys[i + 1] as number;
-    const t = x1 === x0 ? 0 : (x - x0) / (x1 - x0);
-    return Math.min(1, Math.max(0, y0 + t * (y1 - y0)));
-  };
+/** Reconstruct and apply the exact serialized piecewise-linear map. */
+export function applyCalibrationTransform(transform: CalibrationTransformV1, raw: number): number {
+  if (!Number.isFinite(raw)) throw new Error("raw confidence must be finite");
+  const knots = transform.knots;
+  if (transform.kind !== "isotonic_v1" || knots.length < 2) {
+    throw new Error("invalid calibration transform");
+  }
+  const x = Math.min(1, Math.max(0, raw));
+  const first = knots[0] as CalibrationKnotV1;
+  const last = knots[knots.length - 1] as CalibrationKnotV1;
+  if (x <= first.raw) return Math.min(1, Math.max(0, first.calibrated));
+  if (x >= last.raw) return Math.min(1, Math.max(0, last.calibrated));
+
+  let i = 0;
+  while (i < knots.length - 1 && (knots[i + 1] as CalibrationKnotV1).raw < x) i++;
+  const left = knots[i] as CalibrationKnotV1;
+  const right = knots[i + 1] as CalibrationKnotV1;
+  const t = right.raw === left.raw ? 0 : (x - left.raw) / (right.raw - left.raw);
+  return Math.min(1, Math.max(0, left.calibrated + t * (right.calibrated - left.calibrated)));
+}
+
+export function fitMonotonicCalibration(pairs: readonly CalibrationPair[]): CalibrationMap {
+  const transform = fitSerializableMonotonicCalibration(pairs);
+
+  return (raw: number) => applyCalibrationTransform(transform, raw);
 }
 
 /** Apply a calibration map to a confidence (convenience; identical to calling the map). */

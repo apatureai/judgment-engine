@@ -1,4 +1,5 @@
 import type {
+  CalibrationRuntimeBinding,
   Capture,
   CaptureContext,
   CaptureImage,
@@ -18,7 +19,11 @@ import { buildGenomeIndex, type Embedder } from "@engine/context";
 import { assertVersionStamped } from "@engine/critique";
 import { loadGoldenResult } from "@engine/types";
 import { describe, expect, it } from "vitest";
-import { runReview, type ReviewInput } from "../src/index.js";
+import {
+  runReview as runReviewRaw,
+  type ReviewDeps,
+  type ReviewInput,
+} from "../src/index.js";
 
 // ---------------------------------------------------------------------------
 // Stubs — NO real model / sandbox / browser / GPU. All live I/O is injected.
@@ -70,6 +75,33 @@ function scriptedModel(critiqueByRoute: (route: string) => unknown): {
 }
 
 const VIEWPORTS: Viewport[] = ["mobile", "desktop"];
+
+const TEST_CALIBRATION: CalibrationRuntimeBinding = {
+  reference: {
+    reportId: "calibration_qwen3vl_2026_07",
+    reportHash: "sha256:675dcd6a31db1157aa84fce80a00d1dd2a591e15877226697134b79269a9ac08",
+    calibrationVersion: "isotonic@1",
+    confidenceSource: "post_hoc_isotonic",
+  },
+  identity: {
+    model: "qwen3-vl-plus",
+    promptVersion: "system-prompt@v3",
+    engineVersion: "0.0.0",
+    captureVersion: "stub-capture@1",
+    rubricVersion: "design-rubric@1",
+  },
+  promotionMode: "blocking",
+  thresholds: {
+    postFilterMinConfidence: 0.55,
+    blockingMinConfidence: 0.8,
+    unstableCaptureMaxConfidence: 0.6,
+  },
+  calibrate: (raw) => raw,
+};
+
+function runReview(input: ReviewInput, deps: ReviewDeps) {
+  return runReviewRaw(input, { calibration: TEST_CALIBRATION, ...deps });
+}
 
 function captureImagesFor(routes: string[]): CaptureImage[] {
   return routes.flatMap((route) =>
@@ -354,14 +386,18 @@ describe("runReview — end-to-end orchestrator", () => {
     expect(result.grade).toBe("needs_work");
   });
 
-  it("drops findings only when an EXPLICIT ceiling is set below the post-filter floor", async () => {
+  it("drops findings when the promoted unstable ceiling is below its post-filter floor", async () => {
     const routes = ["/pricing"];
     // A caller may pass a stricter ceiling; 0.5 < the 0.55 floor drops the finding.
     const { factory } = scriptedModel(() => critiqueFor("/pricing", "major", "needs_work"));
 
-    const result = await runReview(baseInput(routes, { confidenceCeiling: 0.5 }), {
+    const result = await runReview(baseInput(routes, { captureUnstable: true }), {
       captureInSandbox: stubCapture(routes, ["#cta"], { unstable: true }),
       modelFactory: factory,
+      calibration: {
+        ...TEST_CALIBRATION,
+        thresholds: { ...TEST_CALIBRATION.thresholds, unstableCaptureMaxConfidence: 0.5 },
+      },
     });
 
     expect(result.findings).toHaveLength(0);
@@ -474,9 +510,12 @@ describe("runReview — end-to-end orchestrator", () => {
 
     expect(result.grade).toBe("ship");
     expect(result.overall).toMatch(/no design changes/i);
-    // Same top-level + metadata keys as the cross-repo golden anchor.
+    // Same top-level + metadata keys as the cross-repo golden anchor, except a
+    // clean short-circuit has no raw finding score and therefore no synthetic
+    // numeric confidence (#160).
     const golden = loadGoldenResult();
-    expect(Object.keys(result).sort()).toEqual(Object.keys(golden).sort());
+    expect(Object.keys(result).sort()).toEqual(Object.keys(golden).filter((key) => key !== "confidence").sort());
+    expect(result).not.toHaveProperty("confidence");
     expect(Object.keys(result.metadata).sort()).toEqual(Object.keys(golden.metadata).sort());
     // Routed through buildResultMetadata: the #68 version stamp is present + valid.
     expect(() => assertVersionStamped(result.metadata)).not.toThrow();

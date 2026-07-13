@@ -20,11 +20,58 @@ export type Severity = "nit" | "minor" | "major" | "blocker";
 export type Viewport = "mobile" | "tablet" | "desktop";
 export type Grade = "ship" | "ship_with_nits" | "needs_work" | "blocked";
 
+export type ConfidenceSource =
+  | "raw_verbalized"
+  | "post_hoc_isotonic"
+  | "post_hoc_histogram"
+  | "hidden_state_probe"
+  | "ensemble";
+
+/** Exact promoted calibration artifact that authorizes display confidence. */
+export interface ConfidenceCalibrationReference {
+  reportId: string;
+  reportHash: `sha256:${string}`;
+  calibrationVersion: string;
+  confidenceSource: ConfidenceSource;
+}
+
+export type ConfidenceUnavailableReason =
+  | "missing_calibration_report"
+  | "invalid_calibration_report"
+  | "mismatched_calibration_report"
+  | "insufficient_evidence"
+  | "unattested_calibration_report";
+
+/**
+ * Validated eval-owned binding injected into the critique package. The report
+ * itself remains serializable and owned by `@engine/eval`; only this runtime
+ * projection crosses into serving.
+ */
+export interface CalibrationRuntimeBinding {
+  reference: ConfidenceCalibrationReference;
+  identity: {
+    model: string;
+    promptVersion: string;
+    engineVersion: string;
+    captureVersion: string;
+    rubricVersion: string;
+  };
+  promotionMode: "advisory" | "blocking";
+  thresholds: {
+    postFilterMinConfidence: number;
+    blockingMinConfidence: number;
+    unstableCaptureMaxConfidence: number;
+  };
+  calibrate(rawConfidence: number): number;
+}
+
 export interface Finding {
   dimension: Dimension;
   severity: Severity;
-  /** Model confidence 0..1; capped by the capture confidence ceiling (TRD §5). */
+  /** Internal working confidence 0..1; calibrated when a runtime binding exists. */
   confidence: number;
+  /** Restricted model-emitted confidence retained only after calibration. Never projected. */
+  rawConfidence?: number;
   route: string;
   viewport: Viewport;
   /** Selector/role reference into the captured DOM geometry, or null. */
@@ -44,6 +91,8 @@ export interface ResultMetadata {
   model: string;
   promptVersion: string;
   captureVersion: string;
+  /** Closed design-rubric identity used by the calibration report. */
+  rubricVersion?: string;
   /** UI-DNA genome version the critique was grounded against, or null. */
   uiDnaVersion: string | null;
 }
@@ -65,4 +114,10 @@ export interface Critique {
   notReviewed: string[];
   validation: ValidationMetadata;
   metadata: ResultMetadata;
+  /** Present only when numeric confidence is backed by a validated promoted report. */
+  calibration?: ConfidenceCalibrationReference;
+  /** Blocking is an explicit promotion mode, never inferred from a score. */
+  blockingEnabled?: boolean;
+  /** Fail-closed explanation when display confidence is unavailable. */
+  confidenceUnavailableReason?: ConfidenceUnavailableReason;
 }

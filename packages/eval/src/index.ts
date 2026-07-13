@@ -67,13 +67,22 @@ export type { QualityBars, QualityGateInput, QualityGateResult } from "./quality
 export { DEFAULT_SLO_TARGETS, evaluateSlos } from "./slo.js";
 export type { SloTargets, SloCounts, SloResult } from "./slo.js";
 export { ModelPromptRegistry } from "./registry.js";
-export type { RegistryStatus, RegistryStamp, RegistryEntry } from "./registry.js";
+export type {
+  RegistryStatus,
+  PromotionMode,
+  RegistryStamp,
+  RegistryEntry,
+  PromotedCalibration,
+  ModelPromptRegistryOptions,
+} from "./registry.js";
 export {
   expectedCalibrationError,
   brierScore,
   bootstrapEceCI,
   fitMonotonicCalibration,
+  fitSerializableMonotonicCalibration,
   applyCalibration,
+  applyCalibrationTransform,
 } from "./calibration.js";
 export type {
   CalibrationPair,
@@ -82,7 +91,31 @@ export type {
   EceCI,
   BootstrapOptions as CalibrationBootstrapOptions,
   CalibrationMap,
+  CalibrationKnotV1,
+  CalibrationTransformV1,
 } from "./calibration.js";
+export {
+  CALIBRATION_REPORT_SCHEMA_VERSION,
+  canonicalCalibrationJson,
+  serializeCalibrationReport,
+  calibrationReportHash,
+  calibrationAttestedPayloadHash,
+  validateCalibrationReport,
+  parseCalibrationReport,
+  createCalibrationRuntimeBinding,
+} from "./calibration-report.js";
+export type {
+  IntervalEstimateV1,
+  CalibrationIdentityV1,
+  CalibrationCohortResultV1,
+  CalibrationAttestationV1,
+  CalibrationReportV1,
+  ExpectedCalibrationIdentity,
+  CalibrationValidationCode,
+  CalibrationValidationResult,
+  CalibrationRuntimeResolution,
+  CalibrationAttestationVerifier,
+} from "./calibration-report.js";
 export {
   DEFAULT_PROMOTION_TOLERANCES,
   beatsCurrentJudge,

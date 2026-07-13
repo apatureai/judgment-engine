@@ -23,6 +23,7 @@ describe("buildResultMetadata (#68)", () => {
       model: "qwen3-vl-plus",
       promptVersion: "p@3",
       captureVersion: "c@2",
+      rubricVersion: "design-rubric@1",
       uiDnaVersion: "ui-dna@x",
     });
     expect(m).toEqual({
@@ -30,6 +31,7 @@ describe("buildResultMetadata (#68)", () => {
       model: "qwen3-vl-plus",
       promptVersion: "p@3",
       captureVersion: "c@2",
+      rubricVersion: "design-rubric@1",
       uiDnaVersion: "ui-dna@x",
     });
   });
@@ -56,6 +58,7 @@ describe("versionSpanAttributes", () => {
         model: "m",
         promptVersion: "p",
         captureVersion: "c",
+        rubricVersion: "design-rubric@1",
         uiDnaVersion: null,
       }),
     ).toEqual({
@@ -63,6 +66,7 @@ describe("versionSpanAttributes", () => {
       "engine.model": "m",
       "engine.prompt_version": "p",
       "engine.capture_version": "c",
+      "engine.rubric_version": "design-rubric@1",
     });
   });
 });

@@ -48,7 +48,6 @@ export {
 export type { RawGeometryElement, GeometryEntry } from "./geometry.js";
 
 export {
-  UNSTABLE_CONFIDENCE_CEILING,
   hammingDistance,
   hashesWithin,
   runStabilityGate,

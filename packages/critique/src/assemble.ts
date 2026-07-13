@@ -1,6 +1,16 @@
-import type { Critique, Finding } from "@engine/types";
+import type {
+  CalibrationRuntimeBinding,
+  ConfidenceUnavailableReason,
+  Critique,
+  Finding,
+} from "@engine/types";
+import {
+  applyCalibrationBinding,
+  calibrationBindingMatches,
+  enforceBlockingThreshold,
+} from "./calibration-binding.js";
 import { applyConfidenceCeiling } from "./confidence-ceiling.js";
-import { ENGINE_VERSION, PROMPT_VERSION } from "./critique.js";
+import { ENGINE_VERSION, PROMPT_VERSION, RUBRIC_VERSION } from "./critique.js";
 import type { DeepPassRouteResult } from "./deep-pass.js";
 import { reconcileGrade, worstGrade } from "./grade.js";
 import { hallucinationGate } from "./hallucination-gate.js";
@@ -29,7 +39,10 @@ export interface AssembleCritiqueDeps {
   /** Valid elementRef selectors from the geometry map (#18) for the element_ref drop (#32). */
   geometrySelectors?: Iterable<string>;
   /** Confidence ceiling when the capture was visually unstable (#15/#70). */
-  confidenceCeiling?: number;
+  captureUnstable?: boolean;
+  /** Eval-owned, already validated promoted calibration binding (#160). */
+  calibration?: CalibrationRuntimeBinding;
+  confidenceUnavailableReason?: ConfidenceUnavailableReason;
   /** Engine-side not-reviewed reasons (fork skip, off-domain, capture failures) to carry through. */
   notReviewed?: string[];
   /** Resolved per-pass model id for the stamp (#26/#68). */
@@ -50,12 +63,32 @@ export function assembleCritique(routes: DeepPassRouteResult[], deps: AssembleCr
     capturedRoutes: deps.capturedRoutes,
     geometrySelectors: deps.geometrySelectors,
   });
-  const capped =
-    deps.confidenceCeiling !== undefined ? applyConfidenceCeiling(gated.findings, deps.confidenceCeiling) : gated.findings;
-  const findings = postFilter(capped);
+  const engineVersion = deps.engineVersion ?? ENGINE_VERSION;
+  const promptVersion = deps.promptVersion ?? PROMPT_VERSION;
+  const calibration = deps.calibration && calibrationBindingMatches(deps.calibration, {
+    model: deps.model,
+    promptVersion,
+    engineVersion,
+    captureVersion: deps.captureVersion,
+    rubricVersion: RUBRIC_VERSION,
+  }) ? deps.calibration : undefined;
+  const calibrated = calibration
+    ? applyCalibrationBinding(gated.findings, calibration)
+    : gated.findings;
+  const capped = deps.captureUnstable && calibration
+    ? applyConfidenceCeiling(calibrated, calibration.thresholds.unstableCaptureMaxConfidence)
+    : calibrated;
+  const filtered = postFilter(capped, {
+    ...(calibration
+      ? { minConfidence: calibration.thresholds.postFilterMinConfidence, useConfidence: true }
+      : {}),
+  });
+  const findings = calibration ? enforceBlockingThreshold(filtered, calibration) : filtered;
 
   // Worst route grade, then floored to what the surviving findings support (#106).
-  const grade = reconcileGrade(worstGrade(valid.map((r) => r.output.grade)), findings);
+  const reconciledGrade = reconcileGrade(worstGrade(valid.map((r) => r.output.grade)), findings);
+  const blockingEnabled = calibration?.promotionMode === "blocking";
+  const grade = !blockingEnabled && reconciledGrade === "blocked" ? "needs_work" : reconciledGrade;
   const overall = dedupeStrings(valid.map((r) => r.output.overall).filter((s) => s.trim().length > 0)).join(" ");
 
   const notReviewed = dedupeStrings([
@@ -71,15 +104,23 @@ export function assembleCritique(routes: DeepPassRouteResult[], deps: AssembleCr
     notReviewed,
     validation: {
       hallucinationDrops: gated.hallucinationDrops,
-      captureUnstable: deps.confidenceCeiling !== undefined,
+      captureUnstable: deps.captureUnstable === true,
     },
     metadata: buildResultMetadata({
-      engineVersion: deps.engineVersion ?? ENGINE_VERSION,
+      engineVersion,
       model: deps.model,
-      promptVersion: deps.promptVersion ?? PROMPT_VERSION,
+      promptVersion,
       captureVersion: deps.captureVersion,
       uiDnaVersion: deps.uiDnaVersion,
     }),
+    ...(calibration ? { calibration: calibration.reference } : {}),
+    blockingEnabled,
+    ...(!calibration
+      ? {
+          confidenceUnavailableReason:
+            deps.calibration ? "mismatched_calibration_report" : deps.confidenceUnavailableReason ?? "missing_calibration_report",
+        }
+      : {}),
   };
 }
 

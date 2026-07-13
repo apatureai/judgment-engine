@@ -65,7 +65,12 @@ export interface WireProjectionOptions {
 }
 
 /** Project one internal finding to its wire form (internal-only fields dropped). */
-function toWireFinding(finding: Finding, index: number, options: WireProjectionOptions): WireFinding {
+function toWireFinding(
+  finding: Finding,
+  index: number,
+  options: WireProjectionOptions,
+  confidenceAvailable: boolean,
+): WireFinding {
   const screenshotId = options.screenshotIdFor?.(finding, index) ?? null;
   return {
     id: wireFindingId(index),
@@ -81,24 +86,25 @@ function toWireFinding(finding: Finding, index: number, options: WireProjectionO
     element: finding.elementRef,
     screenshotId,
     suggestion: finding.suggestion,
-    // Already ceiling-capped upstream (#70); passed through, never recomputed (#150).
-    confidence: finding.confidence,
+    // Raw model confidence never crosses the wire. Emit only after report binding.
+    ...(confidenceAvailable ? { confidence: finding.confidence } : {}),
   };
 }
 
 /**
- * Result-level confidence (#150): the minimum over finding confidences — the
- * result is only as trustworthy as its least-confident finding — and `1` for a
- * clean no-findings result. Defined HERE, once, so no consumer invents its own
- * aggregate.
+ * Result-level confidence (#150): the minimum over calibrated finding
+ * confidences. A clean result has no raw score to transform, so it has no
+ * numeric confidence; the old synthetic `1` is deliberately retired by #160.
  */
 function resultConfidence(findings: readonly Finding[]): number {
-  return findings.reduce((least, f) => Math.min(least, f.confidence), 1);
+  if (findings.length === 0) throw new Error("cannot aggregate confidence without calibrated findings");
+  return Math.min(...findings.map((finding) => finding.confidence));
 }
 
 /** Project the internal critique into the cross-repo wire result Gate consumes. */
 export function toEngineReviewResult(critique: Critique, options: WireProjectionOptions): EngineReviewResult {
-  const findings = critique.findings.map((f, i) => toWireFinding(f, i, options));
+  const confidenceAvailable = critique.calibration !== undefined && critique.findings.length > 0;
+  const findings = critique.findings.map((f, i) => toWireFinding(f, i, options, confidenceAvailable));
 
   const annotatedScreenshots = findings
     .filter((f): f is WireFinding & { screenshotId: string } => f.screenshotId !== null)
@@ -110,7 +116,12 @@ export function toEngineReviewResult(critique: Critique, options: WireProjection
   return {
     grade: critique.grade,
     overall: critique.overall,
-    confidence: resultConfidence(critique.findings),
+    ...(confidenceAvailable ? { confidence: resultConfidence(critique.findings) } : {}),
+    ...(critique.calibration ? { calibration: critique.calibration } : {}),
+    blockingEnabled: critique.blockingEnabled === true,
+    ...(critique.calibration === undefined
+      ? { confidenceUnavailableReason: critique.confidenceUnavailableReason ?? "missing_calibration_report" }
+      : {}),
     findings,
     notReviewed: critique.notReviewed,
     artifacts: {

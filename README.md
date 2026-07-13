@@ -77,12 +77,12 @@ stubs and a mock model.
    suspect routes only, threaded with deterministic facts, retrieved genome
    rules, and any build facts.
 5. **Assemble** — the global validation tail, run once: hallucination gate →
-   confidence ceiling → post-filter → grade reconciliation → version stamp.
-   The post-filter confidence floor and the unstable-capture ceiling are not
-   guessed constants: they are **derived from the measured reliability curve**
-   (`@engine/eval` calibration — ECE/Brier + reliability table over the golden
-   set's `{confidence, correct}` pairs) and re-derived on each model/prompt
-   change via the eval gate (the offline golden-set batch run is the live seam).
+   promoted calibration transform → report-owned instability ceiling and
+   post-filter → blocking threshold → grade reconciliation → version stamp.
+   `CalibrationReportV1` serializes the map, reliability/risk evidence, held-out
+   splits/cohorts, thresholds, and exact model/prompt/capture/rubric identity.
+   Without a valid matching report, confidence is withheld and the result is
+   advisory; raw verbalized confidence never crosses the wire.
 6. **Wire projection** — project the internal `Critique` into the
    `EngineReviewResult` wire shape the consumer reads.
 
@@ -101,9 +101,10 @@ context+genome → capture → triage ──(unchanged)──▶ "no design chan
   whose route wasn't captured, or whose element reference isn't in the geometry
   map, is **dropped**, and the count is emitted as a metric. The model literally
   cannot report a problem it can't point at.
-- **Confidence & grade** — every finding has a confidence; the overall grade
-  (`ship` / `ship_with_nits` / `needs_work` / `blocked`) is **reconciled down**
-  to what the surviving findings actually support, never raised.
+- **Confidence & grade** — numeric confidence is displayable only with an exact
+  `CalibrationReportV1` reference. The overall grade (`ship` /
+  `ship_with_nits` / `needs_work` / `blocked`) is reconciled down to what the
+  surviving findings and the report-owned blocking threshold support.
 - **Golden wire contract + `x-schema-version`** — `gate-review-result.golden.json`
   is the shared shape between this repo and Gate; the schema-version header guards
   it against drift.
@@ -126,7 +127,7 @@ context+genome → capture → triage ──(unchanged)──▶ "no design chan
 | `@engine/capture` | Pure post-capture logic: deterministic checks (contrast/overflow/touch-target), downscale + coordinate rescale, full-page tiling, DOM geometry map, phash stability gate, change detection, egress policy, storage-state, font + clock policy. (The live browser/microVM worker is the injected seam.) |
 | `@engine/context` | Repo design-context extraction: design tokens (tokens.json / CSS vars / Tailwind v3+v4), brand block, component-library detection, diff→route mapping, byte-stable context block, and UI-DNA genome grounding (retrieval). |
 | `@engine/critique` | The critique pipeline: model adapter (DashScope/self-host/mock), triage + deep passes, system prompt + rubric, Zod output schema, hallucination gate, confidence ceiling, post-filter, grade reconciliation, version stamp, multi-route assembly, and the wire projection. |
-| `@engine/eval` | Quality harness: synthetic canaries, golden-set tooling, precision/recall + agreement metrics (kappa / Krippendorff / Gwet), injection-resistance canaries, regression + quality gates, model/prompt registry, SLOs, shadow promotion. |
+| `@engine/eval` | Quality harness and confidence authority: synthetic canaries, golden-set tooling, calibration report/map/threshold artifacts, precision/recall + agreement metrics, regression + quality gates, report-bound model/prompt registry, SLOs, shadow promotion. |
 | `@engine/feedback` | The data moat: explicit/implicit/recheck feedback signals, rater-permission weighting, per-repo memory digest, PII scan + training consent, preference-dataset export (ORPO + KTO), DVC versioning, and GDPR erasure. |
 | `@engine/db` | Deterministic up/down migration runner + `migrate` CLI (Postgres / embedded PGlite). |
 | `@engine/redis` | Global model-endpoint token-bucket, per-tenant quota + priority, fairness gate, resilient connection + no-eviction guard. |

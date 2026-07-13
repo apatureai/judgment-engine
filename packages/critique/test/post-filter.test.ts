@@ -18,16 +18,19 @@ const finding = (over: Partial<Finding> = {}): Finding => ({
 
 describe("postFilter (#33)", () => {
   it("drops findings below the 0.55 confidence floor", () => {
-    const out = postFilter([finding({ confidence: 0.9 }), finding({ confidence: 0.4, elementRef: "#x" })]);
+    const out = postFilter(
+      [finding({ confidence: 0.9 }), finding({ confidence: 0.4, elementRef: "#x" })],
+      { minConfidence: 0.55, useConfidence: true },
+    );
     expect(out).toHaveLength(1);
     expect(out[0]?.confidence).toBe(0.9);
   });
 
   it("dedupes by elementRef + dimension across viewports, keeping the highest confidence", () => {
-    const out = postFilter([
-      finding({ viewport: "mobile", confidence: 0.6 }),
-      finding({ viewport: "desktop", confidence: 0.85 }),
-    ]);
+    const out = postFilter(
+      [finding({ viewport: "mobile", confidence: 0.6 }), finding({ viewport: "desktop", confidence: 0.85 })],
+      { useConfidence: true },
+    );
     expect(out).toHaveLength(1);
     expect(out[0]?.confidence).toBe(0.85);
   });

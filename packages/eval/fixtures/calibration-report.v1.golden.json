@@ -1,0 +1,156 @@
+{
+  "schemaVersion": "1",
+  "reportId": "calibration_qwen3vl_2026_07",
+  "calibrationVersion": "isotonic@1",
+  "confidenceSource": "post_hoc_isotonic",
+  "identity": {
+    "model": "qwen3-vl",
+    "promptVersion": "gate-design-review@7",
+    "engineVersion": "2026.06.0",
+    "captureVersion": "playwright-capture@3",
+    "rubricVersion": "design-rubric@1"
+  },
+  "manifests": {
+    "fitManifestHash": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+    "evalManifestHash": "sha256:2222222222222222222222222222222222222222222222222222222222222222"
+  },
+  "splitPolicy": {
+    "repository": "held-out repository groups; no repository crosses fit/eval",
+    "team": "held-out teams with per-team lower bounds",
+    "time": "forward-only evaluation window after fit cutoff",
+    "requiredCohorts": [
+      "visual_text_conflict"
+    ]
+  },
+  "sampleCounts": {
+    "fit": 120,
+    "evaluation": 80,
+    "byCohort": {
+      "visual_text_conflict": 20
+    }
+  },
+  "reliability": {
+    "bins": [
+      {
+        "lower": 0,
+        "upper": 0.5,
+        "count": 40,
+        "predictedMean": 0.3,
+        "empiricalRate": 0.25
+      },
+      {
+        "lower": 0.5,
+        "upper": 1,
+        "count": 40,
+        "predictedMean": 0.8,
+        "empiricalRate": 0.775
+      }
+    ],
+    "ece": {
+      "estimate": 0.0375,
+      "lower": 0.02,
+      "upper": 0.06,
+      "confidenceLevel": 0.95
+    },
+    "brier": {
+      "estimate": 0.14,
+      "lower": 0.11,
+      "upper": 0.18,
+      "confidenceLevel": 0.95
+    }
+  },
+  "risk": {
+    "aurc": {
+      "estimate": 0.09,
+      "lower": 0.07,
+      "upper": 0.12,
+      "confidenceLevel": 0.95
+    },
+    "coverageAtFalseBlockTarget": {
+      "estimate": 0.72,
+      "lower": 0.65,
+      "upper": 0.78,
+      "confidenceLevel": 0.95
+    },
+    "blockerFalsePositiveRate": {
+      "estimate": 0.01,
+      "lower": 0,
+      "upper": 0.025,
+      "confidenceLevel": 0.95
+    },
+    "precision": {
+      "estimate": 0.94,
+      "lower": 0.9,
+      "upper": 0.97,
+      "confidenceLevel": 0.95
+    },
+    "validReferenceRate": {
+      "estimate": 0.998,
+      "lower": 0.995,
+      "upper": 1,
+      "confidenceLevel": 0.95
+    },
+    "falseBlockTarget": 0.025,
+    "cohorts": [
+      {
+        "cohort": "visual_text_conflict",
+        "samples": 20,
+        "ece": {
+          "estimate": 0.05,
+          "lower": 0.02,
+          "upper": 0.1,
+          "confidenceLevel": 0.95
+        },
+        "brier": {
+          "estimate": 0.16,
+          "lower": 0.1,
+          "upper": 0.23,
+          "confidenceLevel": 0.95
+        },
+        "blockerFalsePositiveRate": {
+          "estimate": 0,
+          "lower": 0,
+          "upper": 0.05,
+          "confidenceLevel": 0.95
+        },
+        "validReferenceRate": {
+          "estimate": 1,
+          "lower": 0.95,
+          "upper": 1,
+          "confidenceLevel": 0.95
+        },
+        "status": "pass"
+      }
+    ]
+  },
+  "thresholds": {
+    "postFilterMinConfidence": 0.62,
+    "blockingMinConfidence": 0.9,
+    "unstableCaptureMaxConfidence": 0.58
+  },
+  "transform": {
+    "kind": "isotonic_v1",
+    "knots": [
+      {
+        "raw": 0,
+        "calibrated": 0.05
+      },
+      {
+        "raw": 0.5,
+        "calibrated": 0.4
+      },
+      {
+        "raw": 0.8,
+        "calibrated": 0.7
+      },
+      {
+        "raw": 1,
+        "calibrated": 0.93
+      }
+    ]
+  },
+  "evidenceStatus": "sufficient_evidence",
+  "createdAt": "2026-07-12T00:00:00.000Z",
+  "validUntil": "2027-01-12T00:00:00.000Z",
+  "attestation": null
+}

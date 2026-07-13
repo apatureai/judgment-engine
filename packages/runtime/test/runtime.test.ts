@@ -1,9 +1,18 @@
 import { signEngineRequest } from "@engine/api";
-import { defaultModelFactory } from "@engine/critique";
+import {
+  defaultModelFactory,
+  type ModelClientFactory,
+  type ModelResponse,
+} from "@engine/critique";
 import { pgliteExecutor, runMigrations } from "@engine/db";
+import {
+  calibrationAttestedPayloadHash,
+  ModelPromptRegistry,
+  type CalibrationReportV1,
+} from "@engine/eval";
 import { JobStore, type JobRecord } from "@engine/jobs";
 import { InMemoryObjectStore } from "@engine/storage";
-import type { Capture, CaptureContext, CaptureInSandbox } from "@engine/types";
+import type { Capture, CaptureContext, CaptureInSandbox, EngineReviewResult } from "@engine/types";
 import { PGlite } from "@electric-sql/pglite";
 import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
@@ -28,6 +37,75 @@ const drill = JSON.parse(
   sourceOfTruth: { snapshotId: string; itemIds: string[] };
   judgmentEngine: { uiDnaVersion: string; ruleCount: number; groundingObserved: boolean };
 };
+const calibrationFixture = JSON.parse(
+  readFileSync(
+    fileURLToPath(new URL("../../eval/fixtures/calibration-report.v1.golden.json", import.meta.url)),
+    "utf8",
+  ),
+) as CalibrationReportV1;
+
+function promotedRuntimeReport(): CalibrationReportV1 {
+  const report: CalibrationReportV1 = {
+    ...calibrationFixture,
+    identity: {
+      model: "qwen3-vl-plus",
+      promptVersion: "system-prompt@v3",
+      engineVersion: "0.0.0",
+      captureVersion: "capture-http@1",
+      rubricVersion: "design-rubric@1",
+    },
+    attestation: null,
+  };
+  report.attestation = {
+    algorithm: "ed25519",
+    keyId: "runtime-test-release-key",
+    signedPayloadHash: calibrationAttestedPayloadHash(report),
+    signature: "verified-runtime-fixture",
+  };
+  return report;
+}
+
+const calibratedModelFactory: ModelClientFactory = () => ({
+  backend: "mock",
+  async complete(request): Promise<ModelResponse> {
+    const system = request.messages.find((message) => message.role === "system")?.content ?? "";
+    if (system.startsWith("You are triaging")) {
+      return {
+        text: JSON.stringify({ needsDeepReview: true, suspectRoutes: ["/"], obviousBreakage: [] }),
+        usage: { inputTokens: 0, outputTokens: 0, cachedTokens: 0 },
+        finishReason: "stop",
+      };
+    }
+    if (request.responseFormat === "json_object") {
+      return {
+        text: JSON.stringify({
+          grade: "blocked",
+          overall: "Raw blocker requires calibrated threshold evaluation.",
+          findings: [{
+            dimension: "spacing",
+            severity: "blocker",
+            confidence: 0.95,
+            route: "/",
+            viewport: "desktop",
+            elementRef: null,
+            title: "Spacing blocker",
+            description: "The spacing violates the approved scale.",
+            suggestion: "Use the approved spacing token.",
+            introducedByThisPr: true,
+          }],
+          notReviewed: [],
+        }),
+        usage: { inputTokens: 0, outputTokens: 0, cachedTokens: 0 },
+        finishReason: "stop",
+      };
+    }
+    return {
+      text: "structured critique",
+      usage: { inputTokens: 0, outputTokens: 0, cachedTokens: 0 },
+      finishReason: "stop",
+    };
+  },
+});
 
 function reviewRequest() {
   return {
@@ -232,15 +310,26 @@ describe("production composition integration", () => {
 
   it("runs submit -> poll/claim -> real orchestrator -> stored wire result", async () => {
     const db = new PGlite();
-    await runMigrations(pgliteExecutor(db));
-    const store = new JobStore(pgliteExecutor(db));
+    const exec = pgliteExecutor(db);
+    await runMigrations(exec);
+    const store = new JobStore(exec);
+    const registry = new ModelPromptRegistry(exec, {
+      now: () => Date.parse("2026-07-13T00:00:00.000Z"),
+      verifyAttestation: async (report) => report.attestation?.signature === "verified-runtime-fixture",
+    });
+    const report = promotedRuntimeReport();
+    const candidate = await registry.registerCandidate(report.identity);
+    await registry.recordEval(candidate.id, true);
+    await registry.bindCalibrationReport(candidate.id, report);
+    await registry.promote(candidate.id, { mode: "blocking" });
     let resolvedGenome = false;
     runtime = createEngineRuntime({
       store,
       objectStore: new InMemoryObjectStore(),
       engineHmacSecret: SECRET,
       capture: captureClient(),
-      modelFactory: defaultModelFactory,
+      modelFactory: calibratedModelFactory,
+      calibrationResolver: registry,
       genomeResolver: {
         resolve: async (repository, installationId) => {
           resolvedGenome = repository === "apatureai/demo" && installationId === "tenant_1";
@@ -267,7 +356,7 @@ describe("production composition integration", () => {
     expect(submit.status).toBe(202);
     const { jobId } = await submit.json() as { jobId: string };
 
-    let final: { state: string; result?: { metadata: { promptVersion: string; captureVersion: string; uiDnaVersion: string | null } } } | undefined;
+    let final: { state: string; result?: EngineReviewResult } | undefined;
     for (let attempt = 0; attempt < 100; attempt++) {
       const headers = signEngineRequest({ body: "", installationId: "tenant_1", secret: SECRET });
       const response = await fetch(`${base}/jobs/${jobId}`, { headers });
@@ -279,6 +368,17 @@ describe("production composition integration", () => {
     expect(final?.result?.metadata.captureVersion).toBe("capture-http@1");
     expect(final?.result?.metadata.promptVersion).not.toBe("stub@0");
     expect(final?.result?.metadata.uiDnaVersion).toBe("dna@1");
+    expect(final?.result?.calibration).toMatchObject({
+      reportId: report.reportId,
+      calibrationVersion: report.calibrationVersion,
+      confidenceSource: report.confidenceSource,
+    });
+    expect(final?.result?.blockingEnabled).toBe(true);
+    expect(final?.result?.findings[0]?.confidence).toBeCloseTo(0.8725, 10);
+    expect(final?.result?.findings[0]).not.toHaveProperty("rawConfidence");
+    // The calibrated score is below the report's 0.9 blocking threshold.
+    expect(final?.result?.findings[0]?.severity).toBe("major");
+    expect(final?.result?.grade).toBe("needs_work");
     expect(resolvedGenome).toBe(true);
 
     const ready = await fetch(`${base}/readyz`);

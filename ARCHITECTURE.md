@@ -89,7 +89,7 @@ Determinism is the anti-hallucination foundation:
 
 - `domcontentloaded` then explicit readiness signals; never `networkidle` as arbiter; wait for fonts; freeze animations + reduced motion (re-inject after scroll); scroll once for lazy-load.
 - **Stability:** perceptual-hash stability gate plus a structural-diff hash (free, orthogonal), excluding known-animated regions.
-- **Confidence ceiling:** a page flagged visually unstable caps every finding's confidence (≤ 0.70) before the post-filter, so instability can never produce a high-confidence (blocking) finding.
+- **Confidence custody:** capture emits an instability fact, never a numeric policy. A matching promoted `CalibrationReportV1` transforms raw confidence and supplies the instability/post-filter/blocking thresholds. Missing or mismatched evidence withholds confidence and disables blocking.
 
 ## 6. Critique & Validation Pipeline (Decisions E2, E4)
 
@@ -99,8 +99,9 @@ flowchart LR
   B --> C["json_object coercion pass (non-thinking)"]
   C --> D["Zod parse"]
   D --> E["Drop-and-count gate: route/element_ref not in captured set -> drop + metric"]
-  E --> F["Post-filter: confidence >= 0.55, dedupe, cap 1 blocker + 6"]
-  F --> G["Stamp versions -> Findings"]
+  E --> F["CalibrationReportV1: transform + report thresholds"]
+  F --> G["Post-filter + blocking decision (fail closed when unavailable)"]
+  G --> H["Stamp report + versions -> Findings"]
 ```
 
 - **Structured output:** DashScope is a two-step path (Thinking critique → non-thinking `json_object` coercion → Zod) because thinking and JSON mode are mutually exclusive and `max_tokens` cannot be set with `json_object`. Self-host uses single-call guided decoding (SGLang + XGrammar) — the better path, deferred to act-2. SGLang is the primary self-host recommendation: RadixAttention prefix reuse fits the byte-identical context block, and SGLang overlaps grammar-mask generation with inference so guided decoding stays cheap (vLLM degrades at batch >=8). See TRD §7 (2026-06-20 research note, #76).

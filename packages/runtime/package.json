@@ -15,6 +15,7 @@
     "@engine/context": "workspace:*",
     "@engine/critique": "workspace:*",
     "@engine/db": "workspace:*",
+    "@engine/eval": "workspace:*",
     "@engine/jobs": "workspace:*",
     "@engine/observability": "workspace:*",
     "@engine/review": "workspace:*",

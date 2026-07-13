@@ -3,7 +3,6 @@ import {
   hammingDistance,
   hashesWithin,
   runStabilityGate,
-  UNSTABLE_CONFIDENCE_CEILING,
   type StabilitySample,
 } from "../src/index.js";
 
@@ -30,7 +29,7 @@ describe("runStabilityGate", () => {
     const result = await runStabilityGate((i) => Promise.resolve(samples[i]!), { maxAttempts: 3 });
     expect(result.stable).toBe(true);
     expect(result.attempts).toBe(2);
-    expect(result.confidenceCeiling).toBeNull();
+    expect(result.confidenceUnstable).toBe(false);
   });
 
   it("caps confidence when the page never settles", async () => {
@@ -39,7 +38,7 @@ describe("runStabilityGate", () => {
     const result = await runStabilityGate(drift, { maxAttempts: 3 });
     expect(result.stable).toBe(false);
     expect(result.attempts).toBe(3);
-    expect(result.confidenceCeiling).toBe(UNSTABLE_CONFIDENCE_CEILING);
+    expect(result.confidenceUnstable).toBe(true);
   });
 
   it("treats a structural change as instability even when phash matches", async () => {

@@ -11,11 +11,10 @@
  * anyway and a confidence ceiling is emitted for the critique (#70).
  *
  * Pure logic with an injected sampler — the hashing + pixel masking are the
- * worker seam; this is fully testable without a browser or image library.
+ * worker seam; this is fully testable without a browser or image library. The
+ * gate emits only the instability fact; `CalibrationReportV1` owns the numeric
+ * ceiling applied later in the critique runtime.
  */
-
-/** Confidence ceiling applied to findings when the page never settled. */
-export const UNSTABLE_CONFIDENCE_CEILING = 0.6;
 
 export interface StabilityOptions {
   /** Max shots to take (default 3). */
@@ -35,8 +34,8 @@ export interface StabilityResult {
   stable: boolean;
   /** Number of shots actually taken. */
   attempts: number;
-  /** Confidence ceiling to apply when unstable; null when stable. */
-  confidenceCeiling: number | null;
+  /** Whether the promoted calibration report's unstable-capture ceiling applies. */
+  confidenceUnstable: boolean;
   /** The sample to hand to critique (the last shot taken). */
   sample: StabilitySample;
 }
@@ -88,14 +87,14 @@ export async function runStabilityGate(
   for (let attempt = 1; attempt < opts.maxAttempts; attempt++) {
     const next = await capture(attempt);
     if (samplesMatch(prev, next, opts)) {
-      return { stable: true, attempts: attempt + 1, confidenceCeiling: null, sample: next };
+      return { stable: true, attempts: attempt + 1, confidenceUnstable: false, sample: next };
     }
     prev = next;
   }
   return {
     stable: false,
     attempts: opts.maxAttempts,
-    confidenceCeiling: UNSTABLE_CONFIDENCE_CEILING,
+    confidenceUnstable: true,
     sample: prev,
   };
 }

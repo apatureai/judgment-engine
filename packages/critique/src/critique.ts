@@ -1,5 +1,12 @@
 import { PIXEL_BUDGETS } from "@engine/capture";
-import type { CaptureImage, Critique, CritiqueOptions, RepoContext } from "@engine/types";
+import type {
+  CalibrationRuntimeBinding,
+  CaptureImage,
+  ConfidenceUnavailableReason,
+  Critique,
+  CritiqueOptions,
+  RepoContext,
+} from "@engine/types";
 import type { ModelImage, ModelRequest } from "./model.js";
 import { defaultModelFactory } from "./mock-model.js";
 import { resolvePassModel, type ModelClientFactory, type PassModelOverrides } from "./registry.js";
@@ -10,9 +17,15 @@ import { postFilter } from "./post-filter.js";
 import { parseCritiqueOutput } from "./schema.js";
 import { buildResultMetadata } from "./version-stamp.js";
 import { SYSTEM_PROMPT_VERSION } from "./prompt.js";
+import {
+  applyCalibrationBinding,
+  calibrationBindingMatches,
+  enforceBlockingThreshold,
+} from "./calibration-binding.js";
 
 export const ENGINE_VERSION = "0.0.0";
 export const PROMPT_VERSION = `system-prompt@${SYSTEM_PROMPT_VERSION}`;
+export const RUBRIC_VERSION = "design-rubric@1";
 const DEFAULT_CAPTURE_VERSION = "stub@0";
 
 /** Injectable dependencies — the seam that keeps model backends swappable per pass. */
@@ -25,6 +38,8 @@ export interface CritiqueDeps {
   captureVersion?: string;
   /** Valid elementRef selectors from the geometry map (#18); enables the element_ref drop (#32). */
   geometrySelectors?: Iterable<string>;
+  calibration?: CalibrationRuntimeBinding;
+  confidenceUnavailableReason?: ConfidenceUnavailableReason;
 }
 
 function toModelImages(images: CaptureImage[]): ModelImage[] {
@@ -84,29 +99,56 @@ export async function critique(
   });
 
   // #70: cap confidence when the capture was unstable, before the post-filter.
-  const ceiling = options.confidenceCeiling;
-  const capped = ceiling !== undefined ? applyConfidenceCeiling(gated.findings, ceiling) : gated.findings;
+  const captureVersion = deps.captureVersion ?? DEFAULT_CAPTURE_VERSION;
+  const calibration = deps.calibration && calibrationBindingMatches(deps.calibration, {
+    model: config.model,
+    promptVersion: PROMPT_VERSION,
+    engineVersion: ENGINE_VERSION,
+    captureVersion,
+    rubricVersion: RUBRIC_VERSION,
+  }) ? deps.calibration : undefined;
+  const calibrated = calibration
+    ? applyCalibrationBinding(gated.findings, calibration)
+    : gated.findings;
+  const capped = options.captureUnstable && calibration
+    ? applyConfidenceCeiling(calibrated, calibration.thresholds.unstableCaptureMaxConfidence)
+    : calibrated;
 
   // #33: trust-budget post-filter (confidence floor, dedupe, cap).
-  const findings = postFilter(capped);
+  const filtered = postFilter(capped, {
+    ...(calibration
+      ? { minConfidence: calibration.thresholds.postFilterMinConfidence, useConfidence: true }
+      : {}),
+  });
+  const findings = calibration ? enforceBlockingThreshold(filtered, calibration) : filtered;
+  const reconciledGrade = reconcileGrade(output?.grade ?? "ship", findings);
+  const blockingEnabled = calibration?.promotionMode === "blocking";
 
   return {
     // #106: floor the model grade to what surviving findings support (a grade
     // justified only by a gate-dropped finding must not block the PR).
-    grade: reconcileGrade(output?.grade ?? "ship", findings),
+    grade: !blockingEnabled && reconciledGrade === "blocked" ? "needs_work" : reconciledGrade,
     overall: output?.overall ?? `critique via ${config.model}`,
     findings,
     notReviewed: output?.notReviewed ?? [],
     validation: {
       hallucinationDrops: gated.hallucinationDrops,
-      captureUnstable: ceiling !== undefined,
+      captureUnstable: options.captureUnstable === true,
     },
     metadata: buildResultMetadata({
       engineVersion: ENGINE_VERSION,
       model: config.model,
       promptVersion: PROMPT_VERSION,
-      captureVersion: deps.captureVersion ?? DEFAULT_CAPTURE_VERSION,
+      captureVersion,
       uiDnaVersion: context.uiDnaVersion,
     }),
+    ...(calibration ? { calibration: calibration.reference } : {}),
+    blockingEnabled,
+    ...(!calibration
+      ? {
+          confidenceUnavailableReason:
+            deps.calibration ? "mismatched_calibration_report" : deps.confidenceUnavailableReason ?? "missing_calibration_report",
+        }
+      : {}),
   };
 }

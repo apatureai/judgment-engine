@@ -1,5 +1,12 @@
-import { PIXEL_BUDGETS, UNSTABLE_CONFIDENCE_CEILING, pageHealthFootnote } from "@engine/capture";
-import type { CaptureContext, CaptureImage, CaptureInSandbox, GeometryRect } from "@engine/types";
+import { PIXEL_BUDGETS, pageHealthFootnote } from "@engine/capture";
+import type {
+  CalibrationRuntimeBinding,
+  CaptureContext,
+  CaptureImage,
+  CaptureInSandbox,
+  ConfidenceUnavailableReason,
+  GeometryRect,
+} from "@engine/types";
 import {
   buildContextBlock,
   retrieveGenomeRules,
@@ -89,6 +96,9 @@ export interface ReviewDeps {
   embedder?: Embedder;
   /** Cooperative-cancellation signal (#66) threaded into every model call. */
   signal?: AbortSignal;
+  /** Validated promoted report projection; absent means advisory/no display score. */
+  calibration?: CalibrationRuntimeBinding;
+  confidenceUnavailableReason?: ConfidenceUnavailableReason;
 }
 
 export interface ReviewInput {
@@ -109,8 +119,8 @@ export interface ReviewInput {
    * routes with no preview deployment). Surfaced in the wire result verbatim.
    */
   notReviewed?: string[];
-  /** Confidence ceiling applied when the capture is visually unstable (#70). */
-  confidenceCeiling?: number;
+  /** Explicit instability supplied by an upstream capture adapter. */
+  captureUnstable?: boolean;
   /** Wire-projection seams: screenshot-id/artifact-URL resolution + retention (#51). */
   wireOptions: WireProjectionOptions;
   /** Self-host single-call guided decoding (#76) instead of the DashScope two-step. */
@@ -250,13 +260,12 @@ export async function runReview(input: ReviewInput, deps: ReviewDeps): Promise<E
   const critique = assembleCritique(deepResults, {
     capturedRoutes: capturedRoutes(capture.images),
     geometrySelectors: selectors,
-    // #70: cap confidence when the capture was visually unstable. The default
-    // ceiling (UNSTABLE_CONFIDENCE_CEILING = 0.6) sits ABOVE the post-filter
-    // confidence floor (0.55), so a capped finding still SURFACES with lowered
-    // trust — it must not silently drop every finding (a flaky page with a real
-    // blocker would otherwise return ship/[]).
-    ...(input.confidenceCeiling !== undefined || capture.pageHealth.unstable
-      ? { confidenceCeiling: input.confidenceCeiling ?? UNSTABLE_CONFIDENCE_CEILING }
+    // #160: the capture contributes only the instability fact; the validated
+    // promoted report owns the numeric ceiling and post-filter threshold.
+    captureUnstable: input.captureUnstable === true || capture.pageHealth.unstable,
+    ...(deps.calibration ? { calibration: deps.calibration } : {}),
+    ...(deps.confidenceUnavailableReason
+      ? { confidenceUnavailableReason: deps.confidenceUnavailableReason }
       : {}),
     notReviewed: [...(input.notReviewed ?? []), ...uncapturedNotReviewed],
     model: deepConfig.model,
@@ -324,6 +333,10 @@ function emptyFindingsResult(
     model: deepConfig.model,
     captureVersion,
     uiDnaVersion: input.context.uiDnaVersion,
+    ...(deps.calibration ? { calibration: deps.calibration } : {}),
+    ...(deps.confidenceUnavailableReason
+      ? { confidenceUnavailableReason: deps.confidenceUnavailableReason }
+      : {}),
   });
   // assembleCritique derives `overall` from route outputs (empty here); for the
   // short-circuit we carry the triage summary through verbatim.

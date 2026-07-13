@@ -5,8 +5,8 @@ import type { Finding } from "@engine/types";
  * (#15) flags a page as visually unstable, every finding's confidence is capped
  * at the ceiling so an unreliable render can't yield high-confidence findings;
  * the result also carries `validation.captureUnstable = true`. The cap runs
- * before the post-filter (#33), and the ceiling (0.6) sits above the 0.55 floor,
- * so capped findings still surface — just with lowered trust.
+ * after calibration and before the post-filter (#33). Both numbers come from
+ * the exact promoted CalibrationReportV1; capture contributes only instability.
  */
 export function applyConfidenceCeiling(findings: Finding[], ceiling: number): Finding[] {
   return findings.map((f) => (f.confidence > ceiling ? { ...f, confidence: ceiling } : f));

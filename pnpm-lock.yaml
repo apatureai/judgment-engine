@@ -207,6 +207,9 @@ importers:
       '@engine/db':
         specifier: workspace:*
         version: link:../db
+      '@engine/eval':
+        specifier: workspace:*
+        version: link:../eval
       '@engine/jobs':
         specifier: workspace:*
         version: link:../jobs

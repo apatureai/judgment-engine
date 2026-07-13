@@ -66,6 +66,8 @@ function defaultProcessor(job: JobRecord): Promise<EngineReviewResult> {
   return Promise.resolve({
     grade: "ship",
     overall: "stub result (EM0 scaffold)",
+    blockingEnabled: false,
+    confidenceUnavailableReason: "missing_calibration_report",
     findings: [],
     notReviewed: [],
     artifacts: { annotatedScreenshots: [] },
@@ -75,6 +77,7 @@ function defaultProcessor(job: JobRecord): Promise<EngineReviewResult> {
       model: modelForDepth(job.depth),
       promptVersion: "stub@0",
       captureVersion: "stub@0",
+      rubricVersion: "design-rubric@1",
       uiDnaVersion: null,
     },
   });

@@ -7,6 +7,10 @@ export type {
   ResultMetadata,
   ValidationMetadata,
   Critique,
+  ConfidenceSource,
+  ConfidenceCalibrationReference,
+  ConfidenceUnavailableReason,
+  CalibrationRuntimeBinding,
 } from "./findings.js";
 export type {
   CaptureContext,
@@ -28,6 +32,9 @@ export type {
 export {
   SCHEMA_VERSION,
   GOLDEN_RESULT_PATH,
+  PRE_CALIBRATION_RESULT_PATH,
   loadGoldenResult,
+  loadPreCalibrationResult,
+  hasDisplayableConfidence,
 } from "./wire.js";
 export type { WireGrade, WireFinding, EngineReviewResult } from "./wire.js";

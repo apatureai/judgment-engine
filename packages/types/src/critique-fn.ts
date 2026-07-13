@@ -40,8 +40,8 @@ export interface PreviewBuildFact {
 
 export interface CritiqueOptions {
   depth: ReviewDepth;
-  /** Confidence ceiling applied when the capture was unstable (TRD §5). */
-  confidenceCeiling?: number;
+  /** The capture was unstable; the promoted report supplies the numeric ceiling. */
+  captureUnstable?: boolean;
   /**
    * Build/runtime facts from Gate's preview-command supervisor (gate #70 U1).
    * Additive/optional; absence changes nothing. Folded into the deep-pass prompt

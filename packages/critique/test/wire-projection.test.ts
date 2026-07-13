@@ -1,4 +1,4 @@
-import { loadGoldenResult } from "@engine/types";
+import { hasDisplayableConfidence, loadGoldenResult } from "@engine/types";
 import type { Critique, Finding } from "@engine/types";
 import { describe, expect, it } from "vitest";
 import { deriveTitle, toEngineReviewResult, wireFindingId } from "../src/index.js";
@@ -28,8 +28,16 @@ const critique = (over: Partial<Critique> = {}): Critique => ({
     model: "qwen3-vl",
     promptVersion: "gate-design-review@7",
     captureVersion: "playwright-capture@3",
+    rubricVersion: "design-rubric@1",
     uiDnaVersion: "ui-dna@2026.06.12",
   },
+  calibration: {
+    reportId: "calibration_qwen3vl_2026_07",
+    reportHash: "sha256:675dcd6a31db1157aa84fce80a00d1dd2a591e15877226697134b79269a9ac08",
+    calibrationVersion: "isotonic@1",
+    confidenceSource: "post_hoc_isotonic",
+  },
+  blockingEnabled: true,
   ...over,
 });
 
@@ -68,7 +76,7 @@ describe("toEngineReviewResult (wire projection — cross-repo contract)", () =>
     expect(result.screenshotRetentionSeconds).toBe(60);
   });
 
-  it("aggregates result-level confidence as the min over findings, 1 for a clean result (#150)", () => {
+  it("aggregates calibrated findings and never synthesizes clean-result confidence (#160)", () => {
     const mixed = toEngineReviewResult(
       critique({
         findings: [finding({ confidence: 0.92 }), finding({ confidence: 0.61 }), finding({ confidence: 0.85 })],
@@ -79,7 +87,9 @@ describe("toEngineReviewResult (wire projection — cross-repo contract)", () =>
     expect(mixed.findings.map((f) => f.confidence)).toEqual([0.92, 0.61, 0.85]);
 
     const clean = toEngineReviewResult(critique({ findings: [] }), { screenshotRetentionSeconds: 60 });
-    expect(clean.confidence).toBe(1);
+    expect(clean).not.toHaveProperty("confidence");
+    expect(clean).not.toHaveProperty("confidenceUnavailableReason");
+    expect(hasDisplayableConfidence(clean)).toBe(false);
   });
 
   it("assigns stable 1-based ids and wires annotated screenshots for findings that have one", () => {
@@ -128,6 +138,18 @@ describe("toEngineReviewResult (wire projection — cross-repo contract)", () =>
   it("carries the version stamp through untouched", () => {
     const result = toEngineReviewResult(critique(), { screenshotRetentionSeconds: 60 });
     expect(result.metadata).toEqual(critique().metadata);
+  });
+
+  it("withholds raw legacy confidence without report provenance and disables blocking", () => {
+    const result = toEngineReviewResult(
+      critique({ calibration: undefined, blockingEnabled: false, confidenceUnavailableReason: "missing_calibration_report" }),
+      { screenshotRetentionSeconds: 60 },
+    );
+    expect(result).not.toHaveProperty("confidence");
+    expect(result.findings[0]).not.toHaveProperty("confidence");
+    expect(result.blockingEnabled).toBe(false);
+    expect(result.confidenceUnavailableReason).toBe("missing_calibration_report");
+    expect(hasDisplayableConfidence(result)).toBe(false);
   });
 
   it("falls back to a derived title only when the model emits a blank title (#100 defensive)", () => {

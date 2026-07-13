@@ -14,6 +14,7 @@ export interface VersionStampInput {
   model: string;
   promptVersion: string;
   captureVersion: string;
+  rubricVersion?: string;
   uiDnaVersion: string | null;
 }
 
@@ -36,6 +37,7 @@ export function buildResultMetadata(input: VersionStampInput): ResultMetadata {
     model: input.model,
     promptVersion: input.promptVersion,
     captureVersion: input.captureVersion,
+    rubricVersion: input.rubricVersion ?? "design-rubric@1",
     uiDnaVersion: input.uiDnaVersion,
   };
 }
@@ -56,5 +58,6 @@ export function versionSpanAttributes(metadata: ResultMetadata): Record<string, 
     "engine.model": metadata.model,
     "engine.prompt_version": metadata.promptVersion,
     "engine.capture_version": metadata.captureVersion,
+    ...(metadata.rubricVersion ? { "engine.rubric_version": metadata.rubricVersion } : {}),
   };
 }

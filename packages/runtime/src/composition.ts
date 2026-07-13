@@ -1,8 +1,20 @@
 import { S3Client } from "@aws-sdk/client-s3";
 import { createJobApi, createJobReviewProcessor } from "@engine/api";
 import { buildGenomeIndex, type Embedder } from "@engine/context";
-import type { ModelClientFactory, PassModelOverrides } from "@engine/critique";
+import {
+  ENGINE_VERSION,
+  PROMPT_VERSION,
+  RUBRIC_VERSION,
+  resolvePassModel,
+  type ModelClientFactory,
+  type PassModelOverrides,
+} from "@engine/critique";
 import { pgExecutor } from "@engine/db";
+import {
+  createCalibrationRuntimeBinding,
+  ModelPromptRegistry,
+  type PromotedCalibration,
+} from "@engine/eval";
 import { CancellationCoordinator, JobStore, type JobRecord } from "@engine/jobs";
 import { initTelemetry, type Telemetry } from "@engine/observability";
 import { EnvSecretStore } from "@engine/secrets";
@@ -21,6 +33,7 @@ export interface EngineRuntimeOptions {
   capture: CaptureClient;
   modelFactory: ModelClientFactory;
   passModels?: PassModelOverrides;
+  calibrationResolver?: { currentCalibration(): Promise<PromotedCalibration | null> };
   genomeResolver?: GenomeResolver;
   embedder?: Embedder;
   notificationSource?: NotificationSource;
@@ -44,6 +57,22 @@ export function createEngineRuntime(options: EngineRuntimeOptions): EngineRuntim
     toReviewInput,
     async (job: JobRecord, input) => {
       const signal = coordinator.register(job.id);
+      const promotedCalibration = options.calibrationResolver
+        ? await options.calibrationResolver.currentCalibration()
+        : null;
+      const deepModel = resolvePassModel("deep", options.passModels).model;
+      const calibration = promotedCalibration
+        ? createCalibrationRuntimeBinding(
+            promotedCalibration.report,
+            promotedCalibration.promotionMode,
+            {
+              model: deepModel,
+              promptVersion: PROMPT_VERSION,
+              engineVersion: ENGINE_VERSION,
+              rubricVersion: RUBRIC_VERSION,
+            },
+          )
+        : { ok: false as const, reason: "missing_calibration_report" as const, error: "no promoted calibration report" };
       const resolvedGenome = options.genomeResolver
         ? await options.genomeResolver.resolve(repositoryForJob(job), job.installationId)
         : null;
@@ -58,6 +87,9 @@ export function createEngineRuntime(options: EngineRuntimeOptions): EngineRuntim
         captureInSandbox: options.capture.forJob(job.id, signal),
         modelFactory: options.modelFactory,
         ...(options.passModels ? { passModels: options.passModels } : {}),
+        ...(calibration.ok
+          ? { calibration: calibration.binding }
+          : { confidenceUnavailableReason: calibration.reason }),
         ...(genomeIndex ? { genomeIndex } : {}),
         ...(genomeIndex && options.embedder ? { embedder: options.embedder } : {}),
         signal,
@@ -126,6 +158,7 @@ export async function buildProductionRuntime(env: NodeJS.ProcessEnv = process.en
   const config = await loadRuntimeConfig(new EnvSecretStore(env), env);
   const pool = new Pool({ connectionString: config.databaseUrl, max: 5 });
   const store = new JobStore(pgExecutor(pool));
+  const calibrationRegistry = new ModelPromptRegistry(pgExecutor(pool));
   const s3 = new S3Client({
     region: config.objectStoreRegion,
     ...(config.objectStoreEndpoint ? { endpoint: config.objectStoreEndpoint } : {}),
@@ -153,6 +186,7 @@ export async function buildProductionRuntime(env: NodeJS.ProcessEnv = process.en
     capture,
     modelFactory: openai.modelFactory,
     passModels: config.passModels,
+    calibrationResolver: calibrationRegistry,
     ...(genomeResolver ? { genomeResolver } : {}),
     ...(openai.embedder ? { embedder: openai.embedder } : {}),
     notificationSource: new PgNotificationSource(config.databaseUrl),

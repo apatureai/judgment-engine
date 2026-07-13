@@ -5,6 +5,7 @@ import {
   brierScore,
   expectedCalibrationError,
   fitMonotonicCalibration,
+  fitSerializableMonotonicCalibration,
   type CalibrationPair,
 } from "../src/index.js";
 
@@ -140,5 +141,14 @@ describe("fitMonotonicCalibration (#107)", () => {
     const recalibrated = pairs.map((p) => ({ confidence: map(p.confidence), correct: p.correct }));
     const calEce = expectedCalibrationError(recalibrated).ece;
     expect(calEce).toBeLessThan(rawEce);
+  });
+
+  it("coalesces quantized duplicate scores into reconstructable knots", () => {
+    const transform = fitSerializableMonotonicCalibration(calibrated);
+    const rawKnots = transform.knots.map((knot) => knot.raw);
+    expect(new Set(rawKnots).size).toBe(rawKnots.length);
+    expect(rawKnots).toEqual([...rawKnots].sort((a, b) => a - b));
+    expect(transform.knots.find((knot) => knot.raw === 0.2)?.calibrated).toBeCloseTo(0.2, 6);
+    expect(transform.knots.find((knot) => knot.raw === 0.8)?.calibrated).toBeCloseTo(0.8, 6);
   });
 });

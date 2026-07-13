@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { loadGoldenResult, SCHEMA_VERSION } from "../src/index.js";
+import {
+  hasDisplayableConfidence,
+  loadGoldenResult,
+  loadPreCalibrationResult,
+  SCHEMA_VERSION,
+} from "../src/index.js";
 import type { EngineReviewResult } from "../src/index.js";
 
 describe("wire contract (cross-repo anchor with Gate)", () => {
@@ -14,9 +19,32 @@ describe("wire contract (cross-repo anchor with Gate)", () => {
   });
 
   it("carries the engine-owned result-level confidence: the min over finding confidences (#150)", () => {
+    expect(hasDisplayableConfidence(golden)).toBe(true);
+    expect(golden.calibration?.reportHash).toMatch(/^sha256:[0-9a-f]{64}$/);
+    expect(golden.blockingEnabled).toBe(true);
     expect(typeof golden.confidence).toBe("number");
     const least = Math.min(...golden.findings.map((f) => f.confidence ?? 1));
     expect(golden.confidence).toBe(least);
+  });
+
+  it("keeps historical numeric confidence parseable but explicitly unavailable (#160)", () => {
+    const historical = loadPreCalibrationResult();
+    expect(typeof historical.confidence).toBe("number");
+    expect(historical.findings.every((finding) => typeof finding.confidence === "number")).toBe(true);
+    expect(historical.calibration).toBeUndefined();
+    expect(hasDisplayableConfidence(historical)).toBe(false);
+  });
+
+  it("rejects malformed provenance and partially calibrated results (#160)", () => {
+    expect(hasDisplayableConfidence({
+      ...golden,
+      calibration: { ...golden.calibration!, reportHash: "sha256:not-a-digest" },
+    })).toBe(false);
+    expect(hasDisplayableConfidence({
+      ...golden,
+      findings: golden.findings.map((finding, index) =>
+        index === 0 ? { ...finding, confidence: undefined } : finding),
+    })).toBe(false);
   });
 
   it("guards every WireFinding field name + type (so the wire type can't drift from the fixture)", () => {
@@ -56,6 +84,7 @@ describe("wire contract (cross-repo anchor with Gate)", () => {
     expect(typeof m.model).toBe("string");
     expect(typeof m.promptVersion).toBe("string");
     expect(typeof m.captureVersion).toBe("string");
+    expect(typeof m.rubricVersion).toBe("string");
     expect(m.uiDnaVersion === null || typeof m.uiDnaVersion === "string").toBe(true);
   });
 

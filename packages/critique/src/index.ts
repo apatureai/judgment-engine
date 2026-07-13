@@ -23,7 +23,7 @@ export {
 } from "./registry.js";
 export type { PassModelConfig, PassModelOverrides, ModelClientFactory } from "./registry.js";
 export { MockModelClient, defaultModelFactory } from "./mock-model.js";
-export { critique, ENGINE_VERSION, PROMPT_VERSION } from "./critique.js";
+export { critique, ENGINE_VERSION, PROMPT_VERSION, RUBRIC_VERSION } from "./critique.js";
 export type { CritiqueDeps } from "./critique.js";
 export { buildResultMetadata, assertVersionStamped, versionSpanAttributes } from "./version-stamp.js";
 export type { VersionStampInput } from "./version-stamp.js";
@@ -50,6 +50,12 @@ export type { HallucinationGateInput, HallucinationGateResult } from "./hallucin
 export { postFilter } from "./post-filter.js";
 export type { PostFilterOptions } from "./post-filter.js";
 export { applyConfidenceCeiling } from "./confidence-ceiling.js";
+export {
+  applyCalibrationBinding,
+  calibrationBindingMatches,
+  enforceBlockingThreshold,
+} from "./calibration-binding.js";
+export type { CalibrationRuntimeIdentity } from "./calibration-binding.js";
 export {
   critiqueRouteTwoStep,
   critiqueRouteSingleCall,
