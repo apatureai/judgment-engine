@@ -160,13 +160,11 @@ describe("DELETE /jobs/:id (cooperative cancel)", () => {
   });
 
   it("deletes a result artifact when cancellation wins the publication race", async () => {
-    let jobId = "";
     api = createJobApi({
       store,
       objectStore,
       secret: SECRET,
       processor: async (job) => {
-        jobId = job.id;
         await store.requestCancel(job.id);
         return {
           grade: "ship",
@@ -186,7 +184,7 @@ describe("DELETE /jobs/:id (cooperative cancel)", () => {
       },
     });
     const post = await api.handle(signed("POST", "/jobs", "1", submission("publish-race")));
-    jobId = (post.body as { jobId: string }).jobId;
+    const jobId = (post.body as { jobId: string }).jobId;
     await store.claimNext("w1", 60_000);
 
     await expect(api.processJob(jobId, 1)).rejects.toThrow(/before publication/);

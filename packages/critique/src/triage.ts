@@ -130,7 +130,7 @@ export async function runTriage(deps: TriageDeps, routes: TriageRoute[]): Promis
     deps.signal ? { signal: deps.signal } : undefined,
   );
 
-  let parsed: TriageOutput | null = null;
+  let parsed: TriageOutput | null;
   try {
     parsed = TriageOutputSchema.parse(JSON.parse(response.text));
   } catch {
