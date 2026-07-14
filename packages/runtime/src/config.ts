@@ -20,6 +20,10 @@ export interface RuntimeConfig {
   objectStoreSecretAccessKey: string;
   workerPollMs: number;
   workerMaxAttempts: number;
+  /** Lease TTL per claimed attempt (#166); the worker heartbeats at a third of it. */
+  workerLeaseMs: number;
+  /** Hard per-attempt deadline independent of heartbeats (#166). */
+  jobMaxAttemptMs: number;
 }
 
 function required(env: NodeJS.ProcessEnv, key: string): string {
@@ -89,5 +93,9 @@ export async function loadRuntimeConfig(
     objectStoreSecretAccessKey,
     workerPollMs: positiveInt(env, "WORKER_POLL_MS", 5_000),
     workerMaxAttempts: positiveInt(env, "WORKER_MAX_ATTEMPTS", 3),
+    workerLeaseMs: positiveInt(env, "WORKER_LEASE_MS", 60_000),
+    // Default sits above Gate's 10-minute review deadline so the engine, not a
+    // guess, decides when a hung capture/model attempt is abandoned (#166).
+    jobMaxAttemptMs: positiveInt(env, "JOB_MAX_ATTEMPT_MS", 12 * 60_000),
   };
 }

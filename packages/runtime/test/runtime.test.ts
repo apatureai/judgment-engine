@@ -27,6 +27,7 @@ import {
   type CaptureClient,
   type EngineRuntime,
   type NotificationSource,
+  type WorkerStore,
 } from "../src/index.js";
 
 const SECRET = "runtime-hmac-secret";
@@ -177,6 +178,10 @@ function job(input: unknown = reviewRequest()): JobRecord {
     resultPointer: null,
     error: null,
     attempts: 1,
+    claimGeneration: 1,
+    leaseOwner: "w-test",
+    leaseExpiresAt: new Date(now.getTime() + 60_000),
+    heartbeatAt: now,
     createdAt: now,
     updatedAt: now,
     startedAt: now,
@@ -257,18 +262,28 @@ describe("approved genome adapter", () => {
 });
 
 describe("EngineWorker", () => {
+  const idleStore = (overrides: Partial<WorkerStore> = {}): WorkerStore => ({
+    claimNext: async () => null,
+    renewLease: async () => true,
+    retryOrFail: async () => null,
+    recoverExpired: async () => [],
+    ...overrides,
+  });
+
   it("retries a failed attempt, succeeds on the next claim, and drains", async () => {
-    const queued = [job(), { ...job(), attempts: 2 }];
+    const queued = [job(), { ...job(), attempts: 2, claimGeneration: 2 }];
     const states: Array<string | null> = [];
+    const fencedGenerations: number[] = [];
     let calls = 0;
     const worker = new EngineWorker({
-      store: {
+      store: idleStore({
         claimNext: async () => queued.shift() ?? null,
-        retryOrFail: async () => {
+        retryOrFail: async (_id, _error, _max, claimGeneration) => {
           states.push("queued");
+          fencedGenerations.push(claimGeneration);
           return "queued";
         },
-      },
+      }),
       processJob: async () => {
         calls++;
         if (calls === 1) throw new Error("transient");
@@ -278,6 +293,8 @@ describe("EngineWorker", () => {
     await worker.drainOnce();
     expect(calls).toBe(2);
     expect(states).toEqual(["queued"]);
+    // The failure was finalized under the generation of the claim that ran it.
+    expect(fencedGenerations).toEqual([1]);
   });
 
   it("closes the LISTEN source during graceful shutdown", async () => {
@@ -288,7 +305,7 @@ describe("EngineWorker", () => {
       close: async () => { closed = true; },
     };
     const worker = new EngineWorker({
-      store: { claimNext: async () => null, retryOrFail: async () => null },
+      store: idleStore(),
       processJob: async () => undefined,
       notificationSource: source,
       pollIntervalMs: 50,
@@ -298,6 +315,76 @@ describe("EngineWorker", () => {
     await worker.stop();
     expect(closed).toBe(true);
     expect(worker.isReady()).toBe(false);
+  });
+
+  it("recovers expired attempts at startup and reports them for capture teardown (#166)", async () => {
+    let scans = 0;
+    const torndown: string[] = [];
+    const worker = new EngineWorker({
+      store: idleStore({
+        recoverExpired: async () => {
+          scans++;
+          return scans === 1
+            ? [{ id: "job_lost", outcome: "requeued" as const, previousOwner: "w-dead" }]
+            : [];
+        },
+      }),
+      processJob: async () => undefined,
+      pollIntervalMs: 50,
+      onRecovered: (recovered) => torndown.push(recovered.id),
+    });
+    await worker.start();
+    await worker.stop();
+    expect(scans).toBeGreaterThanOrEqual(1);
+    expect(torndown).toEqual(["job_lost"]);
+  });
+
+  it("passes the reaper the hard attempt deadline when configured (#166)", async () => {
+    const seen: Array<number | undefined> = [];
+    const worker = new EngineWorker({
+      store: idleStore({
+        recoverExpired: async (options) => {
+          seen.push(options.maxAttemptMs);
+          return [];
+        },
+      }),
+      processJob: async () => undefined,
+      pollIntervalMs: 50,
+      maxAttemptMs: 600_000,
+    });
+    await worker.start();
+    await worker.stop();
+    expect(seen[0]).toBe(600_000);
+  });
+
+  it("heartbeats the lease while a job runs and aborts locally when the lease is lost (#166)", async () => {
+    let renewals = 0;
+    const lostJobs: string[] = [];
+    let release: (() => void) | undefined;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const single = [job()];
+    const worker = new EngineWorker({
+      store: idleStore({
+        claimNext: async () => single.shift() ?? null,
+        renewLease: async () => {
+          renewals++;
+          // First renewal succeeds, second discovers the lease was recovered.
+          return renewals < 2;
+        },
+      }),
+      processJob: async () => gate,
+      leaseTtlMs: 30, // heartbeat every 10ms
+      pollIntervalMs: 5_000,
+      onLeaseLost: (jobId) => {
+        lostJobs.push(jobId);
+        release?.();
+      },
+    });
+    await worker.drainOnce();
+    expect(renewals).toBeGreaterThanOrEqual(2);
+    expect(lostJobs).toEqual(["job_1"]);
   });
 });
 

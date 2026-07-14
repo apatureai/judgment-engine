@@ -84,8 +84,8 @@ describe("GET /jobs/:id", () => {
     expect((pending.body as { state: string }).state).toBe("pending");
 
     // Worker claims + processes.
-    await store.claimNext();
-    await api.processJob(jobId);
+    const claimed = await store.claimNext("w1", 60_000);
+    await api.processJob(jobId, claimed?.claimGeneration ?? 1);
 
     const done = await api.handle(signed("GET", `/jobs/${jobId}`, "1"));
     expect(done.headers["x-schema-version"]).toBe("1");
@@ -98,8 +98,8 @@ describe("GET /jobs/:id", () => {
   it("routes triage depth to the fast model", async () => {
     const post = await api.handle(signed("POST", "/jobs", "1", submission("k2", "triage")));
     const jobId = (post.body as { jobId: string }).jobId;
-    await store.claimNext();
-    await api.processJob(jobId);
+    const claimed = await store.claimNext("w1", 60_000);
+    await api.processJob(jobId, claimed?.claimGeneration ?? 1);
 
     const done = await api.handle(signed("GET", `/jobs/${jobId}`, "1"));
     const body = done.body as { result: { metadata: { model: string } } };
@@ -127,7 +127,7 @@ describe("DELETE /jobs/:id (cooperative cancel)", () => {
     const post = await api.handle(signed("POST", "/jobs", "1", submission("k4")));
     const jobId = (post.body as { jobId: string }).jobId;
     coordinator.register(jobId);
-    await store.claimNext(); // job is running
+    await store.claimNext("w1", 60_000); // job is running
 
     const del = await api.handle(signed("DELETE", `/jobs/${jobId}`, "1"));
     expect(del.status).toBe(200);
@@ -141,7 +141,7 @@ describe("DELETE /jobs/:id (cooperative cancel)", () => {
     expect(killed).toEqual([jobId]);
 
     // A late processJob writes NO result for a job that left `running`.
-    await expect(api.processJob(jobId)).rejects.toThrow(/not running/);
+    await expect(api.processJob(jobId, 1)).rejects.toThrow(/not running/);
     const afterProcess = await store.get(jobId);
     expect(afterProcess?.status).toBe("cancelling");
     expect(afterProcess?.resultPointer).toBeNull();
@@ -187,11 +187,43 @@ describe("DELETE /jobs/:id (cooperative cancel)", () => {
     });
     const post = await api.handle(signed("POST", "/jobs", "1", submission("publish-race")));
     jobId = (post.body as { jobId: string }).jobId;
-    await store.claimNext();
+    await store.claimNext("w1", 60_000);
 
-    await expect(api.processJob(jobId)).rejects.toThrow(/before publication/);
+    await expect(api.processJob(jobId, 1)).rejects.toThrow(/before publication/);
     expect((await store.get(jobId))?.status).toBe("cancelling");
     expect(await objectStore.get(`jobs/${jobId}/critique/result.json`)).toBeNull();
+  });
+});
+
+describe("claim-generation fencing (#166)", () => {
+  it("a late worker from an expired lease cannot publish over the recovered attempt", async () => {
+    const post = await api.handle(signed("POST", "/jobs", "1", submission("fence-1", "deep")));
+    const jobId = (post.body as { jobId: string }).jobId;
+
+    // Worker A claims (generation 1), then dies: expire its lease and recover.
+    const first = await store.claimNext("worker-a", 60_000);
+    expect(first?.claimGeneration).toBe(1);
+    await db.query(`UPDATE jobs SET lease_expires_at = now() - interval '1 second' WHERE id = $1`, [jobId]);
+    const recovered = await store.recoverExpired({ maxAttempts: 3 });
+    expect(recovered).toEqual([{ id: jobId, outcome: "requeued", previousOwner: "worker-a" }]);
+
+    // Worker B claims the recovered attempt and publishes.
+    const second = await store.claimNext("worker-b", 60_000);
+    expect(second?.claimGeneration).toBe(3); // recovery + reclaim each bump the fence
+    await api.processJob(jobId, second?.claimGeneration ?? 0);
+    const published = await store.get(jobId);
+    expect(published?.status).toBe("succeeded");
+    const pointer = published?.resultPointer ?? "";
+
+    // Worker A resumes late: its stale generation cannot publish, fail, or renew,
+    // and worker B's result pointer is untouched.
+    await expect(api.processJob(jobId, 1)).rejects.toThrow(/not running|stale/);
+    expect(await store.retryOrFail(jobId, "late failure", 3, 1)).toBeNull();
+    expect(await store.renewLease(jobId, "worker-a", 1, 60_000)).toBe(false);
+    const final = await store.get(jobId);
+    expect(final?.status).toBe("succeeded");
+    expect(final?.resultPointer).toBe(pointer);
+    expect(await objectStore.get(pointer)).not.toBeNull();
   });
 });
 
@@ -199,9 +231,9 @@ describe("hardening (gstack /review fixes)", () => {
   it("a succeeded job whose result artifact is gone returns failed, not completed+null", async () => {
     const post = await api.handle(signed("POST", "/jobs", "1", submission("k6")));
     const jobId = (post.body as { jobId: string }).jobId;
-    await store.claimNext();
+    await store.claimNext("w1", 60_000);
     // Mark succeeded with a pointer to an object that was never written (expired/missing).
-    await store.complete(jobId, "jobs/missing/critique/result.json");
+    await store.complete(jobId, "jobs/missing/critique/result.json", 1);
 
     const got = await api.handle(signed("GET", `/jobs/${jobId}`, "1"));
     const body = got.body as { state: string; error?: string; result?: unknown };

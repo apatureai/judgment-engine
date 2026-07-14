@@ -210,21 +210,28 @@ export function createJobApi(options: JobApiOptions) {
   /**
    * Worker step: run the processor for a *running* job, persist the result to
    * object storage, and mark the job succeeded. Returns the wire result.
+   * Publication is fenced on the worker's claim generation (#166): a late
+   * worker whose lease expired and whose attempt was recovered cannot publish
+   * over the recovered attempt.
    */
-  async function processJob(jobId: string): Promise<EngineReviewResult> {
+  async function processJob(jobId: string, claimGeneration: number): Promise<EngineReviewResult> {
     const job = await options.store.get(jobId);
     if (!job) throw new Error(`job ${jobId} not found`);
     if (job.status !== "running") throw new Error(`job ${jobId} is not running`);
+    if (job.claimGeneration !== claimGeneration) {
+      throw new Error(`job ${jobId} claim generation ${claimGeneration} is stale`);
+    }
     const result = await processor(job);
     const pointer = objectKey(jobId, "critique", "result.json");
     await options.objectStore.put(pointer, JSON.stringify(result), {
       contentType: "application/json",
     });
-    const published = await options.store.complete(jobId, pointer);
+    const published = await options.store.complete(jobId, pointer, claimGeneration);
     if (!published) {
-      // Cancellation can win after inference but before publication. The DB
-      // transition is the linearization point; remove the unreferenced object
-      // so a canceled/superseded job leaves no publishable result artifact.
+      // Cancellation or lease recovery can win after inference but before
+      // publication. The fenced DB transition is the linearization point;
+      // remove the unreferenced object so a canceled/superseded/recovered
+      // attempt leaves no publishable result artifact.
       await options.objectStore.delete(pointer);
       throw new Error(`job ${jobId} left running state before publication`);
     }

@@ -24,6 +24,16 @@ export const METRIC_NAMES = {
   cacheHit: "engine.critique.cache_hit",
   /** Model-reported cached input tokens per call; 0 means the prefix cache missed (#34). */
   cacheReadInputTokens: "engine.model.cache_read_input_tokens",
+  /** Claims currently leased by live workers (#166). */
+  activeLeases: "engine.job.active_leases",
+  /** Age of the oldest running attempt; alert before Gate's 10-min deadline (#166). */
+  oldestRunningMs: "engine.job.oldest_running_ms",
+  /** Expired attempts recovered by the reaper, by outcome (#166). */
+  leaseRecovered: "engine.job.lease_recovered",
+  /** Publications/finalizations rejected by claim-generation fencing (#166). */
+  fencedCompletions: "engine.job.fenced_completions",
+  /** Attempts that failed terminally at the attempt budget after lease expiry (#166). */
+  leaseTerminalFailures: "engine.job.lease_terminal_failures",
 } as const;
 
 /**
@@ -40,7 +50,14 @@ export class EngineMetrics {
   private readonly modelRateLimited: Counter;
   private readonly cacheHit: Histogram;
   private readonly cacheReadInputTokens: Histogram;
+  private readonly leaseRecovered: Counter;
+  private readonly fencedCompletions: Counter;
+  private readonly leaseTerminalFailures: Counter;
   private queueDepthProvider: () => number = () => 0;
+  private leaseStatsProvider: () => { activeLeases: number; oldestRunningMs: number | null } = () => ({
+    activeLeases: 0,
+    oldestRunningMs: null,
+  });
 
   constructor(meter: Meter = metrics.getMeter(METER_NAME)) {
     this.jobLatency = meter.createHistogram(METRIC_NAMES.jobLatency, { unit: "ms" });
@@ -60,9 +77,50 @@ export class EngineMetrics {
       description: "Model-reported cached input tokens per call; 0 indicates a prefix-cache miss.",
     });
 
+    this.leaseRecovered = meter.createCounter(METRIC_NAMES.leaseRecovered, {
+      description: "Expired attempts recovered by the lease reaper, by outcome.",
+    });
+    this.fencedCompletions = meter.createCounter(METRIC_NAMES.fencedCompletions, {
+      description: "Publications rejected by claim-generation fencing.",
+    });
+    this.leaseTerminalFailures = meter.createCounter(METRIC_NAMES.leaseTerminalFailures, {
+      description: "Attempts failed terminally at the attempt budget after lease expiry.",
+    });
+
     meter
       .createObservableGauge(METRIC_NAMES.queueDepth, { description: "Pending review jobs." })
       .addCallback((observer: ObservableResult) => observer.observe(this.queueDepthProvider()));
+    meter
+      .createObservableGauge(METRIC_NAMES.activeLeases, { description: "Claims leased by live workers." })
+      .addCallback((observer: ObservableResult) =>
+        observer.observe(this.leaseStatsProvider().activeLeases),
+      );
+    meter
+      .createObservableGauge(METRIC_NAMES.oldestRunningMs, {
+        unit: "ms",
+        description: "Age of the oldest running attempt.",
+      })
+      .addCallback((observer: ObservableResult) =>
+        observer.observe(this.leaseStatsProvider().oldestRunningMs ?? 0),
+      );
+  }
+
+  /** Count an expired attempt the reaper recovered ("requeued" | "failed" | "canceled"). */
+  recordLeaseRecovered(outcome: string): void {
+    this.leaseRecovered.add(1, { outcome });
+    if (outcome === "failed") this.leaseTerminalFailures.add(1);
+  }
+
+  /** Count a publication/finalization rejected by claim-generation fencing. */
+  recordFencedCompletion(): void {
+    this.fencedCompletions.add(1);
+  }
+
+  /** Register the callback the lease gauges (active, oldest-running age) read on collection. */
+  setLeaseStatsProvider(
+    provider: () => { activeLeases: number; oldestRunningMs: number | null },
+  ): void {
+    this.leaseStatsProvider = provider;
   }
 
   recordJobLatency(ms: number, attributes?: Attributes): void {

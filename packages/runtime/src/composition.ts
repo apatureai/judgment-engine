@@ -40,6 +40,10 @@ export interface EngineRuntimeOptions {
   databaseReady(): Promise<boolean>;
   workerPollMs?: number;
   workerMaxAttempts?: number;
+  /** Lease TTL per claimed attempt; the worker heartbeats at a third of it (#166). */
+  workerLeaseMs?: number;
+  /** Hard per-attempt deadline independent of heartbeats (#166); unset = none. */
+  jobMaxAttemptMs?: number;
   logger?: Pick<Console, "info" | "error">;
 }
 
@@ -111,8 +115,19 @@ export function createEngineRuntime(options: EngineRuntimeOptions): EngineRuntim
     ...(options.notificationSource ? { notificationSource: options.notificationSource } : {}),
     ...(options.workerPollMs !== undefined ? { pollIntervalMs: options.workerPollMs } : {}),
     ...(options.workerMaxAttempts !== undefined ? { maxAttempts: options.workerMaxAttempts } : {}),
-    finalizeCancellation: async (jobId) => {
-      await options.store.markCanceled(jobId);
+    ...(options.workerLeaseMs !== undefined ? { leaseTtlMs: options.workerLeaseMs } : {}),
+    ...(options.jobMaxAttemptMs !== undefined ? { maxAttemptMs: options.jobMaxAttemptMs } : {}),
+    // Lease lost mid-attempt (#166): abort the local inference stream + capture
+    // sandbox so the fenced-out attempt stops burning compute.
+    onLeaseLost: (jobId) => {
+      void coordinator.cancel(jobId);
+    },
+    // Recovered a lost worker's attempt: best-effort stop of its capture job.
+    onRecovered: (job) => {
+      void options.capture.cancel(job.id).catch(() => undefined);
+    },
+    finalizeCancellation: async (jobId, claimGeneration) => {
+      await options.store.markCanceled(jobId, claimGeneration);
     },
     onJobSettled: (jobId) => coordinator.release(jobId),
     ...(options.logger ? { logger: options.logger } : {}),
@@ -196,6 +211,8 @@ export async function buildProductionRuntime(env: NodeJS.ProcessEnv = process.en
     },
     workerPollMs: config.workerPollMs,
     workerMaxAttempts: config.workerMaxAttempts,
+    workerLeaseMs: config.workerLeaseMs,
+    jobMaxAttemptMs: config.jobMaxAttemptMs,
     logger: console,
   });
   return {

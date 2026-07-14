@@ -46,21 +46,26 @@ describe("claimNext (SKIP LOCKED)", () => {
   it("claims the oldest queued job once and marks it running", async () => {
     const { job } = await store.enqueue(baseInput);
 
-    const claimed = await store.claimNext();
+    const claimed = await store.claimNext("w1", 60_000);
     expect(claimed?.id).toBe(job.id);
     expect(claimed?.status).toBe("running");
     expect(claimed?.attempts).toBe(1);
+    // The claim records a fenced lease (#166).
+    expect(claimed?.claimGeneration).toBe(1);
+    expect(claimed?.leaseOwner).toBe("w1");
+    expect(claimed?.leaseExpiresAt).toBeInstanceOf(Date);
+    expect(claimed?.heartbeatAt).toBeInstanceOf(Date);
 
     // Nothing left queued.
-    expect(await store.claimNext()).toBeNull();
+    expect(await store.claimNext("w1", 60_000)).toBeNull();
   });
 });
 
 describe("lifecycle transitions", () => {
   it("completes a running job with a result pointer", async () => {
     const { job } = await store.enqueue(baseInput);
-    await store.claimNext();
-    await store.complete(job.id, "jobs/abc/critique/result.json");
+    await store.claimNext("w1", 60_000);
+    await store.complete(job.id, "jobs/abc/critique/result.json", 1);
 
     const got = await store.get(job.id);
     expect(got?.status).toBe("succeeded");
@@ -69,8 +74,8 @@ describe("lifecycle transitions", () => {
 
   it("fails a running job with an error", async () => {
     const { job } = await store.enqueue(baseInput);
-    await store.claimNext();
-    await store.fail(job.id, "capture unstable");
+    await store.claimNext("w1", 60_000);
+    await store.fail(job.id, "capture unstable", 1);
 
     const got = await store.get(job.id);
     expect(got?.status).toBe("failed");
@@ -118,7 +123,7 @@ describe("priority scheduling (#67)", () => {
     });
 
     // Despite being enqueued second, the gate-blocking job is claimed first.
-    const claimed = await store.claimNext();
+    const claimed = await store.claimNext("w1", 60_000);
     expect(claimed?.id).toBe(gateJob.id);
     expect(claimed?.priority).toBe(0);
   });
@@ -127,13 +132,13 @@ describe("priority scheduling (#67)", () => {
 describe("cooperative cancellation (#66)", () => {
   it("requestCancel -> cancelling (immediately), then markCanceled -> canceled", async () => {
     const { job } = await store.enqueue(baseInput);
-    await store.claimNext(); // running
+    await store.claimNext("w1", 60_000); // running
 
     const cancelling = await store.requestCancel(job.id);
     expect(cancelling?.status).toBe("cancelling");
 
     // complete/fail are no-ops once the job left `running` (no result written).
-    await store.complete(job.id, "jobs/x/critique/result.json");
+    await store.complete(job.id, "jobs/x/critique/result.json", 1);
     const mid = await store.get(job.id);
     expect(mid?.status).toBe("cancelling");
     expect(mid?.resultPointer).toBeNull();
@@ -144,8 +149,8 @@ describe("cooperative cancellation (#66)", () => {
 
   it("requestCancel returns null for an already-terminal job", async () => {
     const { job } = await store.enqueue(baseInput);
-    await store.claimNext();
-    await store.complete(job.id, "jobs/x/r.json"); // succeeded
+    await store.claimNext("w1", 60_000);
+    await store.complete(job.id, "jobs/x/r.json", 1); // succeeded
     expect(await store.requestCancel(job.id)).toBeNull();
   });
 });
@@ -153,12 +158,12 @@ describe("cooperative cancellation (#66)", () => {
 describe("bounded worker retry", () => {
   it("requeues below the attempt budget and fails at the budget", async () => {
     const { job } = await store.enqueue(baseInput);
-    await store.claimNext();
-    expect(await store.retryOrFail(job.id, "transient", 2)).toBe("queued");
+    await store.claimNext("w1", 60_000);
+    expect(await store.retryOrFail(job.id, "transient", 2, 1)).toBe("queued");
     expect((await store.get(job.id))?.status).toBe("queued");
 
-    await store.claimNext();
-    expect(await store.retryOrFail(job.id, "still broken", 2)).toBe("failed");
+    await store.claimNext("w1", 60_000);
+    expect(await store.retryOrFail(job.id, "still broken", 2, 2)).toBe("failed");
     const failed = await store.get(job.id);
     expect(failed?.status).toBe("failed");
     expect(failed?.error).toBe("still broken");
@@ -166,10 +171,165 @@ describe("bounded worker retry", () => {
 
   it("never requeues a cancelling job", async () => {
     const { job } = await store.enqueue(baseInput);
-    await store.claimNext();
+    await store.claimNext("w1", 60_000);
     await store.requestCancel(job.id);
-    expect(await store.retryOrFail(job.id, "late failure", 3)).toBeNull();
+    expect(await store.retryOrFail(job.id, "late failure", 3, 1)).toBeNull();
     expect((await store.get(job.id))?.status).toBe("cancelling");
+  });
+});
+
+describe("worker leases + crash recovery (#166)", () => {
+  const expireLease = async (id: string) =>
+    db.query(`UPDATE jobs SET lease_expires_at = now() - interval '1 second' WHERE id = $1`, [id]);
+
+  it("renews a held lease and refuses a stale owner/generation", async () => {
+    const { job } = await store.enqueue(baseInput);
+    const claimed = await store.claimNext("w1", 60_000);
+    const before = claimed?.leaseExpiresAt?.getTime() ?? 0;
+
+    expect(await store.renewLease(job.id, "w1", 1, 120_000)).toBe(true);
+    const renewed = await store.get(job.id);
+    expect((renewed?.leaseExpiresAt?.getTime() ?? 0) > before).toBe(true);
+
+    expect(await store.renewLease(job.id, "w2", 1, 60_000)).toBe(false); // wrong owner
+    expect(await store.renewLease(job.id, "w1", 2, 60_000)).toBe(false); // wrong generation
+  });
+
+  it("requeues an expired running attempt below the budget, clearing the lease", async () => {
+    const { job } = await store.enqueue(baseInput);
+    await store.claimNext("w1", 60_000);
+    await expireLease(job.id);
+
+    const recovered = await store.recoverExpired({ maxAttempts: 3 });
+    expect(recovered).toEqual([{ id: job.id, outcome: "requeued", previousOwner: "w1" }]);
+
+    const got = await store.get(job.id);
+    expect(got?.status).toBe("queued");
+    expect(got?.leaseOwner).toBeNull();
+    expect(got?.leaseExpiresAt).toBeNull();
+    expect(got?.startedAt).toBeNull();
+    expect(got?.error).toContain("w1");
+    // The dead worker's renewal and finalizations are fenced out.
+    expect(await store.renewLease(job.id, "w1", 1, 60_000)).toBe(false);
+    expect(await store.complete(job.id, "jobs/x/r.json", 1)).toBe(false);
+    expect(await store.retryOrFail(job.id, "late", 3, 1)).toBeNull();
+  });
+
+  it("re-notifies workers for a requeued attempt (no poll-interval wait)", async () => {
+    const received: string[] = [];
+    await db.listen(JOB_NOTIFY_CHANNEL, (payload: string) => received.push(payload));
+    const { job } = await store.enqueue(baseInput);
+    await store.claimNext("w1", 60_000);
+    await expireLease(job.id);
+
+    await store.recoverExpired({ maxAttempts: 3 });
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(received.filter((id) => id === job.id).length).toBeGreaterThanOrEqual(2);
+  });
+
+  it("fails terminally at the attempt budget with a bounded reason", async () => {
+    const { job } = await store.enqueue(baseInput);
+    await store.claimNext("w1", 60_000);
+    await expireLease(job.id);
+
+    const recovered = await store.recoverExpired({ maxAttempts: 1 });
+    expect(recovered).toEqual([{ id: job.id, outcome: "failed", previousOwner: "w1" }]);
+    const got = await store.get(job.id);
+    expect(got?.status).toBe("failed");
+    expect(got?.finishedAt).toBeInstanceOf(Date);
+    expect(got?.error).toBe("lease expired (worker w1 lost or attempt deadline exceeded)");
+  });
+
+  it("claims after recovery use a fresh generation; the old one cannot publish", async () => {
+    const { job } = await store.enqueue(baseInput);
+    await store.claimNext("w1", 60_000); // generation 1
+    await expireLease(job.id);
+    await store.recoverExpired({ maxAttempts: 3 });
+
+    const reclaimed = await store.claimNext("w2", 60_000);
+    expect(reclaimed?.claimGeneration).toBeGreaterThan(1);
+    expect(reclaimed?.attempts).toBe(2);
+
+    // Old generation fenced; new generation publishes exactly once.
+    expect(await store.complete(job.id, "jobs/old/r.json", 1)).toBe(false);
+    expect(await store.complete(job.id, "jobs/new/r.json", reclaimed?.claimGeneration ?? 0)).toBe(true);
+    const got = await store.get(job.id);
+    expect(got?.status).toBe("succeeded");
+    expect(got?.resultPointer).toBe("jobs/new/r.json");
+  });
+
+  it("recovers a live-but-hung attempt past the hard deadline even with fresh heartbeats", async () => {
+    const { job } = await store.enqueue(baseInput);
+    await store.claimNext("w1", 60_000);
+    // Heartbeats keep the lease fresh, but the attempt started long ago.
+    await db.query(`UPDATE jobs SET started_at = now() - interval '15 minutes' WHERE id = $1`, [job.id]);
+
+    expect(await store.recoverExpired({ maxAttempts: 3 })).toEqual([]); // no deadline: lease is live
+    const recovered = await store.recoverExpired({ maxAttempts: 3, maxAttemptMs: 10 * 60_000 });
+    expect(recovered).toEqual([{ id: job.id, outcome: "requeued", previousOwner: "w1" }]);
+  });
+
+  it("finalizes stale cancelling rows: expired lease and never-claimed cancels", async () => {
+    // Canceled while queued: no worker will ever claim it, so no one finalizes it.
+    const { job: queuedJob } = await store.enqueue(baseInput);
+    await store.requestCancel(queuedJob.id);
+
+    // Canceled while running, then the worker died mid-teardown.
+    const { job: runningJob } = await store.enqueue({
+      ...baseInput,
+      idempotencyKey: "gate:1:pr_review:sha-def",
+    });
+    await store.claimNext("w1", 60_000);
+    await store.requestCancel(runningJob.id);
+    await expireLease(runningJob.id);
+
+    const recovered = await store.recoverExpired({ maxAttempts: 3 });
+    const outcomes = new Map(recovered.map((r) => [r.id, r.outcome]));
+    expect(outcomes.get(queuedJob.id)).toBe("canceled");
+    expect(outcomes.get(runningJob.id)).toBe("canceled");
+    expect((await store.get(queuedJob.id))?.status).toBe("canceled");
+    expect((await store.get(runningJob.id))?.status).toBe("canceled");
+  });
+
+  it("does not touch live leases or terminal rows", async () => {
+    const { job } = await store.enqueue(baseInput);
+    await store.claimNext("w1", 60_000); // live lease
+    const { job: doneJob } = await store.enqueue({
+      ...baseInput,
+      idempotencyKey: "gate:1:pr_review:sha-done",
+    });
+    await store.claimNext("w1", 60_000);
+    await store.complete(doneJob.id, "jobs/d/r.json", 1);
+
+    expect(await store.recoverExpired({ maxAttempts: 3 })).toEqual([]);
+    expect((await store.get(job.id))?.status).toBe("running");
+    expect((await store.get(doneJob.id))?.status).toBe("succeeded");
+  });
+
+  it("a worker's own finalization still lands while it holds the lease", async () => {
+    const { job } = await store.enqueue(baseInput);
+    const claimed = await store.claimNext("w1", 60_000);
+    expect(await store.complete(job.id, "jobs/ok/r.json", claimed?.claimGeneration ?? 0)).toBe(true);
+  });
+
+  it("fenced markCanceled: a stale worker cannot finalize a reclaimed cancelling job", async () => {
+    const { job } = await store.enqueue(baseInput);
+    await store.claimNext("w1", 60_000); // generation 1
+    await store.requestCancel(job.id);
+    // Stale generation refused; correct generation finalizes; reaper path (no
+    // generation) also allowed.
+    expect(await store.markCanceled(job.id, 2)).toBeNull();
+    expect((await store.get(job.id))?.status).toBe("cancelling");
+    expect((await store.markCanceled(job.id, 1))?.status).toBe("canceled");
+  });
+
+  it("reports lease health for gauges", async () => {
+    expect(await store.leaseStats()).toEqual({ activeLeases: 0, oldestRunningMs: null });
+    await store.enqueue(baseInput);
+    await store.claimNext("w1", 60_000);
+    const stats = await store.leaseStats();
+    expect(stats.activeLeases).toBe(1);
+    expect(stats.oldestRunningMs).toBeGreaterThanOrEqual(0);
   });
 });
 
