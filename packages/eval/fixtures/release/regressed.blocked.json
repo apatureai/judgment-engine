@@ -1,0 +1,53 @@
+{
+  "schemaVersion": "1",
+  "stamp": {
+    "model": "qwen3-vl",
+    "promptVersion": "gate-design-review@7",
+    "engineVersion": "2026.06.0",
+    "captureVersion": "playwright-capture@3",
+    "rubricVersion": "design-rubric@1"
+  },
+  "targetMode": "advisory",
+  "quality": {
+    "frozenCaptureSetId": "frozen_2026_07_a",
+    "canary": {
+      "canaries": [
+        {
+          "id": "canary_contrast_1",
+          "defect": "low_contrast_text",
+          "route": "/pricing",
+          "mutation": {
+            "selector": ".cta",
+            "css": "color:#bbb"
+          },
+          "groundTruth": {
+            "dimension": "accessibility",
+            "route": "/pricing",
+            "minSeverity": "major"
+          }
+        }
+      ],
+      "predicted": {
+        "canary_contrast_1": [
+          {
+            "dimension": "accessibility",
+            "severity": "blocker",
+            "route": "/pricing",
+            "elementRef": "el_1"
+          }
+        ]
+      }
+    },
+    "blockerRecall": 0.62,
+    "nitPrecision": 0.8,
+    "kappa": 0.7,
+    "signoffBy": "release-ci"
+  },
+  "sloCounts": {
+    "hallucinationDrops": 2,
+    "totalFindings": 100,
+    "unstableCaptures": 1,
+    "totalCaptures": 40
+  },
+  "calibrationReport": null
+}

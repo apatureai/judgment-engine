@@ -46,6 +46,44 @@ jobs:
       - name: Test
         run: pnpm test
 
+  release-gate:
+    # #155: the promotion gate itself is exercised on every build — a passing
+    # candidate must exit 0 and a deliberately regressed candidate must be
+    # BLOCKED. If either behavior drifts, no promotion decision can be trusted,
+    # so this fails the build.
+    name: release gate · promote pass · block regression
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: 9.15.0
+
+      - name: Setup Node
+        uses: actions/setup-node@v7
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build eval package
+        run: pnpm --filter @engine/eval... build
+
+      - name: Gate promotes the passing candidate
+        run: node packages/eval/dist/release-gate-cli.js packages/eval/fixtures/release/passing.advisory.json
+
+      - name: Gate blocks the deliberately regressed candidate
+        run: |
+          if node packages/eval/dist/release-gate-cli.js packages/eval/fixtures/release/regressed.blocked.json; then
+            echo "release gate PROMOTED a regressed candidate — the gate is broken"
+            exit 1
+          fi
+
   python:
     name: python · pytest
     runs-on: ubuntu-latest

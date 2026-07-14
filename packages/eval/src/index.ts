@@ -134,3 +134,10 @@ export {
   renderCalibrationContract,
 } from "./calibration-contract.js";
 export type { ContractVectorSpec } from "./calibration-contract.js";
+export { releaseGate, parseReleaseCandidate } from "./release-gate.js";
+export type {
+  ReleaseCandidateV1,
+  ReleaseDecisionV1,
+  BlockingGuardResult,
+  ReleaseGateOptions,
+} from "./release-gate.js";
