@@ -22,9 +22,11 @@ function critique(over: Partial<Critique> = {}): Critique {
 }
 
 describe("JE grounding-authority enforcement (#64 consumer side)", () => {
-  it("authorizeGrounding allows effective, refuses revoked", () => {
+  it("authorizeGrounding allows effective/superseded and refuses revoked/unknown", () => {
     expect(authorizeGrounding({ status: "effective" })).toEqual({ allowed: true });
+    expect(authorizeGrounding({ status: "superseded" })).toEqual({ allowed: true });
     expect(authorizeGrounding({ status: "revoked" })).toEqual({ allowed: false, reason: "revoked" });
+    expect(authorizeGrounding({ status: "unknown" })).toEqual({ allowed: false, reason: "unknown" });
   });
 
   it("an effective grounding version passes the critique through unchanged", () => {
@@ -33,7 +35,7 @@ describe("JE grounding-authority enforcement (#64 consumer side)", () => {
   });
 
   it("a revoked grounding version suppresses blocking and floors a blocked grade to needs_work", () => {
-    const out = enforceGroundingAuthority(critique(), { status: "revoked", headEventHash: "sha256:" + "a".repeat(64) });
+    const out = enforceGroundingAuthority(critique(), { status: "revoked" });
     expect(out.blockingEnabled).toBe(false);
     expect(out.grade).toBe("needs_work");
     // the withdrawn version is named (disclosed, not silent)
@@ -55,10 +57,21 @@ describe("JE grounding-authority enforcement (#64 consumer side)", () => {
     expect(twice.notReviewed).toEqual(once.notReviewed);
   });
 
-  it("the in-memory mirror reports revoked only for listed versions", () => {
+  it("unknown evidence also fails closed without deleting findings", () => {
+    const out = enforceGroundingAuthority(
+      critique({ findings: [{ id: "f1" } as never] }),
+      { status: "unknown" },
+    );
+    expect(out.blockingEnabled).toBe(false);
+    expect(out.grade).toBe("needs_work");
+    expect(out.findings).toHaveLength(1);
+    expect(out.notReviewed.some((n) => n.includes("unknown at publish"))).toBe(true);
+  });
+
+  it("the in-memory mirror never defaults an unlisted version to effective", () => {
     const mirror = inMemoryGroundingAuthority([{ uiDnaVersion: "dna_1", status: "revoked" }]);
     expect(mirror.statusFor("dna_1").status).toBe("revoked");
-    expect(mirror.statusFor("dna_2").status).toBe("effective");
-    expect(mirror.statusFor(null).status).toBe("effective");
+    expect(mirror.statusFor("dna_2").status).toBe("unknown");
+    expect(mirror.statusFor(null).status).toBe("unknown");
   });
 });

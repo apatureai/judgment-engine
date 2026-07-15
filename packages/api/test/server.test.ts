@@ -25,6 +25,32 @@ it("refuses to start a production API with the EM0 stub processor", () => {
   );
 });
 
+it("applies the final beforePublish policy before storing or returning any processor result", async () => {
+  api = createJobApi({
+    store,
+    objectStore,
+    secret: SECRET,
+    beforePublish: async (_job, result) => ({
+      ...result,
+      grade: "needs_work",
+      blockingEnabled: false,
+      notReviewed: [...result.notReviewed, "publication policy applied"],
+    }),
+  });
+  const post = await api.handle(signed("POST", "/jobs", "1", submission("publication-policy")));
+  const jobId = (post.body as { jobId: string }).jobId;
+  const claimed = await store.claimNext("w1", 60_000);
+  const published = await api.processJob(jobId, claimed?.claimGeneration ?? 1);
+
+  expect(published).toMatchObject({
+    grade: "needs_work",
+    blockingEnabled: false,
+    notReviewed: ["publication policy applied"],
+  });
+  const stored = await objectStore.get(`jobs/${jobId}/critique/result.json`);
+  expect(JSON.parse(new TextDecoder().decode(stored ?? new Uint8Array()))).toEqual(published);
+});
+
 function signed(
   method: string,
   path: string,

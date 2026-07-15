@@ -12,6 +12,12 @@ import { modelForDepth } from "./routing.js";
 /** Produces the wire result for a job (the worker step). */
 export type JobProcessor = (job: JobRecord) => Promise<EngineReviewResult>;
 
+/** Last result transformation/check before bytes enter durable publication. */
+export type BeforePublish = (
+  job: JobRecord,
+  result: EngineReviewResult,
+) => Promise<EngineReviewResult>;
+
 export interface JobApiOptions {
   store: JobStore;
   objectStore: ObjectStore;
@@ -26,6 +32,8 @@ export interface JobApiOptions {
   now?: () => number;
   /** Worker step; defaults to a version-stamped stub result. */
   processor?: JobProcessor;
+  /** Final fail-closed policy hook, after every processor path and before persistence. */
+  beforePublish?: BeforePublish;
   /** Production roots must provide the real processor; the EM0 stub is test/dev only. */
   production?: boolean;
   /** Cooperative-cancellation coordinator (#66); when set, DELETE aborts inference + microVM. */
@@ -221,7 +229,12 @@ export function createJobApi(options: JobApiOptions) {
     if (job.claimGeneration !== claimGeneration) {
       throw new Error(`job ${jobId} claim generation ${claimGeneration} is stale`);
     }
-    const result = await processor(job);
+    const assembled = await processor(job);
+    // One hook covers the full/triage/empty processor paths. Authority and other
+    // mutable policy must be rechecked here, not only when dependencies resolve.
+    const result = options.beforePublish
+      ? await options.beforePublish(job, assembled)
+      : assembled;
     const pointer = objectKey(jobId, "critique", "result.json");
     await options.objectStore.put(pointer, JSON.stringify(result), {
       contentType: "application/json",

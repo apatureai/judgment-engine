@@ -117,11 +117,15 @@ describe("EngineMetrics", () => {
     const m = new EngineMetrics(meterProvider.getMeter("test"));
     m.recordHallucinationDrops(2);
     m.recordCaptureInstability(0.4);
+    m.recordAuthorityLookupLatency(18, { outcome: "effective" });
+    m.recordAuthorityLookupFailure("stale");
     m.setQueueDepthProvider(() => 5);
 
     await meterProvider.forceFlush();
 
     expect(collectMetric(exporter, METRIC_NAMES.hallucinationDrops)).toBeDefined();
+    expect(collectMetric(exporter, METRIC_NAMES.authorityLookupLatency)).toBeDefined();
+    expect(collectMetric(exporter, METRIC_NAMES.authorityLookupFailures)).toBeDefined();
     const queueDepth = collectMetric(exporter, METRIC_NAMES.queueDepth);
     expect(queueDepth?.dataPoints[0]?.value).toBe(5);
 

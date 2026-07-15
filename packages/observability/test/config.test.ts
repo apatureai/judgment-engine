@@ -23,6 +23,11 @@ describe("alert config", () => {
     expect(alerts).toContain("engine_critique_hallucination_drops_total");
     expect(alerts).toContain("engine_queue_depth");
   });
+
+  it("pages on a fail-closed authority publication check", () => {
+    expect(alerts).toContain("EngineAuthorityPublicationCheckFailures");
+    expect(alerts).toContain("engine_authority_lookup_failures_total");
+  });
 });
 
 describe("dashboard config", () => {
@@ -35,6 +40,7 @@ describe("dashboard config", () => {
         "Warm-pool utilization",
         "Cache-hit rate",
         "Hallucination-drop rate",
+        "UI-DNA authority publication checks",
       ]),
     );
 
@@ -44,5 +50,7 @@ describe("dashboard config", () => {
     expect(exprs).toContain("engine_warm_pool_utilization");
     expect(exprs).toContain("engine_critique_cache_hit_sum");
     expect(exprs).toContain("engine_critique_hallucination_drops_total");
+    expect(exprs).toContain("engine_authority_lookup_latency_ms_bucket");
+    expect(exprs).toContain("engine_authority_lookup_failures_total");
   });
 });

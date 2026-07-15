@@ -1,0 +1,589 @@
+{
+  "description": "Shared authority-status golden vectors (ui-dna#72 / #64). UI-DNA is the sole authority; Source of Truth, DNA Consultant, and Judgment Engine mirror this file BYTE-IDENTICALLY and assert their (effective|revoked) handling against it, so all four consumers converge on one mirror source. Regenerate only in ui-dna (packages/store/test/authority-golden.test.ts documents how); never hand-edit a downstream copy.",
+  "contractVersion": "uidna-authority/1",
+  "scenarios": {
+    "withdrawalDrill": [
+      {
+        "event": {
+          "eventId": "gold_a1",
+          "sequence": 1,
+          "key": {
+            "tenant": "tenant_gold",
+            "repo": "apatureai/golden",
+            "dnaVersion": "dna_A"
+          },
+          "status": "effective",
+          "effectiveAt": "2026-07-01T00:00:00.000Z",
+          "actor": {
+            "principalId": "approver_1",
+            "principalKind": "user"
+          },
+          "priorEventHash": null
+        },
+        "expected": {
+          "status": "effective",
+          "sequence": 1,
+          "headEventHash": "sha256:5db8311ca775b62b4a0748fcab9b037323972f58b2569e406c7daa3a4b68e5a4"
+        }
+      },
+      {
+        "event": {
+          "eventId": "gold_a2",
+          "sequence": 2,
+          "key": {
+            "tenant": "tenant_gold",
+            "repo": "apatureai/golden",
+            "dnaVersion": "dna_A"
+          },
+          "status": "revoked",
+          "effectiveAt": "2026-07-10T00:00:00.000Z",
+          "actor": {
+            "principalId": "approver_1",
+            "principalKind": "user"
+          },
+          "priorEventHash": "sha256:5db8311ca775b62b4a0748fcab9b037323972f58b2569e406c7daa3a4b68e5a4",
+          "reason": "standard_withdrawn"
+        },
+        "expected": {
+          "status": "revoked",
+          "sequence": 2,
+          "headEventHash": "sha256:3d95c1daa42dbb25d7b92f80d39f9939c9452011d6b6eee05607f1a0a6398878"
+        }
+      }
+    ],
+    "independentReplacement": [
+      {
+        "event": {
+          "eventId": "gold_b1",
+          "sequence": 1,
+          "key": {
+            "tenant": "tenant_gold",
+            "repo": "apatureai/golden",
+            "dnaVersion": "dna_B"
+          },
+          "status": "effective",
+          "effectiveAt": "2026-07-11T00:00:00.000Z",
+          "actor": {
+            "principalId": "approver_1",
+            "principalKind": "user"
+          },
+          "priorEventHash": null
+        },
+        "expected": {
+          "status": "effective",
+          "sequence": 1,
+          "headEventHash": "sha256:20db08bc162f133ba42bf20f49479190f9ed2ffe7803ac104a25966188a724d5"
+        }
+      }
+    ],
+    "supersessionChain": [
+      {
+        "event": {
+          "eventId": "gold_s1",
+          "sequence": 1,
+          "key": {
+            "tenant": "tenant_gold",
+            "repo": "apatureai/golden",
+            "dnaVersion": "dna_S"
+          },
+          "status": "effective",
+          "effectiveAt": "2026-07-01T00:00:00.000Z",
+          "actor": {
+            "principalId": "approver_1",
+            "principalKind": "user"
+          },
+          "priorEventHash": null
+        },
+        "expected": {
+          "status": "effective",
+          "sequence": 1,
+          "headEventHash": "sha256:9dd1e567c1b1c295feed044c1b31e1f28ee4779d89711d7a317bd8dc29ee2da3"
+        }
+      },
+      {
+        "event": {
+          "eventId": "gold_s2",
+          "sequence": 2,
+          "key": {
+            "tenant": "tenant_gold",
+            "repo": "apatureai/golden",
+            "dnaVersion": "dna_S"
+          },
+          "status": "superseded",
+          "effectiveAt": "2026-07-05T00:00:00.000Z",
+          "actor": {
+            "principalId": "approver_1",
+            "principalKind": "user"
+          },
+          "priorEventHash": "sha256:9dd1e567c1b1c295feed044c1b31e1f28ee4779d89711d7a317bd8dc29ee2da3",
+          "replacementDnaVersion": "dna_B"
+        },
+        "expected": {
+          "status": "superseded",
+          "sequence": 2,
+          "headEventHash": "sha256:d74b4593646c0c1fe053f2f3a5cdb3ff97c9f5dc96b1bcd842b1bbd7e10b049d"
+        }
+      },
+      {
+        "event": {
+          "eventId": "gold_s3",
+          "sequence": 3,
+          "key": {
+            "tenant": "tenant_gold",
+            "repo": "apatureai/golden",
+            "dnaVersion": "dna_S"
+          },
+          "status": "revoked",
+          "effectiveAt": "2026-07-12T00:00:00.000Z",
+          "actor": {
+            "principalId": "approver_1",
+            "principalKind": "user"
+          },
+          "priorEventHash": "sha256:d74b4593646c0c1fe053f2f3a5cdb3ff97c9f5dc96b1bcd842b1bbd7e10b049d",
+          "reason": "bad_signoff"
+        },
+        "expected": {
+          "status": "revoked",
+          "sequence": 3,
+          "headEventHash": "sha256:2ac6db6b3f288e68e78374f770369d031ace939b9b053052381bdde515ddc840"
+        }
+      }
+    ]
+  },
+  "idempotentReplay": {
+    "base": [
+      {
+        "eventId": "gold_a1",
+        "sequence": 1,
+        "key": {
+          "tenant": "tenant_gold",
+          "repo": "apatureai/golden",
+          "dnaVersion": "dna_A"
+        },
+        "status": "effective",
+        "effectiveAt": "2026-07-01T00:00:00.000Z",
+        "actor": {
+          "principalId": "approver_1",
+          "principalKind": "user"
+        },
+        "priorEventHash": null
+      },
+      {
+        "eventId": "gold_a2",
+        "sequence": 2,
+        "key": {
+          "tenant": "tenant_gold",
+          "repo": "apatureai/golden",
+          "dnaVersion": "dna_A"
+        },
+        "status": "revoked",
+        "effectiveAt": "2026-07-10T00:00:00.000Z",
+        "actor": {
+          "principalId": "approver_1",
+          "principalKind": "user"
+        },
+        "priorEventHash": "sha256:5db8311ca775b62b4a0748fcab9b037323972f58b2569e406c7daa3a4b68e5a4",
+        "reason": "standard_withdrawn"
+      }
+    ],
+    "event": {
+      "eventId": "gold_a2",
+      "sequence": 2,
+      "key": {
+        "tenant": "tenant_gold",
+        "repo": "apatureai/golden",
+        "dnaVersion": "dna_A"
+      },
+      "status": "revoked",
+      "effectiveAt": "2026-07-10T00:00:00.000Z",
+      "actor": {
+        "principalId": "approver_1",
+        "principalKind": "user"
+      },
+      "priorEventHash": "sha256:5db8311ca775b62b4a0748fcab9b037323972f58b2569e406c7daa3a4b68e5a4",
+      "reason": "standard_withdrawn"
+    }
+  },
+  "rejections": [
+    {
+      "name": "missing_revocation_reason",
+      "base": [
+        {
+          "eventId": "gold_a1",
+          "sequence": 1,
+          "key": {
+            "tenant": "tenant_gold",
+            "repo": "apatureai/golden",
+            "dnaVersion": "dna_A"
+          },
+          "status": "effective",
+          "effectiveAt": "2026-07-01T00:00:00.000Z",
+          "actor": {
+            "principalId": "approver_1",
+            "principalKind": "user"
+          },
+          "priorEventHash": null
+        }
+      ],
+      "event": {
+        "eventId": "gold_r1",
+        "sequence": 2,
+        "key": {
+          "tenant": "tenant_gold",
+          "repo": "apatureai/golden",
+          "dnaVersion": "dna_A"
+        },
+        "status": "revoked",
+        "effectiveAt": "2026-07-10T00:00:00.000Z",
+        "actor": {
+          "principalId": "approver_1",
+          "principalKind": "user"
+        },
+        "priorEventHash": "sha256:5db8311ca775b62b4a0748fcab9b037323972f58b2569e406c7daa3a4b68e5a4"
+      },
+      "reason": "missing_revocation_reason"
+    },
+    {
+      "name": "sequence_gap",
+      "base": [
+        {
+          "eventId": "gold_a1",
+          "sequence": 1,
+          "key": {
+            "tenant": "tenant_gold",
+            "repo": "apatureai/golden",
+            "dnaVersion": "dna_A"
+          },
+          "status": "effective",
+          "effectiveAt": "2026-07-01T00:00:00.000Z",
+          "actor": {
+            "principalId": "approver_1",
+            "principalKind": "user"
+          },
+          "priorEventHash": null
+        }
+      ],
+      "event": {
+        "eventId": "gold_r2",
+        "sequence": 3,
+        "key": {
+          "tenant": "tenant_gold",
+          "repo": "apatureai/golden",
+          "dnaVersion": "dna_A"
+        },
+        "status": "revoked",
+        "effectiveAt": "2026-07-10T00:00:00.000Z",
+        "actor": {
+          "principalId": "approver_1",
+          "principalKind": "user"
+        },
+        "priorEventHash": "sha256:5db8311ca775b62b4a0748fcab9b037323972f58b2569e406c7daa3a4b68e5a4",
+        "reason": "other"
+      },
+      "reason": "sequence_gap"
+    },
+    {
+      "name": "prior_hash_mismatch",
+      "base": [
+        {
+          "eventId": "gold_a1",
+          "sequence": 1,
+          "key": {
+            "tenant": "tenant_gold",
+            "repo": "apatureai/golden",
+            "dnaVersion": "dna_A"
+          },
+          "status": "effective",
+          "effectiveAt": "2026-07-01T00:00:00.000Z",
+          "actor": {
+            "principalId": "approver_1",
+            "principalKind": "user"
+          },
+          "priorEventHash": null
+        }
+      ],
+      "event": {
+        "eventId": "gold_r3",
+        "sequence": 2,
+        "key": {
+          "tenant": "tenant_gold",
+          "repo": "apatureai/golden",
+          "dnaVersion": "dna_A"
+        },
+        "status": "revoked",
+        "effectiveAt": "2026-07-10T00:00:00.000Z",
+        "actor": {
+          "principalId": "approver_1",
+          "principalKind": "user"
+        },
+        "priorEventHash": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+        "reason": "other"
+      },
+      "reason": "prior_hash_mismatch"
+    },
+    {
+      "name": "backdated_effective_time",
+      "base": [
+        {
+          "eventId": "gold_a1",
+          "sequence": 1,
+          "key": {
+            "tenant": "tenant_gold",
+            "repo": "apatureai/golden",
+            "dnaVersion": "dna_A"
+          },
+          "status": "effective",
+          "effectiveAt": "2026-07-01T00:00:00.000Z",
+          "actor": {
+            "principalId": "approver_1",
+            "principalKind": "user"
+          },
+          "priorEventHash": null
+        }
+      ],
+      "event": {
+        "eventId": "gold_r4",
+        "sequence": 2,
+        "key": {
+          "tenant": "tenant_gold",
+          "repo": "apatureai/golden",
+          "dnaVersion": "dna_A"
+        },
+        "status": "revoked",
+        "effectiveAt": "2026-06-01T00:00:00.000Z",
+        "actor": {
+          "principalId": "approver_1",
+          "principalKind": "user"
+        },
+        "priorEventHash": "sha256:5db8311ca775b62b4a0748fcab9b037323972f58b2569e406c7daa3a4b68e5a4",
+        "reason": "other"
+      },
+      "reason": "backdated_effective_time"
+    },
+    {
+      "name": "illegal_status_transition_after_revoked",
+      "base": [
+        {
+          "eventId": "gold_a1",
+          "sequence": 1,
+          "key": {
+            "tenant": "tenant_gold",
+            "repo": "apatureai/golden",
+            "dnaVersion": "dna_A"
+          },
+          "status": "effective",
+          "effectiveAt": "2026-07-01T00:00:00.000Z",
+          "actor": {
+            "principalId": "approver_1",
+            "principalKind": "user"
+          },
+          "priorEventHash": null
+        },
+        {
+          "eventId": "gold_a2",
+          "sequence": 2,
+          "key": {
+            "tenant": "tenant_gold",
+            "repo": "apatureai/golden",
+            "dnaVersion": "dna_A"
+          },
+          "status": "revoked",
+          "effectiveAt": "2026-07-10T00:00:00.000Z",
+          "actor": {
+            "principalId": "approver_1",
+            "principalKind": "user"
+          },
+          "priorEventHash": "sha256:5db8311ca775b62b4a0748fcab9b037323972f58b2569e406c7daa3a4b68e5a4",
+          "reason": "standard_withdrawn"
+        }
+      ],
+      "event": {
+        "eventId": "gold_r5",
+        "sequence": 3,
+        "key": {
+          "tenant": "tenant_gold",
+          "repo": "apatureai/golden",
+          "dnaVersion": "dna_A"
+        },
+        "status": "superseded",
+        "effectiveAt": "2026-07-13T00:00:00.000Z",
+        "actor": {
+          "principalId": "approver_1",
+          "principalKind": "user"
+        },
+        "priorEventHash": "sha256:3d95c1daa42dbb25d7b92f80d39f9939c9452011d6b6eee05607f1a0a6398878",
+        "replacementDnaVersion": "dna_B"
+      },
+      "reason": "illegal_status_transition"
+    },
+    {
+      "name": "wrong_tenant",
+      "base": [
+        {
+          "eventId": "gold_a1",
+          "sequence": 1,
+          "key": {
+            "tenant": "tenant_gold",
+            "repo": "apatureai/golden",
+            "dnaVersion": "dna_A"
+          },
+          "status": "effective",
+          "effectiveAt": "2026-07-01T00:00:00.000Z",
+          "actor": {
+            "principalId": "approver_1",
+            "principalKind": "user"
+          },
+          "priorEventHash": null
+        }
+      ],
+      "event": {
+        "eventId": "gold_r6",
+        "sequence": 2,
+        "key": {
+          "tenant": "tenant_other",
+          "repo": "apatureai/golden",
+          "dnaVersion": "dna_A"
+        },
+        "status": "revoked",
+        "effectiveAt": "2026-07-10T00:00:00.000Z",
+        "actor": {
+          "principalId": "approver_1",
+          "principalKind": "user"
+        },
+        "priorEventHash": "sha256:5db8311ca775b62b4a0748fcab9b037323972f58b2569e406c7daa3a4b68e5a4",
+        "reason": "other"
+      },
+      "reason": "wrong_tenant"
+    },
+    {
+      "name": "first_event_not_effective",
+      "base": [],
+      "event": {
+        "eventId": "gold_r7",
+        "sequence": 1,
+        "key": {
+          "tenant": "tenant_gold",
+          "repo": "apatureai/golden",
+          "dnaVersion": "dna_A"
+        },
+        "status": "revoked",
+        "effectiveAt": "2026-07-01T00:00:00.000Z",
+        "actor": {
+          "principalId": "approver_1",
+          "principalKind": "user"
+        },
+        "priorEventHash": null,
+        "reason": "other"
+      },
+      "reason": "first_event_not_effective"
+    },
+    {
+      "name": "duplicate_out_of_order_event",
+      "base": [
+        {
+          "eventId": "gold_a1",
+          "sequence": 1,
+          "key": {
+            "tenant": "tenant_gold",
+            "repo": "apatureai/golden",
+            "dnaVersion": "dna_A"
+          },
+          "status": "effective",
+          "effectiveAt": "2026-07-01T00:00:00.000Z",
+          "actor": {
+            "principalId": "approver_1",
+            "principalKind": "user"
+          },
+          "priorEventHash": null
+        },
+        {
+          "eventId": "gold_a2",
+          "sequence": 2,
+          "key": {
+            "tenant": "tenant_gold",
+            "repo": "apatureai/golden",
+            "dnaVersion": "dna_A"
+          },
+          "status": "revoked",
+          "effectiveAt": "2026-07-10T00:00:00.000Z",
+          "actor": {
+            "principalId": "approver_1",
+            "principalKind": "user"
+          },
+          "priorEventHash": "sha256:5db8311ca775b62b4a0748fcab9b037323972f58b2569e406c7daa3a4b68e5a4",
+          "reason": "standard_withdrawn"
+        }
+      ],
+      "event": {
+        "eventId": "gold_a1",
+        "sequence": 1,
+        "key": {
+          "tenant": "tenant_gold",
+          "repo": "apatureai/golden",
+          "dnaVersion": "dna_A"
+        },
+        "status": "effective",
+        "effectiveAt": "2026-07-01T00:00:00.000Z",
+        "actor": {
+          "principalId": "approver_1",
+          "principalKind": "user"
+        },
+        "priorEventHash": null
+      },
+      "reason": "duplicate_out_of_order_event"
+    }
+  ],
+  "readDecisions": [
+    {
+      "status": "effective",
+      "mode": "latest",
+      "expected": {
+        "serve": true,
+        "status": "effective"
+      }
+    },
+    {
+      "status": "effective",
+      "mode": "pinned",
+      "expected": {
+        "serve": true,
+        "status": "effective"
+      }
+    },
+    {
+      "status": "superseded",
+      "mode": "latest",
+      "expected": {
+        "serve": false,
+        "status": "superseded",
+        "reason": "superseded_not_pinned"
+      }
+    },
+    {
+      "status": "superseded",
+      "mode": "pinned",
+      "expected": {
+        "serve": true,
+        "status": "superseded"
+      }
+    },
+    {
+      "status": "revoked",
+      "mode": "latest",
+      "expected": {
+        "serve": false,
+        "status": "revoked",
+        "reason": "revoked"
+      }
+    },
+    {
+      "status": "revoked",
+      "mode": "pinned",
+      "expected": {
+        "serve": false,
+        "status": "revoked",
+        "reason": "revoked"
+      }
+    }
+  ]
+}

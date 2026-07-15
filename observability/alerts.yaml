@@ -9,6 +9,8 @@
 #   engine.critique.cache_hit (hist)                -> engine_critique_cache_hit_bucket
 #   engine.model.cache_read_input_tokens (hist)     -> engine_model_cache_read_input_tokens_*
 #   engine.model.rate_limited (counter)             -> engine_model_rate_limited_total
+#   engine.authority.lookup_latency_ms (hist)        -> engine_authority_lookup_latency_ms_bucket
+#   engine.authority.lookup_failures (counter)       -> engine_authority_lookup_failures_total
 groups:
   - name: engine-cache
     rules:
@@ -69,3 +71,14 @@ groups:
           severity: warn
         annotations:
           summary: "Engine job queue depth is high (capacity/fairness pressure)"
+
+      - alert: EngineAuthorityPublicationCheckFailures
+        expr: increase(engine_authority_lookup_failures_total[10m]) > 0
+        for: 0m
+        labels:
+          severity: page
+        annotations:
+          summary: "UI-DNA authority check failed closed before result publication"
+          runbook: >-
+            Inspect the bounded reason label and Source of Truth availability;
+            affected reviews remain advisory by design (#175).

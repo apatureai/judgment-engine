@@ -45,6 +45,14 @@
       "title": "Model rate-limiting",
       "type": "timeseries",
       "targets": [{ "expr": "sum(rate(engine_model_rate_limited_total[5m]))" }]
+    },
+    {
+      "title": "UI-DNA authority publication checks",
+      "type": "timeseries",
+      "targets": [
+        { "expr": "histogram_quantile(0.95, sum(rate(engine_authority_lookup_latency_ms_bucket[5m])) by (le))" },
+        { "expr": "sum(rate(engine_authority_lookup_failures_total[5m])) by (reason)" }
+      ]
     }
   ]
 }

@@ -70,6 +70,21 @@ Context grounds the model in the actual repo and must be deterministic and versi
 
 Tiled images (within `max_pixels`) + context block + deterministic checks -> Thinking pass -> `json_object` coercion -> Zod parse -> **drop-and-count hallucination gate** (drop any finding whose `route`/`element_ref` is not in the captured set / geometry map; emit the drop as a metric) -> apply the exact promoted `CalibrationReportV1` transform -> report-owned instability/post-filter/blocking thresholds -> dedupe/cap -> version + report stamp. Without a valid report for the result's model/prompt/engine/capture/rubric identities, keep the review advisory, omit numeric confidence, and never rank or block on the raw score. Deterministic facts (contrast, overflow, touch targets) are computed in code and given to the model as facts, never read off pixels. Deferred: conditional re-ask/repair; `json_schema` coercion when GA.
 
+- **UI-DNA authority is revalidated at publication (added July 14, 2026;
+  #175).** When grounding is configured, production requires both the genome
+  resolver and a `GroundingAuthorityPort`. Resolve carries Source of Truth's
+  exact DNA version and `uidna-authority/1` receipt. After
+  every full, triage, or empty review path, the Job API's single
+  `beforePublish` hook uses Source of Truth's separately authorized
+  authority-only operation to verify the same tenant/repository/DNA version,
+  freshness (60-second maximum age), monotonic
+  sequence, head consistency, and terminal revocation, then stamps the result.
+  Revoked evidence, or missing/malformed/stale/regressed/unavailable evidence,
+  preserves findings but forces `blockingEnabled=false`, floors `blocked` to
+  `needs_work`, and records `revoked` or `unknown` provenance. The HTTP lookup
+  is bounded to 2 seconds; staging latency evidence may lower or raise that
+  bound deliberately, never remove it. UI-DNA remains the sole writer.
+
 ## 9. Evaluation & Model/Prompt Promotion (E6, E4)
 
 - Synthetic canary generator; 150-PR human-labeled set; precision/recall by dimension; blocker recall (headline); nit precision (trust); quadratic-weighted kappa (+ Krippendorff α / Gwet AC2 on skewed sets) with bootstrapped CIs.
@@ -98,7 +113,7 @@ Monorepo (pnpm): job-API service, capture worker, context worker, critique adapt
 
 ## 14. Observability & SLOs
 
-OTel spans across job -> capture -> context -> critique -> validate -> store, with `{engineVersion, model, promptVersion, captureVersion}` span attributes. SLOs: end-to-end critique latency p50/p95; hallucination-drop rate; capture-instability rate; queue backpressure; model-rate-limit incidents; eval precision/recall by dimension. Grafana panels per consumer and per tenant; alerts on hallucination-drop spikes, eval-gate regressions, and capacity saturation.
+OTel spans across job -> capture -> context -> critique -> validate -> authority -> store, with `{engineVersion, model, promptVersion, captureVersion}` span attributes. SLOs: end-to-end critique latency p50/p95; hallucination-drop rate; capture-instability rate; queue backpressure; model-rate-limit incidents; UI-DNA authority lookup p95 and fail-closed error rate; eval precision/recall by dimension. Grafana panels per consumer and per tenant; alerts on authority-check failures, hallucination-drop spikes, eval-gate regressions, and capacity saturation.
 
 ## 15. Milestones
 

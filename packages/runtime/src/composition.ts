@@ -5,6 +5,7 @@ import {
   ENGINE_VERSION,
   PROMPT_VERSION,
   RUBRIC_VERSION,
+  enforceGroundingAuthority,
   resolvePassModel,
   type ModelClientFactory,
   type PassModelOverrides,
@@ -16,11 +17,23 @@ import {
   type PromotedCalibration,
 } from "@engine/eval";
 import { CancellationCoordinator, JobStore, type JobRecord } from "@engine/jobs";
-import { initTelemetry, type Telemetry } from "@engine/observability";
+import { EngineMetrics, initTelemetry, METER_NAME, type Telemetry } from "@engine/observability";
 import { EnvSecretStore } from "@engine/secrets";
 import { S3ObjectStore, type ObjectStore } from "@engine/storage";
+import type { EngineReviewResult, GroundingAuthorityUnknownReason } from "@engine/types";
 import { Pool } from "pg";
 import { HttpCaptureClient, HttpGenomeResolver, createOpenAIAdapters, type CaptureClient, type GenomeResolver } from "./adapters.js";
+import {
+  GroundingAuthorityError,
+  authorityProvenance,
+  compareAuthorityReceipts,
+  monotonicGroundingAuthorityPort,
+  unknownAuthorityProvenance,
+  validateGroundingAuthorityReceipt,
+  type GroundingAuthorityKey,
+  type GroundingAuthorityPort,
+  type GroundingAuthorityReceipt,
+} from "./authority.js";
 import { loadRuntimeConfig, type RuntimeConfig } from "./config.js";
 import { EngineHttpServer } from "./http.js";
 import { repositoryForJob, toReviewInput } from "./input.js";
@@ -35,6 +48,15 @@ export interface EngineRuntimeOptions {
   passModels?: PassModelOverrides;
   calibrationResolver?: { currentCalibration(): Promise<PromotedCalibration | null> };
   genomeResolver?: GenomeResolver;
+  /** Required alongside genomeResolver; rechecks the exact version at publication. */
+  groundingAuthority?: GroundingAuthorityPort;
+  /** Authority mirror freshness bound (default 60 seconds). */
+  authorityMaxAgeMs?: number;
+  authorityNow?: () => Date;
+  authorityMetrics?: Pick<
+    EngineMetrics,
+    "recordAuthorityLookupLatency" | "recordAuthorityLookupFailure"
+  >;
   embedder?: Embedder;
   notificationSource?: NotificationSource;
   databaseReady(): Promise<boolean>;
@@ -56,6 +78,25 @@ export interface EngineRuntime {
 
 /** Compose the real API, orchestrator processor, cancellation, worker, and health surfaces. */
 export function createEngineRuntime(options: EngineRuntimeOptions): EngineRuntime {
+  if (Boolean(options.genomeResolver) !== Boolean(options.groundingAuthority)) {
+    throw new Error("UI-DNA grounding requires both genomeResolver and groundingAuthority");
+  }
+  const authorityNow = options.authorityNow ?? ((): Date => new Date());
+  const authority = options.groundingAuthority
+    ? monotonicGroundingAuthorityPort({
+        statusFor: async (key) => validateGroundingAuthorityReceipt(
+          await options.groundingAuthority!.statusFor(key),
+          { now: authorityNow(), ...(options.authorityMaxAgeMs !== undefined
+            ? { maxAgeMs: options.authorityMaxAgeMs }
+            : {}) },
+        ),
+      })
+    : undefined;
+  const groundingByJob = new Map<string, {
+    key: GroundingAuthorityKey;
+    initial: GroundingAuthorityReceipt | null;
+    initialFailure: GroundingAuthorityUnknownReason | null;
+  }>();
   const coordinator = new CancellationCoordinator((jobId) => options.capture.cancel(jobId));
   const coreProcessor = createJobReviewProcessor(
     toReviewInput,
@@ -84,6 +125,27 @@ export function createEngineRuntime(options: EngineRuntimeOptions): EngineRuntim
         throw new Error("UI-DNA grounding resolved a genome but no embedder is configured");
       }
       input.context.uiDnaVersion = resolvedGenome?.version ?? null;
+      if (resolvedGenome) {
+        let initial: GroundingAuthorityReceipt | null = null;
+        let initialFailure: GroundingAuthorityUnknownReason | null = null;
+        try {
+          initial = validateGroundingAuthorityReceipt(resolvedGenome.authority, {
+            now: authorityNow(),
+            ...(options.authorityMaxAgeMs !== undefined ? { maxAgeMs: options.authorityMaxAgeMs } : {}),
+          });
+        } catch (error) {
+          initialFailure = error instanceof GroundingAuthorityError ? error.reason : "malformed";
+        }
+        groundingByJob.set(job.id, {
+          key: {
+            tenantId: job.installationId,
+            repository: repositoryForJob(job),
+            dnaVersion: resolvedGenome.version,
+          },
+          initial,
+          initialFailure,
+        });
+      }
       const genomeIndex = resolvedGenome && options.embedder
         ? await buildGenomeIndex(resolvedGenome.version, resolvedGenome.rules, options.embedder)
         : undefined;
@@ -101,11 +163,68 @@ export function createEngineRuntime(options: EngineRuntimeOptions): EngineRuntim
     },
   );
   const processor = async (job: JobRecord) => coreProcessor(job);
+  const beforePublish = async (job: JobRecord, assembled: EngineReviewResult): Promise<EngineReviewResult> => {
+    const grounding = groundingByJob.get(job.id);
+    if (!grounding || !authority) return assembled;
+
+    const startedAt = Date.now();
+    let publication: GroundingAuthorityReceipt | null = null;
+    try {
+      publication = await authority.statusFor(grounding.key);
+      if (grounding.initialFailure) {
+        throw new GroundingAuthorityError(
+          grounding.initialFailure,
+          "resolve-time authority evidence was not trustworthy",
+        );
+      }
+      if (!grounding.initial) {
+        throw new GroundingAuthorityError("missing", "resolve-time authority evidence is missing");
+      }
+      if (assembled.metadata.uiDnaVersion !== grounding.key.dnaVersion) {
+        throw new GroundingAuthorityError("malformed", "result DNA version differs from authority key");
+      }
+      compareAuthorityReceipts(grounding.initial, publication);
+      const publicationCheckedAt = authorityNow().toISOString();
+      options.authorityMetrics?.recordAuthorityLookupLatency(Date.now() - startedAt, {
+        outcome: publication.status,
+      });
+      const stamped: EngineReviewResult = {
+        ...assembled,
+        metadata: {
+          ...assembled.metadata,
+          groundingAuthority: authorityProvenance(publication, publicationCheckedAt),
+        },
+      };
+      return enforceGroundingAuthority(stamped, { status: publication.status });
+    } catch (error) {
+      const reason: GroundingAuthorityUnknownReason = error instanceof GroundingAuthorityError
+        ? error.reason
+        : "unavailable";
+      const lastKnown = error instanceof GroundingAuthorityError ? error.lastKnown : undefined;
+      const publicationCheckedAt = authorityNow().toISOString();
+      options.authorityMetrics?.recordAuthorityLookupLatency(Date.now() - startedAt, { outcome: "unknown" });
+      options.authorityMetrics?.recordAuthorityLookupFailure(reason);
+      options.logger?.info(`engine job ${job.id} grounding authority unknown: ${reason}`);
+      const stamped: EngineReviewResult = {
+        ...assembled,
+        metadata: {
+          ...assembled.metadata,
+          groundingAuthority: unknownAuthorityProvenance(
+            lastKnown ?? publication ?? grounding.initial,
+            publicationCheckedAt,
+            reason,
+          ),
+        },
+      };
+      return enforceGroundingAuthority(stamped, { status: "unknown" });
+    }
+  };
   const api = createJobApi({
     store: options.store,
     objectStore: options.objectStore,
     secret: options.engineHmacSecret,
     processor,
+    beforePublish,
     coordinator,
     production: true,
   });
@@ -129,7 +248,10 @@ export function createEngineRuntime(options: EngineRuntimeOptions): EngineRuntim
     finalizeCancellation: async (jobId, claimGeneration) => {
       await options.store.markCanceled(jobId, claimGeneration);
     },
-    onJobSettled: (jobId) => coordinator.release(jobId),
+    onJobSettled: (jobId) => {
+      coordinator.release(jobId);
+      groundingByJob.delete(jobId);
+    },
     ...(options.logger ? { logger: options.logger } : {}),
   });
   const server = new EngineHttpServer({
@@ -191,9 +313,10 @@ export async function buildProductionRuntime(env: NodeJS.ProcessEnv = process.en
     ...(config.embeddingModel ? { embeddingModel: config.embeddingModel } : {}),
   });
   const genomeResolver = config.genomeEndpoint && config.genomeToken
-    ? new HttpGenomeResolver(config.genomeEndpoint, config.genomeToken)
+    ? new HttpGenomeResolver(config.genomeEndpoint, config.genomeToken, fetch, config.authorityTimeoutMs)
     : undefined;
   const telemetry = initTelemetry({ serviceName: "judgment-engine", serviceVersion: "0.0.0" });
+  const authorityMetrics = new EngineMetrics(telemetry.meterProvider.getMeter(METER_NAME));
   const runtime = createEngineRuntime({
     store,
     objectStore,
@@ -203,6 +326,9 @@ export async function buildProductionRuntime(env: NodeJS.ProcessEnv = process.en
     passModels: config.passModels,
     calibrationResolver: calibrationRegistry,
     ...(genomeResolver ? { genomeResolver } : {}),
+    ...(genomeResolver ? { groundingAuthority: genomeResolver } : {}),
+    authorityMaxAgeMs: config.authorityMaxAgeMs,
+    authorityMetrics,
     ...(openai.embedder ? { embedder: openai.embedder } : {}),
     notificationSource: new PgNotificationSource(config.databaseUrl),
     databaseReady: async () => {

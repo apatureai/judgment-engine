@@ -27,7 +27,9 @@ flowchart TD
   F --> G["Context extract (sandboxed)"]
   G --> H["Critique (Qwen3-VL adapter)"]
   H --> I["Validate: Zod + drop-and-count hallucination gate"]
-  I --> J["Stamp versions; write result to object storage; status=completed"]
+  I --> J["Stamp versions + wire projection"]
+  J --> L["Revalidate exact UI-DNA authority receipt"]
+  L --> M["Write result to object storage; status=completed"]
   A -->|"GET /jobs/:id (poll)"| B
   A -->|"DELETE /jobs/:id"| K["status=cancelling -> kill microVM + abort inference"]
 ```
@@ -107,6 +109,16 @@ flowchart LR
 - **Structured output:** DashScope is a two-step path (Thinking critique → non-thinking `json_object` coercion → Zod) because thinking and JSON mode are mutually exclusive and `max_tokens` cannot be set with `json_object`. Self-host uses single-call guided decoding (SGLang + XGrammar) — the better path, deferred to act-2. SGLang is the primary self-host recommendation: RadixAttention prefix reuse fits the byte-identical context block, and SGLang overlaps grammar-mask generation with inference so guided decoding stays cheap (vLLM degrades at batch >=8). See TRD §7 (2026-06-20 research note, #76).
 - **Image budget:** Qwen3-VL patch-16 + `min_pixels`/`max_pixels` (not Claude's `⌈w/28⌉`/2576px/4784-token constants); `max_pixels` enforced in the adapter and is the cost lever. Prefix caching keyed on the byte-identical context block.
 - **Hallucination gate:** findings whose `route`/`element_ref` are not in the captured set / DOM geometry map are dropped and counted; the drop rate is an SLO that feeds eval.
+- **Publication authority (added July 14, 2026; #175):** a grounded review is not
+  publishable merely because its genome resolved as effective. Source of Truth
+  returns the exact DNA version plus UI-DNA's monotonic sequence/head/freshness
+  receipt; the runtime carries that receipt through capture and inference, then
+  performs a separately authorized tenant/repository/version recheck in the Job API's single
+  pre-persistence hook. `revoked` suppresses blocking. Missing, malformed, stale,
+  unavailable, conflicting, or regressed evidence becomes `unknown` and also
+  suppresses blocking. Findings remain intact, while the governing receipt and
+  publication check time are stamped in result metadata. UI-DNA is the sole
+  authority; Judgment Engine never writes authority or customer code.
 
 ## 7. Data Moat & Learning Pipeline (Decision E5)
 

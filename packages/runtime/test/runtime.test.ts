@@ -21,17 +21,37 @@ import { afterEach, describe, expect, it } from "vitest";
 import {
   createEngineRuntime,
   EngineWorker,
+  GroundingAuthorityError,
   HttpGenomeResolver,
   runtimeReviewRequestSchema,
   toReviewInput,
   type CaptureClient,
   type EngineRuntime,
+  type GenomeResolver,
+  type GroundingAuthorityPort,
+  type GroundingAuthorityReceipt,
   type NotificationSource,
   type WorkerStore,
 } from "../src/index.js";
 
 const SECRET = "runtime-hmac-secret";
 const VIEWPORT = "desktop" as const;
+const AUTHORITY_HEAD_1 = `sha256:${"a".repeat(64)}` as const;
+const AUTHORITY_HEAD_2 = `sha256:${"b".repeat(64)}` as const;
+
+function authorityReceipt(
+  sequence: number,
+  status: GroundingAuthorityReceipt["status"],
+  checkedAt = "2026-07-14T20:00:00.000Z",
+): GroundingAuthorityReceipt {
+  return {
+    contractVersion: "uidna-authority/1",
+    status,
+    sequence,
+    headEventHash: sequence === 1 ? AUTHORITY_HEAD_1 : AUTHORITY_HEAD_2,
+    checkedAt,
+  };
+}
 const drill = JSON.parse(
   readFileSync(fileURLToPath(new URL("./fixtures/genome-lifecycle-drill.golden.json", import.meta.url)), "utf8"),
 ) as {
@@ -190,6 +210,25 @@ function job(input: unknown = reviewRequest()): JobRecord {
 }
 
 describe("runtime request binding", () => {
+  it("requires the publication authority port whenever genome grounding is configured", () => {
+    const base = {
+      store: {} as JobStore,
+      objectStore: new InMemoryObjectStore(),
+      engineHmacSecret: SECRET,
+      capture: captureClient(),
+      modelFactory: defaultModelFactory,
+      databaseReady: async () => true,
+    };
+    expect(() => createEngineRuntime({
+      ...base,
+      genomeResolver: { resolve: async () => null },
+    })).toThrow(/requires both genomeResolver and groundingAuthority/);
+    expect(() => createEngineRuntime({
+      ...base,
+      groundingAuthority: { statusFor: async () => authorityReceipt(1, "effective") },
+    })).toThrow(/requires both genomeResolver and groundingAuthority/);
+  });
+
   it("loads the built production graph under native Node ESM resolution", () => {
     const result = spawnSync(
       process.execPath,
@@ -226,7 +265,18 @@ describe("approved genome adapter", () => {
         requestedUrl = String(input);
         requestedInstallation = new Headers(init?.headers).get("x-apature-installation-id") ?? "";
         return new Response(JSON.stringify({
-          snapshot: { id: drill.sourceOfTruth.snapshotId, approval_state: "approved" },
+          snapshot: {
+            id: drill.sourceOfTruth.snapshotId,
+            dna_version: drill.judgmentEngine.uiDnaVersion,
+            approval_state: "approved",
+            authority: {
+              contract_version: "uidna-authority/1",
+              status: "effective",
+              sequence: 1,
+              head_event_hash: AUTHORITY_HEAD_1,
+              checked_at: "2026-07-14T20:00:00.000Z",
+            },
+          },
           items: [{
             field_id: drill.sourceOfTruth.itemIds[0],
             kind: "token",
@@ -239,6 +289,13 @@ describe("approved genome adapter", () => {
 
     await expect(resolver.resolve("apatureai/demo", "tenant_1")).resolves.toEqual({
       version: drill.judgmentEngine.uiDnaVersion,
+      authority: {
+        contractVersion: "uidna-authority/1",
+        status: "effective",
+        sequence: 1,
+        headEventHash: AUTHORITY_HEAD_1,
+        checkedAt: "2026-07-14T20:00:00.000Z",
+      },
       rules: [{
         id: drill.sourceOfTruth.itemIds[0],
         text: JSON.stringify({
@@ -249,6 +306,34 @@ describe("approved genome adapter", () => {
     });
     expect(requestedUrl).toBe("https://source.apature.test/v1/repos/apatureai%2Fdemo/ui-dna?max_items=100");
     expect(requestedInstallation).toBe("tenant_1");
+  });
+
+  it("revalidates the exact DNA authority key without requesting genome bytes", async () => {
+    let requestedUrl = "";
+    const resolver = new HttpGenomeResolver(
+      "https://source.apature.test",
+      "service-token",
+      async (input) => {
+        requestedUrl = String(input);
+        return new Response(JSON.stringify({
+          dna_version: "dna@1",
+          contract_version: "uidna-authority/1",
+          status: "revoked",
+          sequence: 2,
+          head_event_hash: AUTHORITY_HEAD_2,
+          checked_at: "2026-07-14T20:00:01.000Z",
+        }), { status: 200, headers: { "content-type": "application/json" } });
+      },
+    );
+
+    await expect(resolver.statusFor({
+      tenantId: "tenant_1",
+      repository: "apatureai/demo",
+      dnaVersion: "dna@1",
+    })).resolves.toMatchObject({ status: "revoked", sequence: 2, headEventHash: AUTHORITY_HEAD_2 });
+    expect(requestedUrl).toBe(
+      "https://source.apature.test/v1/repos/apatureai%2Fdemo/ui-dna/authority/dna%401",
+    );
   });
 
   it("treats an absent approved snapshot as no genome", async () => {
@@ -395,6 +480,200 @@ describe("production composition integration", () => {
     runtime = undefined;
   });
 
+  async function runAuthorityReview(
+    provider: GenomeResolver & GroundingAuthorityPort,
+    options: {
+      capture?: CaptureClient;
+      afterSubmit?: () => Promise<void>;
+    } = {},
+  ): Promise<EngineReviewResult> {
+    const db = new PGlite();
+    const exec = pgliteExecutor(db);
+    await runMigrations(exec);
+    const store = new JobStore(exec);
+    const registry = new ModelPromptRegistry(exec, {
+      now: () => Date.parse("2026-07-13T00:00:00.000Z"),
+      verifyAttestation: async (report) => report.attestation?.signature === "verified-runtime-fixture",
+    });
+    const report = promotedRuntimeReport();
+    const candidate = await registry.registerCandidate(report.identity);
+    await registry.recordEval(candidate.id, true);
+    await registry.bindCalibrationReport(candidate.id, report);
+    await registry.promote(candidate.id, { mode: "blocking" });
+
+    runtime = createEngineRuntime({
+      store,
+      objectStore: new InMemoryObjectStore(),
+      engineHmacSecret: SECRET,
+      capture: options.capture ?? captureClient(),
+      modelFactory: calibratedModelFactory,
+      calibrationResolver: registry,
+      genomeResolver: provider,
+      groundingAuthority: provider,
+      authorityNow: () => new Date("2026-07-14T20:00:02.000Z"),
+      embedder: async (texts) => texts.map(() => [1, 0]),
+      databaseReady: async () => true,
+      workerPollMs: 5,
+    });
+    const port = await runtime.start(0, "127.0.0.1");
+    const base = `http://127.0.0.1:${port}`;
+    const request = reviewRequest();
+    request.installationId = "tenant_1";
+    const submitBody = JSON.stringify({
+      idempotencyKey: "authority-review",
+      depth: "deep",
+      request,
+    });
+    const submit = await fetch(`${base}/jobs`, {
+      method: "POST",
+      headers: signEngineRequest({ body: submitBody, installationId: "tenant_1", secret: SECRET }),
+      body: submitBody,
+    });
+    expect(submit.status).toBe(202);
+    const { jobId } = await submit.json() as { jobId: string };
+    await options.afterSubmit?.();
+
+    for (let attempt = 0; attempt < 200; attempt++) {
+      const headers = signEngineRequest({ body: "", installationId: "tenant_1", secret: SECRET });
+      const response = await fetch(`${base}/jobs/${jobId}`, { headers });
+      const polled = await response.json() as {
+        state: string;
+        result?: EngineReviewResult;
+        error?: string;
+      };
+      if (polled.state === "completed" && polled.result) return polled.result;
+      if (polled.state === "failed") throw new Error(polled.error ?? "review failed");
+      await new Promise((resolve) => setTimeout(resolve, 5));
+    }
+    throw new Error("review did not complete");
+  }
+
+  function providerFor(
+    initial: GroundingAuthorityReceipt | null,
+    publication: GroundingAuthorityReceipt | Error,
+    calls?: { status: number },
+  ): GenomeResolver & GroundingAuthorityPort {
+    return {
+      resolve: async () => initial === null
+        ? null
+        : {
+            version: "dna@1",
+            rules: [{ id: "rule-1", text: "Use the approved spacing scale." }],
+            authority: initial,
+          },
+      statusFor: async () => {
+        if (calls) calls.status++;
+        if (publication instanceof Error) throw publication;
+        return publication;
+      },
+    };
+  }
+
+  it("rechecks after model work and suppresses a version revoked during review", async () => {
+    let current = authorityReceipt(1, "effective");
+    let enteredCapture: (() => void) | undefined;
+    let releaseCapture: (() => void) | undefined;
+    const entered = new Promise<void>((resolve) => { enteredCapture = resolve; });
+    const release = new Promise<void>((resolve) => { releaseCapture = resolve; });
+    const baseCapture = captureClient();
+    const pausedCapture: CaptureClient = {
+      ...baseCapture,
+      forJob: (jobId, signal) => {
+        const capture = baseCapture.forJob(jobId, signal);
+        return async (url, context) => {
+          enteredCapture?.();
+          await release;
+          return capture(url, context);
+        };
+      },
+    };
+    const provider: GenomeResolver & GroundingAuthorityPort = {
+      resolve: async () => ({
+        version: "dna@1",
+        rules: [{ id: "rule-1", text: "Use the approved spacing scale." }],
+        authority: authorityReceipt(1, "effective"),
+      }),
+      statusFor: async () => current,
+    };
+
+    const result = await runAuthorityReview(provider, {
+      capture: pausedCapture,
+      afterSubmit: async () => {
+        await entered;
+        current = authorityReceipt(2, "revoked");
+        releaseCapture?.();
+      },
+    });
+    expect(result.blockingEnabled).toBe(false);
+    expect(result.findings).toHaveLength(1);
+    expect(result.notReviewed.some((note) => note.includes("revoked before publish"))).toBe(true);
+    expect(result.metadata.groundingAuthority).toMatchObject({
+      status: "revoked",
+      sequence: 2,
+      headEventHash: AUTHORITY_HEAD_2,
+    });
+  });
+
+  it.each([
+    {
+      name: "authority outage",
+      initial: authorityReceipt(1, "effective"),
+      publication: new Error("timeout"),
+      reason: "unavailable",
+    },
+    {
+      name: "missing exact-version evidence",
+      initial: authorityReceipt(1, "effective"),
+      publication: new GroundingAuthorityError("missing", "not found"),
+      reason: "missing",
+    },
+    {
+      name: "malformed publication evidence",
+      initial: authorityReceipt(1, "effective"),
+      publication: {} as GroundingAuthorityReceipt,
+      reason: "malformed",
+    },
+    {
+      name: "stale publication receipt",
+      initial: authorityReceipt(1, "effective"),
+      publication: authorityReceipt(2, "effective", "2026-07-14T19:58:00.000Z"),
+      reason: "stale",
+    },
+    {
+      name: "sequence regression",
+      initial: authorityReceipt(2, "effective"),
+      publication: authorityReceipt(1, "effective"),
+      reason: "sequence_regression",
+    },
+  ])("fails closed to an advisory result on $name", async ({ initial, publication, reason }) => {
+    const result = await runAuthorityReview(providerFor(initial, publication));
+    expect(result.blockingEnabled).toBe(false);
+    expect(result.findings).toHaveLength(1);
+    expect(result.metadata.groundingAuthority).toMatchObject({ status: "unknown", reason });
+    if (reason === "sequence_regression") {
+      expect(result.metadata.groundingAuthority?.sequence).toBe(2);
+      expect(result.metadata.groundingAuthority?.headEventHash).toBe(AUTHORITY_HEAD_2);
+    }
+    expect(result.notReviewed.some((note) => note.includes("unknown at publish"))).toBe(true);
+  });
+
+  it("suppresses a version already revoked when it resolves", async () => {
+    const revoked = authorityReceipt(2, "revoked");
+    const result = await runAuthorityReview(providerFor(revoked, revoked));
+    expect(result.blockingEnabled).toBe(false);
+    expect(result.metadata.groundingAuthority?.status).toBe("revoked");
+    expect(result.notReviewed.some((note) => note.includes("revoked before publish"))).toBe(true);
+  });
+
+  it("preserves the existing ungrounded result path and performs no authority lookup", async () => {
+    const calls = { status: 0 };
+    const result = await runAuthorityReview(providerFor(null, new Error("must not be called"), calls));
+    expect(result.metadata.uiDnaVersion).toBeNull();
+    expect(result.metadata.groundingAuthority).toBeUndefined();
+    expect(result.blockingEnabled).toBe(true);
+    expect(calls.status).toBe(0);
+  });
+
   it("runs submit -> poll/claim -> real orchestrator -> stored wire result", async () => {
     const db = new PGlite();
     const exec = pgliteExecutor(db);
@@ -410,6 +689,24 @@ describe("production composition integration", () => {
     await registry.bindCalibrationReport(candidate.id, report);
     await registry.promote(candidate.id, { mode: "blocking" });
     let resolvedGenome = false;
+    const effectiveReceipt = {
+      contractVersion: "uidna-authority/1" as const,
+      status: "effective" as const,
+      sequence: 1,
+      headEventHash: AUTHORITY_HEAD_1,
+      checkedAt: "2026-07-14T20:00:00.000Z",
+    };
+    const groundedProvider = {
+      resolve: async (repository: string, installationId: string) => {
+        resolvedGenome = repository === "apatureai/demo" && installationId === "tenant_1";
+        return {
+          version: "dna@1",
+          rules: [{ id: "rule-1", text: "Use the approved spacing scale." }],
+          authority: effectiveReceipt,
+        };
+      },
+      statusFor: async () => effectiveReceipt,
+    };
     runtime = createEngineRuntime({
       store,
       objectStore: new InMemoryObjectStore(),
@@ -417,15 +714,9 @@ describe("production composition integration", () => {
       capture: captureClient(),
       modelFactory: calibratedModelFactory,
       calibrationResolver: registry,
-      genomeResolver: {
-        resolve: async (repository, installationId) => {
-          resolvedGenome = repository === "apatureai/demo" && installationId === "tenant_1";
-          return {
-            version: "dna@1",
-            rules: [{ id: "rule-1", text: "Use the approved spacing scale." }],
-          };
-        },
-      },
+      genomeResolver: groundedProvider,
+      groundingAuthority: groundedProvider,
+      authorityNow: () => new Date("2026-07-14T20:00:02.000Z"),
       embedder: async (texts) => texts.map(() => [1, 0]),
       databaseReady: async () => true,
       workerPollMs: 5,
@@ -455,6 +746,11 @@ describe("production composition integration", () => {
     expect(final?.result?.metadata.captureVersion).toBe("capture-http@1");
     expect(final?.result?.metadata.promptVersion).not.toBe("stub@0");
     expect(final?.result?.metadata.uiDnaVersion).toBe("dna@1");
+    expect(final?.result?.metadata.groundingAuthority).toMatchObject({
+      status: "effective",
+      sequence: 1,
+      headEventHash: AUTHORITY_HEAD_1,
+    });
     expect(final?.result?.calibration).toMatchObject({
       reportId: report.reportId,
       calibrationVersion: report.calibrationVersion,

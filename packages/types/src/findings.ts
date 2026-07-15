@@ -95,6 +95,43 @@ export interface ResultMetadata {
   rubricVersion?: string;
   /** UI-DNA genome version the critique was grounded against, or null. */
   uiDnaVersion: string | null;
+  /**
+   * Publication-time evidence from UI-DNA's approval-authority log. Optional
+   * only for legacy and ungrounded results; every newly grounded production
+   * result carries it.
+   */
+  groundingAuthority?: GroundingAuthorityProvenance;
+}
+
+export type GroundingAuthorityPublicationStatus =
+  | "effective"
+  | "superseded"
+  | "revoked"
+  | "unknown";
+
+export type GroundingAuthorityUnknownReason =
+  | "missing"
+  | "malformed"
+  | "stale"
+  | "unavailable"
+  | "sequence_regression"
+  | "conflicting_sequence"
+  | "revocation_regression";
+
+/** Authority evidence that governed the final publication decision (#175). */
+export interface GroundingAuthorityProvenance {
+  contractVersion: "uidna-authority/1";
+  status: GroundingAuthorityPublicationStatus;
+  /** Last trustworthy UI-DNA log position, or null when none was observed. */
+  sequence: number | null;
+  /** Last trustworthy UI-DNA log head, or null when none was observed. */
+  headEventHash: `sha256:${string}` | null;
+  /** When the mirrored evidence itself was checked; null when unavailable. */
+  evidenceCheckedAt: string | null;
+  /** When Judgment Engine performed the final pre-publication check. */
+  publicationCheckedAt: string;
+  /** Present only when status is unknown and blocking was suppressed. */
+  reason?: GroundingAuthorityUnknownReason;
 }
 
 /** Validation metadata surfaced with the result (TRD §8). */

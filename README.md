@@ -7,7 +7,9 @@ digest-verified approved bundle through `HttpGenomeResolver`, builds the existin
 selective genome index, and proves the retrieved rules reach the deep critique
 prompt. The generated runtime golden pins the exact approved UI DNA version that
 must appear in result metadata; a served-version mismatch remains visible in the
-stamp. The fixture path uses injected capture/model/embedding seams only.
+stamp. As of July 14, 2026, the runtime also carries Source of Truth's exact
+UI-DNA authority receipt and revalidates it immediately before result
+publication. The fixture path uses injected capture/model/embedding seams only.
 
 The Judgment Engine turns a generic vision model into a **trusted design reviewer**.
 A raw call to a vision model can read a screenshot, but it will also confidently
@@ -85,10 +87,18 @@ stubs and a mock model.
    advisory; raw verbalized confidence never crosses the wire.
 6. **Wire projection** — project the internal `Critique` into the
    `EngineReviewResult` wire shape the consumer reads.
+7. **Publication authority** — for a grounded result, recheck the exact
+   tenant/repository/DNA version through Source of Truth. Revoked, missing,
+   malformed, stale, regressed, or unavailable evidence suppresses blocking,
+   preserves findings advisorily, and is recorded in result provenance before
+   the bytes enter durable storage.
 
 ```
-context+genome → capture → triage ──(unchanged)──▶ "no design changes"
-                                  └─(suspect)─▶ deep-pass → assemble → wire result
+context+genome → capture → triage ──(unchanged)──▶ "no design changes" ─┐
+                                  └─(suspect)─▶ deep-pass → assemble ───┤
+                                                    authority recheck ◀─┘
+                                                            ↓
+                                                     published wire result
 ```
 
 ## Key concepts (vocabulary)
@@ -118,6 +128,9 @@ context+genome → capture → triage ──(unchanged)──▶ "no design chan
 - **UI-DNA grounding** — the review is grounded on the repo's resolved design
   genome via retrieval, so "off-brand" means *off this repo's actual system*,
   not the model's generic taste.
+- **UI-DNA publication authority** — UI-DNA remains the sole approval authority;
+  Source of Truth mirrors its monotonic receipt, and the engine rechecks the
+  exact grounded version after model work. Unknown authority is never effective.
 
 ## Codebase map (`packages/*`)
 
@@ -181,6 +194,12 @@ Required secrets: `DATABASE_URL`, `ENGINE_HMAC_SECRET`, `MODEL_API_KEY`,
 select R2 or S3; `TRIAGE_MODEL`, `DEEP_MODEL`, and `MODEL_BACKEND` keep providers
 behind the engine adapter. UI-DNA grounding is enabled only when
 `GENOME_ENDPOINT`, `GENOME_API_TOKEN`, and `EMBEDDING_MODEL` are configured.
+That configuration also enables the required publication-time authority port;
+the same Source of Truth adapter performs a separately authorized exact-version read with a
+2-second timeout. Receipts older than 60 seconds fail closed. The timeout is a
+conservative initial bound and must be tuned only from staging latency evidence.
+`AUTHORITY_TIMEOUT_MS` and `AUTHORITY_MAX_AGE_MS` expose those two bounded values
+without permitting an unbounded or zero configuration.
 
 `GET /livez` reports process liveness. `GET /readyz` reports database,
 capture-fleet, and worker capacity separately. The worker uses Postgres `LISTEN`
@@ -192,7 +211,9 @@ The API consumes Gate's versioned `GateReviewRequest` body directly. Tenant and
 depth must match the HMAC-scoped durable job. `GENOME_ENDPOINT` targets Source of
 Truth's approved `/v1/repos/{repo_id}/ui-dna` read contract; the engine resolves
 the repository's approved snapshot itself instead of trusting a caller-supplied
-genome version.
+genome version. Responses must carry `snapshot.dna_version` plus a fresh
+`snapshot.authority` receipt; the final authority-only read must return the same
+DNA version and never returns withdrawn genome bytes.
 
 The deep docs:
 

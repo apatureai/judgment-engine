@@ -1,5 +1,21 @@
 export { HttpCaptureClient, HttpGenomeResolver, createOpenAIAdapters } from "./adapters.js";
 export type { CaptureClient, GenomeResolver, OpenAIAdapterOptions } from "./adapters.js";
+export {
+  AUTHORITY_CONTRACT_VERSION,
+  DEFAULT_AUTHORITY_MAX_AGE_MS,
+  GroundingAuthorityError,
+  authorityProvenance,
+  compareAuthorityReceipts,
+  monotonicGroundingAuthorityPort,
+  unknownAuthorityProvenance,
+  validateGroundingAuthorityReceipt,
+} from "./authority.js";
+export type {
+  GroundingAuthorityKey,
+  GroundingAuthorityPort,
+  GroundingAuthorityReceipt,
+  GroundingAuthorityStatus,
+} from "./authority.js";
 export { loadRuntimeConfig } from "./config.js";
 export type { RuntimeConfig } from "./config.js";
 export { createEngineRuntime, buildProductionRuntime } from "./composition.js";

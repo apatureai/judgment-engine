@@ -34,6 +34,10 @@ export const METRIC_NAMES = {
   fencedCompletions: "engine.job.fenced_completions",
   /** Attempts that failed terminally at the attempt budget after lease expiry (#166). */
   leaseTerminalFailures: "engine.job.lease_terminal_failures",
+  /** Final UI-DNA authority lookup latency at publication (#175). */
+  authorityLookupLatency: "engine.authority.lookup_latency_ms",
+  /** Fail-closed UI-DNA authority checks, partitioned by bounded reason (#175). */
+  authorityLookupFailures: "engine.authority.lookup_failures",
 } as const;
 
 /**
@@ -53,6 +57,8 @@ export class EngineMetrics {
   private readonly leaseRecovered: Counter;
   private readonly fencedCompletions: Counter;
   private readonly leaseTerminalFailures: Counter;
+  private readonly authorityLookupLatency: Histogram;
+  private readonly authorityLookupFailures: Counter;
   private queueDepthProvider: () => number = () => 0;
   private leaseStatsProvider: () => { activeLeases: number; oldestRunningMs: number | null } = () => ({
     activeLeases: 0,
@@ -86,6 +92,13 @@ export class EngineMetrics {
     this.leaseTerminalFailures = meter.createCounter(METRIC_NAMES.leaseTerminalFailures, {
       description: "Attempts failed terminally at the attempt budget after lease expiry.",
     });
+    this.authorityLookupLatency = meter.createHistogram(METRIC_NAMES.authorityLookupLatency, {
+      unit: "ms",
+      description: "Final UI-DNA authority lookup latency at result publication.",
+    });
+    this.authorityLookupFailures = meter.createCounter(METRIC_NAMES.authorityLookupFailures, {
+      description: "Grounding-authority checks that failed closed before publication.",
+    });
 
     meter
       .createObservableGauge(METRIC_NAMES.queueDepth, { description: "Pending review jobs." })
@@ -114,6 +127,14 @@ export class EngineMetrics {
   /** Count a publication/finalization rejected by claim-generation fencing. */
   recordFencedCompletion(): void {
     this.fencedCompletions.add(1);
+  }
+
+  recordAuthorityLookupLatency(ms: number, attributes?: Attributes): void {
+    this.authorityLookupLatency.record(ms, attributes);
+  }
+
+  recordAuthorityLookupFailure(reason: string): void {
+    this.authorityLookupFailures.add(1, { reason });
   }
 
   /** Register the callback the lease gauges (active, oldest-running age) read on collection. */

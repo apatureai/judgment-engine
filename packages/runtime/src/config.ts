@@ -13,6 +13,10 @@ export interface RuntimeConfig {
   captureToken: string;
   genomeEndpoint?: string;
   genomeToken?: string;
+  /** Bounded Source of Truth publication recheck timeout (#175). */
+  authorityTimeoutMs: number;
+  /** Maximum accepted age of mirrored UI-DNA evidence (#175). */
+  authorityMaxAgeMs: number;
   objectStoreBucket: string;
   objectStoreRegion: string;
   objectStoreEndpoint?: string;
@@ -86,6 +90,8 @@ export async function loadRuntimeConfig(
     captureToken: required(env, "CAPTURE_API_TOKEN"),
     ...(genomeEndpoint ? { genomeEndpoint } : {}),
     ...(genomeToken ? { genomeToken } : {}),
+    authorityTimeoutMs: positiveInt(env, "AUTHORITY_TIMEOUT_MS", 2_000),
+    authorityMaxAgeMs: positiveInt(env, "AUTHORITY_MAX_AGE_MS", 60_000),
     objectStoreBucket: required(env, "OBJECT_STORE_BUCKET"),
     objectStoreRegion: env.OBJECT_STORE_REGION ?? "auto",
     ...(env.OBJECT_STORE_ENDPOINT ? { objectStoreEndpoint: env.OBJECT_STORE_ENDPOINT } : {}),
