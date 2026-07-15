@@ -1,0 +1,96 @@
+{
+  "schemaVersion": "1.0.0",
+  "bundleId": "entropy_bundle_01",
+  "requestId": "entropy_request_01",
+  "tenantId": "tenant_acme",
+  "repositoryId": "repo_web",
+  "commitSha": "0123456789abcdef",
+  "uiDna": {
+    "version": "dna_2026_06_01",
+    "digest": "sha256:dna11111111"
+  },
+  "producer": {
+    "service": "judgment-engine",
+    "version": "1.4.0",
+    "region": "us-central"
+  },
+  "execution": {
+    "profileId": "entropy-web-typescript",
+    "profileVersion": "1.0.0",
+    "sandboxProfile": "static-readonly-v2",
+    "repositoryCodeExecuted": false,
+    "executedInputs": [],
+    "adapterRuns": [
+      {
+        "adapterId": "typescript-react",
+        "version": "1.0.0",
+        "artifactDigest": "sha256:adapter11111111",
+        "status": "complete",
+        "capabilities": [
+          "typescript.syntax",
+          "javascript.modules",
+          "react.components"
+        ],
+        "parserVersions": {
+          "typescript": "6.0.0"
+        }
+      },
+      {
+        "adapterId": "css-tokens",
+        "version": "1.0.0",
+        "artifactDigest": "sha256:adapter22222222",
+        "status": "complete",
+        "capabilities": [
+          "css.styles",
+          "design_tokens.references"
+        ],
+        "parserVersions": {
+          "postcss": "8.5.0"
+        }
+      }
+    ]
+  },
+  "repositoryManifestRef": "artifact://repository-manifest/01",
+  "repositoryManifestHash": "sha256:manifest11111111",
+  "evidenceIrRef": "artifact://entropy-evidence-ir/01",
+  "evidenceIrHash": "sha256:evidence11111111",
+  "uiGraphSnapshotRefs": [
+    "ui-graph://snapshot/01"
+  ],
+  "artifactRefs": [
+    {
+      "artifactRef": "artifact://entropy-evidence-ir/01",
+      "kind": "evidence_ir",
+      "contentHash": "sha256:evidence11111111",
+      "redactionState": "redacted",
+      "retentionClass": "enterprise-30d",
+      "expiresAt": "2026-07-18T12:00:00Z"
+    },
+    {
+      "artifactRef": "artifact://crop/01",
+      "kind": "screenshot_crop",
+      "contentHash": "sha256:crop11111111",
+      "redactionState": "redacted",
+      "retentionClass": "enterprise-30d",
+      "expiresAt": "2026-07-18T12:00:00Z"
+    }
+  ],
+  "coverage": [
+    {
+      "capability": "typescript.syntax",
+      "status": "complete"
+    },
+    {
+      "capability": "ui_graph.snapshot",
+      "scope": "/billing@desktop",
+      "status": "complete"
+    },
+    {
+      "capability": "storybook.metadata",
+      "status": "unsupported",
+      "reason": "No Storybook configuration was present."
+    }
+  ],
+  "diagnostics": [],
+  "generatedAt": "2026-06-18T12:03:00Z"
+}

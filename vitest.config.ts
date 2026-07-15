@@ -21,6 +21,7 @@ export default defineConfig({
       "@engine/feedback": fromRoot("./packages/feedback/src/index.ts"),
       "@engine/review": fromRoot("./packages/review/src/index.ts"),
       "@engine/runtime": fromRoot("./packages/runtime/src/index.ts"),
+      "@engine/evidence": fromRoot("./packages/evidence/src/index.ts"),
     },
   },
   test: {

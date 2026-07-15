@@ -15,6 +15,7 @@
     { "path": "packages/eval" },
     { "path": "packages/feedback" },
     { "path": "packages/review" },
-    { "path": "packages/runtime" }
+    { "path": "packages/runtime" },
+    { "path": "packages/evidence" }
   ]
 }
