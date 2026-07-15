@@ -28,7 +28,14 @@ The seam every consumer uses.
 Job store and dispatch:
 
 - Postgres `jobs` table is the source of truth (status, timing, consumer, installationId, idempotencyKey, result pointer). Workers `LISTEN` on `pg_notify` and claim with `SELECT ... FOR UPDATE SKIP LOCKED`. Results in object storage; Redis is used only for token-buckets/quotas, never as the job store.
-- **Idempotency key** is `{consumer}:{installationId}:{intentType}:{intentHash}`; `INSERT ... ON CONFLICT DO NOTHING` gives ACID dedup across consumers (Gate's `pr:head_sha` is one `intentHash`).
+- **Idempotency key** is `{consumer}:{installationId}:{intentType}:{intentHash}`
+  and the caller intent hash stays opaque. `INSERT ... ON CONFLICT DO NOTHING`
+  gives the ACID linearization point. The engine also persists a versioned
+  SHA-256 of the canonical immutable submission (consumer, verified
+  installation, intent, depth, opaque key, and request). Only an exact digest
+  retry returns `409 {jobId}`; a mismatched reuse returns non-enumerating
+  `409 {error:"idempotency_conflict"}` with no job handle (#178, added July 14,
+  2026). Legacy rows receive a reserved digest sentinel and fail closed.
 - **Cancellation** is cooperative: `cancelling` is written at once; the worker tears down the in-flight Firecracker microVM (Fly Machines stop) and aborts the inference stream (AbortController) within one heartbeat (~5s). Correctness never depends on the kill landing in time.
 - Deferred to scale: a completion-webhook callback replacing polling; a durable-execution engine if the pipeline becomes a multi-step saga.
 

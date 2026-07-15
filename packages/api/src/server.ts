@@ -1,4 +1,10 @@
-import type { CancellationCoordinator, JobRecord, JobStore, ReviewDepth } from "@engine/jobs";
+import {
+  IdempotencyRequestConflictError,
+  type CancellationCoordinator,
+  type JobRecord,
+  type JobStore,
+  type ReviewDepth,
+} from "@engine/jobs";
 import { objectKey, type ObjectStore } from "@engine/storage";
 import { SCHEMA_VERSION, type EngineReviewResult } from "@engine/types";
 import {
@@ -158,15 +164,25 @@ export function createJobApi(options: JobApiOptions) {
       return json(400, { error: "invalid_submission" });
     }
 
-    const { job, created } = await options.store.enqueue({
-      consumer,
-      installationId,
-      intentType,
-      idempotencyKey: `${consumer}:${installationId}:${intentType}:${idempotencyKey}`,
-      depth: depth as ReviewDepth,
-      input: parsed.request,
-    });
-    // 202 created, or 409 duplicate -> consumer polls the existing job.
+    let enqueued: Awaited<ReturnType<JobStore["enqueue"]>>;
+    try {
+      enqueued = await options.store.enqueue({
+        consumer,
+        installationId,
+        intentType,
+        idempotencyKey: `${consumer}:${installationId}:${intentType}:${idempotencyKey}`,
+        depth: depth as ReviewDepth,
+        input: parsed.request,
+      });
+    } catch (error) {
+      if (error instanceof IdempotencyRequestConflictError) {
+        // Non-enumerating: never disclose the existing job handle or digests.
+        return json(409, { error: "idempotency_conflict" });
+      }
+      throw error;
+    }
+    const { job, created } = enqueued;
+    // 202 created, or 409 exact retry -> consumer polls the existing job.
     return json(created ? 202 : 409, { jobId: job.id });
   }
 

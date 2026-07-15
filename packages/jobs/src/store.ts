@@ -1,5 +1,6 @@
 import type { SqlExecutor } from "@engine/db";
 import { jobPriority } from "./priority.js";
+import { jobSubmissionDigest } from "./submission-digest.js";
 
 export type JobStatus =
   | "queued"
@@ -32,6 +33,8 @@ export interface JobRecord {
   installationId: string;
   intentType: string;
   idempotencyKey: string;
+  /** Engine-owned digest of immutable submission identity (legacy rows use a reserved sentinel). */
+  submissionDigest: string;
   depth: ReviewDepth;
   status: JobStatus;
   input: unknown;
@@ -65,6 +68,7 @@ interface JobRow {
   installation_id: string;
   intent_type: string;
   idempotency_key: string;
+  submission_digest: string;
   depth: ReviewDepth;
   status: JobStatus;
   input: unknown;
@@ -82,7 +86,7 @@ interface JobRow {
   finished_at: Date | null;
 }
 
-const COLS = `id, consumer, installation_id, intent_type, idempotency_key, depth, status, input,
+const COLS = `id, consumer, installation_id, intent_type, idempotency_key, submission_digest, depth, status, input,
   priority, result_pointer, error, attempts, claim_generation, lease_owner, lease_expires_at,
   heartbeat_at, created_at, updated_at, started_at, finished_at`;
 
@@ -93,6 +97,7 @@ function mapRow(r: JobRow): JobRecord {
     installationId: r.installation_id,
     intentType: r.intent_type,
     idempotencyKey: r.idempotency_key,
+    submissionDigest: r.submission_digest,
     depth: r.depth,
     status: r.status,
     input: r.input,
@@ -131,6 +136,16 @@ export interface RecoverExpiredOptions {
   maxAttemptMs?: number;
 }
 
+/** Typed, non-enumerating rejection for a reused key bound to another request. */
+export class IdempotencyRequestConflictError extends Error {
+  readonly code = "idempotency_request_conflict" as const;
+
+  constructor() {
+    super("idempotency key is already bound to a different immutable submission");
+    this.name = "IdempotencyRequestConflictError";
+  }
+}
+
 /**
  * Job store over Postgres (TRD §3). Status + metadata live here (the source of
  * truth); results live in object storage, referenced by `resultPointer`. Enqueue
@@ -150,13 +165,15 @@ export class JobStore {
   constructor(private readonly exec: SqlExecutor) {}
 
   /**
-   * Enqueue a job, returning the existing one if the idempotency key was already
-   * used (`created: false`). ACID dedup via `ON CONFLICT DO NOTHING` + re-select.
+   * Enqueue a job, returning the existing one only for an exact immutable retry
+   * (`created: false`). ACID dedup via `ON CONFLICT DO NOTHING` + re-select.
    */
   async enqueue(input: EnqueueJobInput): Promise<{ job: JobRecord; created: boolean }> {
+    const submissionDigest = jobSubmissionDigest(input);
+    const storedInput = input.input === undefined ? {} : input.input;
     const { rows } = await this.exec.query<JobRow>(
-      `INSERT INTO jobs (consumer, installation_id, intent_type, idempotency_key, depth, input, priority)
-       VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7)
+      `INSERT INTO jobs (consumer, installation_id, intent_type, idempotency_key, submission_digest, depth, input, priority)
+       VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8)
        ON CONFLICT (idempotency_key) DO NOTHING
        RETURNING ${COLS}`,
       [
@@ -164,8 +181,9 @@ export class JobStore {
         input.installationId,
         input.intentType,
         input.idempotencyKey,
+        submissionDigest,
         input.depth,
-        JSON.stringify(input.input ?? {}),
+        JSON.stringify(storedInput),
         jobPriority(input.consumer, input.intentType),
       ],
     );
@@ -173,9 +191,13 @@ export class JobStore {
     const inserted = rows[0];
     if (inserted) return { job: mapRow(inserted), created: true };
 
-    // Conflict: a job with this key already exists — return it.
+    // The UNIQUE insert is the linearization point. A conflict may reuse the
+    // existing handle only when the immutable engine-owned digest matches.
     const existing = await this.getByIdempotencyKey(input.idempotencyKey);
-    if (!existing) throw new Error(`enqueue conflict but no existing job for ${input.idempotencyKey}`);
+    if (!existing) throw new Error("enqueue conflict but the existing job could not be resolved");
+    if (existing.submissionDigest !== submissionDigest) {
+      throw new IdempotencyRequestConflictError();
+    }
     return { job: existing, created: false };
   }
 

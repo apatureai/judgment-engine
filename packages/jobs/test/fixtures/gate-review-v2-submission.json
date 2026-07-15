@@ -1,0 +1,33 @@
+{
+  "contract": "gate-review-v2/judgment-engine-submission/1",
+  "source": "apatureai/gate#185 packages/engine/test/jobs.test.ts",
+  "consumer": "gate",
+  "installationId": "77",
+  "intentType": "pr_review",
+  "callerIdempotencyKey": "gate-review-v2:sha256:a14a2a84926a21784de26c45b71089c23bdfd8d0a17a282a2aa55135a501a2b9",
+  "depth": "deep",
+  "request": {
+    "installationId": "77",
+    "repository": {
+      "owner": "acme",
+      "name": "web",
+      "defaultBranch": "main"
+    },
+    "pullRequest": {
+      "number": 42,
+      "headSha": "0123456789abcdef0123456789abcdef01234567",
+      "baseSha": "89abcdef0123456789abcdef0123456789abcdef",
+      "title": "Shared template update",
+      "body": null
+    },
+    "preview": {
+      "url": "https://web.example.test",
+      "provider": "explicit",
+      "environment": "Preview"
+    },
+    "config": {},
+    "publishMode": "advisory",
+    "depth": "deep"
+  },
+  "expectedEngineDigest": "sha256:b61362d8f9dcc7ad0dbfe6835d52aba49bb62299edd55274356c69b77a07263d"
+}

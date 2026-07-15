@@ -20,7 +20,9 @@ Consumers never call a blocking function over the network. They submit an asynch
 flowchart TD
   A["Consumer (Gate / MCP / ...)"] -->|"POST /jobs (HMAC, idempotencyKey, depth)"| B["Job API"]
   B --> C{"Idempotency key exists?"}
-  C -- "yes" --> C2["Return existing jobId (no re-run)"]
+  C -- "yes" --> C1{"Immutable request digest matches?"}
+  C1 -- "yes" --> C2["Return existing jobId (no re-run)"]
+  C1 -- "no" --> C3["409 idempotency_conflict (no jobId)"]
   C -- "no" --> D["INSERT job row (Postgres) + pg_notify"]
   D --> E["Worker wakes (LISTEN / SKIP LOCKED)"]
   E --> F["Capture (Firecracker microVM)"]
@@ -35,7 +37,12 @@ flowchart TD
 ```
 
 - **Job store:** Postgres jobs table; workers wake via `pg_notify` and claim with `SELECT ... FOR UPDATE SKIP LOCKED`. Results live in object storage; status/metadata in Postgres. Redis is used only for token-buckets and quotas, not as the job store (avoids a two-store sync problem).
-- **Idempotency key:** `{consumer}:{installationId}:{intentType}:{intentHash}` (Gate's `pr:head_sha` is one case). `INSERT ... ON CONFLICT DO NOTHING` gives ACID dedup across all consumers.
+- **Idempotency key:** `{consumer}:{installationId}:{intentType}:{intentHash}`
+  remains a caller-owned opaque key. `INSERT ... ON CONFLICT DO NOTHING` is the
+  ACID linearization point; an existing job is returned only when its persisted
+  `judgment-engine/job-submission/v1` digest exactly matches the canonical
+  immutable consumer, verified installation, intent, depth, opaque key, and
+  request. A mismatch is a non-enumerating 409 with no existing job id (#178).
 - **Cancellation:** `DELETE /jobs/:id` writes `status=cancelling` immediately (consumers see intent at once), then tears down the in-flight Firecracker microVM and aborts the inference stream within one heartbeat (~5s). Cooperative, not preemptive; correctness never depends on the kill landing in time.
 - **Auth & versioning:** every request is HMAC-signed and scoped to `installationId`; every result carries an `x-schema-version` header and `{engineVersion, model, promptVersion, captureVersion}` metadata.
 
@@ -147,7 +154,8 @@ flowchart TD
 
 | Failure | Engine behavior |
 |---|---|
-| Duplicate job submit (same idempotency key) | Return the existing jobId; never re-run capture |
+| Exact retry (same idempotency key + request digest) | Return the existing jobId; never re-run capture |
+| Reused idempotency key with another request | Non-enumerating `409 idempotency_conflict`; never return the existing jobId |
 | Cancellation requested | `status=cancelling` immediately; tear down microVM + abort inference within a heartbeat |
 | Capture unstable | Apply the confidence ceiling; mark the page unstable in the result |
 | Hostile PR code attempts internal egress | Denied by nftables; DNS-rebind defeated by re-resolution |

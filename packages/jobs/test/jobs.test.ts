@@ -1,10 +1,13 @@
 import { pgliteExecutor, runMigrations } from "@engine/db";
 import { PGlite } from "@electric-sql/pglite";
-import { beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   CancellationCoordinator,
+  IdempotencyRequestConflictError,
   JOB_NOTIFY_CHANNEL,
+  JOB_SUBMISSION_DIGEST_VERSION,
   JobStore,
+  jobSubmissionDigest,
   type EnqueueJobInput,
 } from "../src/index.js";
 
@@ -26,19 +29,90 @@ beforeEach(async () => {
   store = new JobStore(pgliteExecutor(db));
 });
 
+afterEach(async () => {
+  await db.close();
+});
+
 describe("enqueue idempotency", () => {
-  it("creates a queued job and dedups across duplicate keys", async () => {
+  it("creates a queued job and returns the same handle for an exact retry", async () => {
     const first = await store.enqueue(baseInput);
     expect(first.created).toBe(true);
     expect(first.job.status).toBe("queued");
     expect(first.job.input).toEqual({ prNumber: 42 });
 
-    const second = await store.enqueue({ ...baseInput, input: { prNumber: 999 } });
+    const second = await store.enqueue({ ...baseInput, input: { prNumber: 42 } });
     expect(second.created).toBe(false);
     expect(second.job.id).toBe(first.job.id); // same job, not a new row
 
     const { rows } = await db.query<{ count: string }>("SELECT count(*)::text AS count FROM jobs");
     expect(rows[0]?.count).toBe("1");
+  });
+
+  it("rejects the same key with a different repository/request without disclosing the existing handle", async () => {
+    const first = await store.enqueue({
+      ...baseInput,
+      input: { repository: { owner: "acme", name: "a" }, prNumber: 42 },
+    });
+
+    let conflict: unknown;
+    try {
+      await store.enqueue({
+        ...baseInput,
+        input: { repository: { owner: "acme", name: "b" }, prNumber: 42 },
+      });
+    } catch (error) {
+      conflict = error;
+    }
+    expect(conflict).toBeInstanceOf(IdempotencyRequestConflictError);
+    expect(String(conflict)).not.toContain(first.job.id);
+    expect(String(conflict)).not.toContain(baseInput.idempotencyKey);
+  });
+
+  it("canonicalizes request object key order but keeps depth semantically distinct", async () => {
+    const inputA = {
+      ...baseInput,
+      input: { repository: { owner: "acme", name: "web" }, pullRequest: { number: 42, headSha: "abc" } },
+    };
+    const first = await store.enqueue(inputA);
+    const retry = await store.enqueue({
+      ...baseInput,
+      input: { pullRequest: { headSha: "abc", number: 42 }, repository: { name: "web", owner: "acme" } },
+    });
+    expect(retry).toMatchObject({ created: false, job: { id: first.job.id } });
+    await expect(store.enqueue({ ...inputA, depth: "triage" }))
+      .rejects.toBeInstanceOf(IdempotencyRequestConflictError);
+  });
+
+  it("linearizes concurrent conflicting submissions so only one request owns the key", async () => {
+    const [a, b] = await Promise.allSettled([
+      store.enqueue({ ...baseInput, input: { repository: "acme/a" } }),
+      store.enqueue({ ...baseInput, input: { repository: "acme/b" } }),
+    ]);
+    const outcomes = [a, b];
+    expect(outcomes.filter((outcome) => outcome.status === "fulfilled")).toHaveLength(1);
+    const rejected = outcomes.find((outcome) => outcome.status === "rejected");
+    expect(rejected?.status === "rejected" ? rejected.reason : null)
+      .toBeInstanceOf(IdempotencyRequestConflictError);
+    const { rows } = await db.query<{ count: string }>("SELECT count(*)::text AS count FROM jobs");
+    expect(rows[0]?.count).toBe("1");
+  });
+
+  it("fails closed for a migrated legacy row whose digest cannot be safely reconstructed", async () => {
+    const first = await store.enqueue(baseInput);
+    await db.query("UPDATE jobs SET submission_digest = $2 WHERE id = $1", [
+      first.job.id,
+      `sha256:${"0".repeat(64)}`,
+    ]);
+    await expect(store.enqueue(baseInput)).rejects.toBeInstanceOf(IdempotencyRequestConflictError);
+  });
+
+  it("uses a versioned engine-owned sha256 digest while treating caller keys as opaque", () => {
+    expect(JOB_SUBMISSION_DIGEST_VERSION).toBe("judgment-engine/job-submission/v1");
+    expect(jobSubmissionDigest(baseInput)).toMatch(/^sha256:[0-9a-f]{64}$/);
+    expect(jobSubmissionDigest({ ...baseInput, idempotencyKey: "future namespace / opaque key" }))
+      .toMatch(/^sha256:[0-9a-f]{64}$/);
+    expect(() => jobSubmissionDigest({ ...baseInput, input: new Date(0) }))
+      .toThrow(/non-JSON object/);
   });
 });
 

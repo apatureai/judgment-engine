@@ -2,7 +2,7 @@ import { pgliteExecutor, runMigrations } from "@engine/db";
 import { CancellationCoordinator, JobStore } from "@engine/jobs";
 import { InMemoryObjectStore } from "@engine/storage";
 import { PGlite } from "@electric-sql/pglite";
-import { beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createJobApi, signEngineRequest, type ApiRequest } from "../src/index.js";
 
 const SECRET = "engine-hmac-secret";
@@ -17,6 +17,10 @@ beforeEach(async () => {
   store = new JobStore(pgliteExecutor(db));
   objectStore = new InMemoryObjectStore();
   api = createJobApi({ store, objectStore, secret: SECRET });
+});
+
+afterEach(async () => {
+  await db.close();
 });
 
 it("refuses to start a production API with the EM0 stub processor", () => {
@@ -77,6 +81,65 @@ describe("POST /jobs", () => {
     const dup = await api.handle(signed("POST", "/jobs", "1", submission("pr-42-sha")));
     expect(dup.status).toBe(409);
     expect((dup.body as { jobId: string }).jobId).toBe(jobId);
+  });
+
+  it("returns a non-enumerating conflict when one key is reused for another request", async () => {
+    const first = await api.handle(signed("POST", "/jobs", "1", {
+      ...submission("same-key"),
+      request: { repository: "acme/a", prNumber: 42 },
+    }));
+    expect(first.status).toBe(202);
+
+    const mismatch = await api.handle(signed("POST", "/jobs", "1", {
+      ...submission("same-key"),
+      request: { repository: "acme/b", prNumber: 42 },
+    }));
+    expect(mismatch).toEqual({
+      status: 409,
+      headers: { "content-type": "application/json" },
+      body: { error: "idempotency_conflict" },
+    });
+    expect(mismatch.body).not.toHaveProperty("jobId");
+  });
+
+  it("treats canonical request key order as an exact retry", async () => {
+    const first = await api.handle(signed("POST", "/jobs", "1", {
+      idempotencyKey: "canonical",
+      depth: "deep",
+      request: { repository: { owner: "acme", name: "web" }, pullRequest: { number: 42, sha: "abc" } },
+    }));
+    const retry = await api.handle(signed("POST", "/jobs", "1", {
+      request: { pullRequest: { sha: "abc", number: 42 }, repository: { name: "web", owner: "acme" } },
+      depth: "deep",
+      idempotencyKey: "canonical",
+    }));
+    expect(retry.status).toBe(409);
+    expect((retry.body as { jobId: string }).jobId).toBe((first.body as { jobId: string }).jobId);
+  });
+
+  it("scopes the same caller key and body to the verified installation", async () => {
+    const first = await api.handle(signed("POST", "/jobs", "1", submission("tenant-key")));
+    const otherTenant = await api.handle(signed("POST", "/jobs", "2", submission("tenant-key")));
+    expect(first.status).toBe(202);
+    expect(otherTenant.status).toBe(202);
+    expect((otherTenant.body as { jobId: string }).jobId)
+      .not.toBe((first.body as { jobId: string }).jobId);
+  });
+
+  it("accepts only one of two concurrent conflicting requests", async () => {
+    const [a, b] = await Promise.all([
+      api.handle(signed("POST", "/jobs", "1", {
+        ...submission("race-key"),
+        request: { repository: "acme/a" },
+      })),
+      api.handle(signed("POST", "/jobs", "1", {
+        ...submission("race-key"),
+        request: { repository: "acme/b" },
+      })),
+    ]);
+    expect([a.status, b.status].sort()).toEqual([202, 409]);
+    const conflict = [a, b].find((response) => response.status === 409);
+    expect(conflict?.body).toEqual({ error: "idempotency_conflict" });
   });
 
   it("rejects an unsigned request and a tampered signature", async () => {
