@@ -19,3 +19,14 @@ export {
   type Ed25519SignerPort,
   type BuildBundleInput,
 } from "./producer.js";
+export {
+  ARTIFACT_TRUST_DECISION_VERSION,
+  decideArtifactTrust,
+  isUsePermitted,
+  assertNotSemanticAuthority,
+  SemanticAuthorityError,
+  type AllowedUse,
+  type ForbiddenBySignatureAlone,
+  type ArtifactTrustDecisionV1,
+  type TrustDecisionInput,
+} from "./trust-decision.js";
