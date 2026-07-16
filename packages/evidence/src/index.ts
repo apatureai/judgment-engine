@@ -31,6 +31,14 @@ export {
   type TrustDecisionInput,
 } from "./trust-decision.js";
 export {
+  corruptBundle,
+  buildNegativeCorpus,
+  signedContentBytes,
+  ALL_BUNDLE_MUTATIONS,
+  type BundleMutation,
+  type CorruptBundle,
+} from "./negative-corpus.js";
+export {
   EVIDENCE_METRICS_VERSION,
   EVIDENCE_METRICS,
   ALLOWED_EVIDENCE_LABEL_KEYS,
