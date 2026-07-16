@@ -31,6 +31,17 @@ export {
   type TrustDecisionInput,
 } from "./trust-decision.js";
 export {
+  EVIDENCE_REQUEST_SCHEMA_VERSION,
+  bindingFieldsFromRequest,
+  bundleBindsToRequest,
+  assertBundleBindsToRequest,
+  RequestBindingError,
+  type EvidenceRequestUiDnaRef,
+  type EvidenceRequestV1,
+  type BundleBinding,
+  type BindingCheck,
+} from "./request.js";
+export {
   corruptBundle,
   buildNegativeCorpus,
   signedContentBytes,
