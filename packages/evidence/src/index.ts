@@ -30,3 +30,17 @@ export {
   type ArtifactTrustDecisionV1,
   type TrustDecisionInput,
 } from "./trust-decision.js";
+export {
+  EVIDENCE_METRICS_VERSION,
+  EVIDENCE_METRICS,
+  ALLOWED_EVIDENCE_LABEL_KEYS,
+  isEvidenceMetric,
+  assertEvidenceMetricSafe,
+  EvidenceMetricDlpError,
+  type EvidenceMetricUnit,
+  type EvidenceMetricName,
+  type EvidenceMetricDef,
+  type EvidenceRejectionReason,
+  type EvidenceMetricLabels,
+  type EvidenceMetricEvent,
+} from "./metrics.js";
