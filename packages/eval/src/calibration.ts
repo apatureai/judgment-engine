@@ -22,6 +22,8 @@
  * arXiv:2509.25532 (saturated verbalized confidence + post-hoc calibration).
  */
 
+import { mulberry32 } from "./rng.js";
+
 /** One labeled prediction: a finding's verbalized confidence vs its correctness. */
 export interface CalibrationPair {
   /** Verbalized confidence in [0, 1]. */
@@ -143,15 +145,6 @@ export function brierScore(pairs: readonly CalibrationPair[]): number {
 }
 
 /** Seeded PRNG, identical to the #46/#84 bootstrap in metrics.ts (mulberry32). */
-function mulberry32(seed: number): () => number {
-  let s = seed >>> 0;
-  return () => {
-    s = (s + 0x6d2b79f5) | 0;
-    let t = Math.imul(s ^ (s >>> 15), 1 | s);
-    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
 
 export interface EceCI {
   ece: number;

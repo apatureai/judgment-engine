@@ -1,5 +1,6 @@
 import type { Dimension, Grade } from "@engine/types";
 import { findingKey, type LabeledFinding } from "./golden-set.js";
+import { mulberry32 } from "./rng.js";
 
 /**
  * Eval metrics suite (TRD §10, #46). Per-dimension precision/recall over the
@@ -101,16 +102,6 @@ export function quadraticWeightedKappa(a: Grade[], b: Grade[]): number {
   }
   if (denominator === 0) return 1; // no expected disagreement -> perfect by convention
   return 1 - numerator / denominator;
-}
-
-function mulberry32(seed: number): () => number {
-  let s = seed >>> 0;
-  return () => {
-    s = (s + 0x6d2b79f5) | 0;
-    let t = Math.imul(s ^ (s >>> 15), 1 | s);
-    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
 }
 
 export interface KappaCI {

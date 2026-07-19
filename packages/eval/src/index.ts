@@ -1,3 +1,4 @@
+export { mulberry32 } from "./rng.js";
 export { CANARY_DEFECTS, generateCanaries } from "./canary.js";
 export type {
   CanaryDefect,
