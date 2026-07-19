@@ -1,5 +1,5 @@
 {
-  "contract": "genome-lifecycle-drill/1",
+  "contract": "genome-lifecycle-drill/2",
   "repository": "apatureai/genome-drill",
   "draft": {
     "dnaVersion": "cc236ee428de11f1158d780c5a71f487092dcef9deba38b4a9ae4db53bf17475",
@@ -38,5 +38,58 @@
     "unapprovedRejected": true,
     "staleDigestRejected": true,
     "mismatchVisible": true
+  },
+  "authority": {
+    "contractVersion": "uidna-authority/1",
+    "revokedVersion": "96a53cf1a2bbf1e0eb675c00f24d3928fbce0bd38400115ae042d1d9bc52643e",
+    "revocationReason": "compromised_account",
+    "headSequence": 2,
+    "logRejections": {
+      "idempotentReplay": true,
+      "duplicateConflict": "duplicate_out_of_order_event",
+      "sequenceGap": "sequence_gap",
+      "forgedPriorHash": "prior_hash_mismatch",
+      "backdated": "backdated_effective_time",
+      "wrongTenant": "wrong_tenant",
+      "missingReason": "missing_revocation_reason",
+      "afterRevoked": "illegal_status_transition"
+    },
+    "uiDna": {
+      "latestServedBeforeRevocation": true,
+      "pinnedServedBeforeRevocation": true,
+      "latestWithheldAfterRevocation": true,
+      "pinnedWithheldAfterRevocation": true
+    },
+    "sourceOfTruth": {
+      "latestRevokedCode": "not_found",
+      "pinnedRevokedCode": "not_found",
+      "pinnedNonEnumerating": true,
+      "staleFallbackRejectedCode": "dependency_unavailable",
+      "monotonicRegression": "sequence_regression",
+      "privilegedAuditStatus": "revoked",
+      "privilegedAuditSnapshotId": "96a53cf1a2bbf1e0eb675c00f24d3928fbce0bd38400115ae042d1d9bc52643e",
+      "latestAfterApproveB": "40b1c4e33368fd55edf9385832ed869dc7335b027f730e46b4bc74f37525e7c4"
+    },
+    "consultant": {
+      "refused": true,
+      "refusalReason": "genome_revoked",
+      "refusalNamesVersion": true,
+      "replayRefused": true,
+      "replayFailureReason": "sequence_regression",
+      "effectiveBGenerated": true
+    },
+    "judgmentEngine": {
+      "revokedFlooredGrade": "needs_work",
+      "revokedBlockingEnabled": false,
+      "revokedNoteNamesVersion": true,
+      "effectiveUnchangedGrade": "blocked",
+      "unknownFlooredGrade": "needs_work",
+      "versionStampB": "40b1c4e33368fd55edf9385832ed869dc7335b027f730e46b4bc74f37525e7c4"
+    },
+    "recovery": {
+      "approvedVersionB": "40b1c4e33368fd55edf9385832ed869dc7335b027f730e46b4bc74f37525e7c4",
+      "distinctFromA": true,
+      "uiDnaLatestResolvesB": true
+    }
   }
 }
