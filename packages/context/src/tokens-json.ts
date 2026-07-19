@@ -1,4 +1,5 @@
 import type { TokenMap } from "./tokens.js";
+import { isRecord } from "./guards.js";
 
 /**
  * Parse a `tokens.json` in W3C Design Tokens or Style Dictionary format into the
@@ -17,9 +18,6 @@ function valueToString(value: unknown): string | null {
   return null;
 }
 
-function isRecord(v: unknown): v is Record<string, unknown> {
-  return v !== null && typeof v === "object" && !Array.isArray(v);
-}
 
 /** Parse a parsed-JSON tokens document into a flat dotted-name TokenMap. */
 export function parseTokensJson(doc: unknown): TokenMap {

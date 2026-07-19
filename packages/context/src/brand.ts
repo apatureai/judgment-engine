@@ -1,4 +1,5 @@
 import { parse } from "yaml";
+import { isRecord } from "./guards.js";
 
 /**
  * `.designreview.yml` brand-block extraction (TRD §6) — the highest-leverage
@@ -24,9 +25,6 @@ function asStringList(v: unknown): string[] {
   return [];
 }
 
-function isRecord(v: unknown): v is Record<string, unknown> {
-  return v !== null && typeof v === "object" && !Array.isArray(v);
-}
 
 /** Parse and normalize the `brand:` block from `.designreview.yml`. Null when absent/invalid. */
 export function extractBrandBlock(designReviewYml: string): BrandBlock | null {
