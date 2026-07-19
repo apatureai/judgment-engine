@@ -26,3 +26,6 @@ export { runtimeReviewRequestSchema, toReviewInput } from "./input.js";
 export type { RuntimeReviewRequest } from "./input.js";
 export { EngineWorker, PgNotificationSource } from "./worker.js";
 export type { EngineWorkerOptions, NotificationSource, WorkerStore } from "./worker.js";
+
+export { installGracefulShutdown } from "./graceful-shutdown.js";
+export type { Stoppable, SignalRegistrar } from "./graceful-shutdown.js";
