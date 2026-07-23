@@ -35,6 +35,22 @@ describe("postFilter (#33)", () => {
     expect(out[0]?.confidence).toBe(0.85);
   });
 
+  it("dedup never downgrades severity: a blocker is kept over a same-key higher-confidence minor", () => {
+    // Same element+dimension across viewports, different severities: a mobile
+    // blocker (0.7) and a desktop minor (0.95). Dedup must keep the blocker — a
+    // raw-confidence swap would silently drop it and let a should-block PR pass.
+    const out = postFilter(
+      [
+        finding({ viewport: "mobile", severity: "blocker", confidence: 0.7 }),
+        finding({ viewport: "desktop", severity: "minor", confidence: 0.95 }),
+      ],
+      { useConfidence: true },
+    );
+    expect(out).toHaveLength(1);
+    expect(out[0]?.severity).toBe("blocker");
+    expect(out[0]?.confidence).toBe(0.7);
+  });
+
   it("caps at 1 blocker + 6 others with deterministic severity ordering", () => {
     const findings: Finding[] = [
       ...Array.from({ length: 3 }, (_, i) => finding({ severity: "blocker", elementRef: `#b${i}`, confidence: 0.9 - i * 0.01 })),

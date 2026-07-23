@@ -40,12 +40,18 @@ export function postFilter(findings: Finding[], options: PostFilterOptions = {})
   // 1. report-owned calibrated confidence floor (disabled without a binding)
   const confident = findings.filter((f) => f.confidence >= minConfidence);
 
-  // 2. dedupe by elementRef + dimension; calibrated confidence may break ties
+  // 2. dedupe by elementRef + dimension. Findings are sorted best-first by
+  // compareFindings (severity, THEN confidence), so the first finding per key is
+  // the one to keep. Keeping the first — rather than replacing on raw confidence —
+  // is load-bearing: an explicit `f.confidence > existing.confidence` swap would
+  // downgrade a higher-severity finding (e.g. a mobile `blocker`) to a lower-
+  // severity but higher-confidence one (a desktop `minor`) sharing the same
+  // element+dimension, silently dropping the blocker. Confidence still breaks ties
+  // WITHIN a severity via the sort.
   const best = new Map<string, Finding>();
   for (const f of [...confident].sort((a, b) => compareFindings(a, b, useConfidence))) {
     const key = `${f.dimension}|${f.elementRef ?? ""}`;
-    const existing = best.get(key);
-    if (!existing || (useConfidence && f.confidence > existing.confidence)) best.set(key, f);
+    if (!best.has(key)) best.set(key, f);
   }
   const deduped = [...best.values()].sort((a, b) => compareFindings(a, b, useConfidence));
 
