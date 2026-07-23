@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { mergeTokens, parseTokensJson, sortTokens } from "../src/index.js";
+import { mergeTokens, parseTokensJson, resolveTokenAliases, sortTokens } from "../src/index.js";
 
 describe("parseTokensJson", () => {
   it("parses the W3C design-tokens shape ($value/$type)", () => {
@@ -35,6 +35,45 @@ describe("parseTokensJson", () => {
   it("returns an empty map for non-object input", () => {
     expect(parseTokensJson(null)).toEqual({});
     expect(parseTokensJson("nope")).toEqual({});
+  });
+
+  it("resolves DTCG aliases to the referenced token's value", () => {
+    const doc = {
+      color: { brand: { $value: "#2563EB", $type: "color" } },
+      button: { bg: { $value: "{color.brand}", $type: "color" } },
+    };
+    expect(parseTokensJson(doc)).toEqual({
+      "color.brand": "#2563EB",
+      "button.bg": "#2563EB", // resolved, not "{color.brand}"
+    });
+  });
+
+  it("does NOT mistake a serialized composite for an alias", () => {
+    const doc = { shadow: { card: { $value: { x: 0, y: 1, blur: 2 } } } };
+    // composite stays JSON-serialized, never treated as a reference
+    expect(parseTokensJson(doc)).toEqual({ "shadow.card": '{"x":0,"y":1,"blur":2}' });
+  });
+});
+
+describe("resolveTokenAliases", () => {
+  it("follows alias chains to the concrete value", () => {
+    expect(resolveTokenAliases({ "a": "16px", "b": "{a}", "c": "{b}" })).toEqual({
+      "a": "16px", "b": "16px", "c": "16px",
+    });
+  });
+
+  it("leaves a dangling reference as its original literal (never dropped)", () => {
+    expect(resolveTokenAliases({ "a": "{missing.token}" })).toEqual({ "a": "{missing.token}" });
+  });
+
+  it("leaves a reference cycle as its original literal (never loops)", () => {
+    expect(resolveTokenAliases({ "a": "{b}", "b": "{a}" })).toEqual({ "a": "{b}", "b": "{a}" });
+    expect(resolveTokenAliases({ "self": "{self}" })).toEqual({ "self": "{self}" });
+  });
+
+  it("is a no-op on concrete values and composites", () => {
+    const map = { "color.brand": "#fff", "shadow.card": '{"x":0,"y":1}' };
+    expect(resolveTokenAliases(map)).toEqual(map);
   });
 });
 
