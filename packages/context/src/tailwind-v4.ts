@@ -1,5 +1,6 @@
 import postcss, { type AtRule } from "postcss";
 import type { TokenMap } from "./tokens.js";
+import { resolveCssVarReferences } from "./css-var-resolve.js";
 
 /**
  * Tailwind v4 token extraction (TRD §6, #57). v4 is CSS-first: design tokens are
@@ -32,5 +33,7 @@ export function extractTailwindV4(css: string): TailwindV4Result {
     }
   });
 
-  return { tokens, configPath };
+  // @theme custom properties may reference each other via var(); resolve them so
+  // the grounding map carries values, not references (as css-vars does for :root).
+  return { tokens: resolveCssVarReferences(tokens), configPath };
 }

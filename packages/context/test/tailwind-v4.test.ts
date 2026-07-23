@@ -29,3 +29,29 @@ describe("extractTailwindV4", () => {
     expect(extractTailwindV4(`.btn { color: red; }`)).toEqual({ tokens: {}, configPath: null });
   });
 });
+
+describe("extractTailwindV4 — resolves @theme var() references", () => {
+  it("resolves a var() reference between @theme custom properties, following chains", () => {
+    const result = extractTailwindV4(`
+      @theme {
+        --color-blue-500: #3b82f6;
+        --color-primary: var(--color-blue-500);
+        --color-link: var(--color-primary);
+      }
+    `);
+    expect(result.tokens).toEqual({
+      "--color-blue-500": "#3b82f6",
+      "--color-primary": "#3b82f6",
+      "--color-link": "#3b82f6",
+    });
+  });
+
+  it("honors a var() fallback and leaves a cycle as the original literal", () => {
+    const result = extractTailwindV4(`
+      @theme { --pad: var(--space, 8px); --a: var(--b); --b: var(--a); }
+    `);
+    expect(result.tokens["--pad"]).toBe("8px");
+    expect(result.tokens["--a"]).toBe("var(--b)");
+    expect(result.tokens["--b"]).toBe("var(--a)");
+  });
+});
