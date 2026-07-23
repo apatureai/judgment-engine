@@ -10,18 +10,10 @@ import type {
 import type { ModelImage, ModelRequest } from "./model.js";
 import { defaultModelFactory } from "./mock-model.js";
 import { resolvePassModel, type ModelClientFactory, type PassModelOverrides } from "./registry.js";
-import { applyConfidenceCeiling } from "./confidence-ceiling.js";
-import { reconcileGrade } from "./grade.js";
-import { hallucinationGate } from "./hallucination-gate.js";
-import { postFilter } from "./post-filter.js";
 import { parseCritiqueOutput } from "./schema.js";
 import { buildResultMetadata } from "./version-stamp.js";
 import { SYSTEM_PROMPT_VERSION } from "./prompt.js";
-import {
-  applyCalibrationBinding,
-  calibrationBindingMatches,
-  enforceBlockingThreshold,
-} from "./calibration-binding.js";
+import { runValidationTail } from "./validation-tail.js";
 
 export const ENGINE_VERSION = "0.0.0";
 export const PROMPT_VERSION = `system-prompt@${SYSTEM_PROMPT_VERSION}`;
@@ -92,47 +84,31 @@ export async function critique(
   const parsed = parseCritiqueOutput(response.text);
   const output = parsed.ok ? parsed.value : null;
 
-  // #32: drop-and-count gate — clamp confidence, drop ungrounded findings.
-  const gated = hallucinationGate(output?.findings ?? [], {
+  // The global validation tail (#32/#70/#33/#106) — shared with assembleCritique().
+  const captureVersion = deps.captureVersion ?? DEFAULT_CAPTURE_VERSION;
+  const tail = runValidationTail({
+    findings: output?.findings ?? [],
+    modelGrade: output?.grade ?? "ship",
     capturedRoutes: images.map((i) => i.route),
     geometrySelectors: deps.geometrySelectors,
+    captureUnstable: options.captureUnstable === true,
+    calibration: deps.calibration,
+    identity: {
+      model: config.model,
+      promptVersion: PROMPT_VERSION,
+      engineVersion: ENGINE_VERSION,
+      captureVersion,
+      rubricVersion: RUBRIC_VERSION,
+    },
   });
-
-  // #70: cap confidence when the capture was unstable, before the post-filter.
-  const captureVersion = deps.captureVersion ?? DEFAULT_CAPTURE_VERSION;
-  const calibration = deps.calibration && calibrationBindingMatches(deps.calibration, {
-    model: config.model,
-    promptVersion: PROMPT_VERSION,
-    engineVersion: ENGINE_VERSION,
-    captureVersion,
-    rubricVersion: RUBRIC_VERSION,
-  }) ? deps.calibration : undefined;
-  const calibrated = calibration
-    ? applyCalibrationBinding(gated.findings, calibration)
-    : gated.findings;
-  const capped = options.captureUnstable && calibration
-    ? applyConfidenceCeiling(calibrated, calibration.thresholds.unstableCaptureMaxConfidence)
-    : calibrated;
-
-  // #33: trust-budget post-filter (confidence floor, dedupe, cap).
-  const filtered = postFilter(capped, {
-    ...(calibration
-      ? { minConfidence: calibration.thresholds.postFilterMinConfidence, useConfidence: true }
-      : {}),
-  });
-  const findings = calibration ? enforceBlockingThreshold(filtered, calibration) : filtered;
-  const reconciledGrade = reconcileGrade(output?.grade ?? "ship", findings);
-  const blockingEnabled = calibration?.promotionMode === "blocking";
 
   return {
-    // #106: floor the model grade to what surviving findings support (a grade
-    // justified only by a gate-dropped finding must not block the PR).
-    grade: !blockingEnabled && reconciledGrade === "blocked" ? "needs_work" : reconciledGrade,
+    grade: tail.grade,
     overall: output?.overall ?? `critique via ${config.model}`,
-    findings,
+    findings: tail.findings,
     notReviewed: output?.notReviewed ?? [],
     validation: {
-      hallucinationDrops: gated.hallucinationDrops,
+      hallucinationDrops: tail.hallucinationDrops,
       captureUnstable: options.captureUnstable === true,
     },
     metadata: buildResultMetadata({
@@ -142,9 +118,9 @@ export async function critique(
       captureVersion,
       uiDnaVersion: context.uiDnaVersion,
     }),
-    ...(calibration ? { calibration: calibration.reference } : {}),
-    blockingEnabled,
-    ...(!calibration
+    ...(tail.calibration ? { calibration: tail.calibration.reference } : {}),
+    blockingEnabled: tail.blockingEnabled,
+    ...(!tail.calibration
       ? {
           confidenceUnavailableReason:
             deps.calibration ? "mismatched_calibration_report" : deps.confidenceUnavailableReason ?? "missing_calibration_report",

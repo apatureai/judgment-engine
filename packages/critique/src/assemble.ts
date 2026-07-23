@@ -4,18 +4,11 @@ import type {
   Critique,
   Finding,
 } from "@engine/types";
-import {
-  applyCalibrationBinding,
-  calibrationBindingMatches,
-  enforceBlockingThreshold,
-} from "./calibration-binding.js";
-import { applyConfidenceCeiling } from "./confidence-ceiling.js";
 import { ENGINE_VERSION, PROMPT_VERSION, RUBRIC_VERSION } from "./critique.js";
 import type { DeepPassRouteResult } from "./deep-pass.js";
-import { reconcileGrade, worstGrade } from "./grade.js";
-import { hallucinationGate } from "./hallucination-gate.js";
-import { postFilter } from "./post-filter.js";
+import { worstGrade } from "./grade.js";
 import { buildResultMetadata } from "./version-stamp.js";
+import { runValidationTail } from "./validation-tail.js";
 
 /**
  * Assemble per-route deep-pass outputs (#29) into ONE final `Critique`. The deep
@@ -58,37 +51,29 @@ export function assembleCritique(routes: DeepPassRouteResult[], deps: AssembleCr
 
   const merged: Finding[] = valid.flatMap((r) => r.output.findings as Finding[]);
 
-  // Global validation tail (order matches critique(): gate -> ceiling -> filter).
-  const gated = hallucinationGate(merged, {
-    capturedRoutes: deps.capturedRoutes,
-    geometrySelectors: deps.geometrySelectors,
-  });
   const engineVersion = deps.engineVersion ?? ENGINE_VERSION;
   const promptVersion = deps.promptVersion ?? PROMPT_VERSION;
-  const calibration = deps.calibration && calibrationBindingMatches(deps.calibration, {
-    model: deps.model,
-    promptVersion,
-    engineVersion,
-    captureVersion: deps.captureVersion,
-    rubricVersion: RUBRIC_VERSION,
-  }) ? deps.calibration : undefined;
-  const calibrated = calibration
-    ? applyCalibrationBinding(gated.findings, calibration)
-    : gated.findings;
-  const capped = deps.captureUnstable && calibration
-    ? applyConfidenceCeiling(calibrated, calibration.thresholds.unstableCaptureMaxConfidence)
-    : calibrated;
-  const filtered = postFilter(capped, {
-    ...(calibration
-      ? { minConfidence: calibration.thresholds.postFilterMinConfidence, useConfidence: true }
-      : {}),
-  });
-  const findings = calibration ? enforceBlockingThreshold(filtered, calibration) : filtered;
 
-  // Worst route grade, then floored to what the surviving findings support (#106).
-  const reconciledGrade = reconcileGrade(worstGrade(valid.map((r) => r.output.grade)), findings);
-  const blockingEnabled = calibration?.promotionMode === "blocking";
-  const grade = !blockingEnabled && reconciledGrade === "blocked" ? "needs_work" : reconciledGrade;
+  // The global validation tail (#32/#70/#33/#106) — shared with critique(). Runs
+  // ONCE over the merged multi-route findings (the cross-route cap/dedupe/gate are
+  // meaningless per-route). Model grade = the worst route grade, floored to what
+  // the surviving findings support.
+  const tail = runValidationTail({
+    findings: merged,
+    modelGrade: worstGrade(valid.map((r) => r.output.grade)),
+    capturedRoutes: deps.capturedRoutes,
+    geometrySelectors: deps.geometrySelectors,
+    captureUnstable: deps.captureUnstable === true,
+    calibration: deps.calibration,
+    identity: {
+      model: deps.model,
+      promptVersion,
+      engineVersion,
+      captureVersion: deps.captureVersion,
+      rubricVersion: RUBRIC_VERSION,
+    },
+  });
+  const { findings, grade, blockingEnabled, calibration } = tail;
   const overall = dedupeStrings(valid.map((r) => r.output.overall).filter((s) => s.trim().length > 0)).join(" ");
 
   const notReviewed = dedupeStrings([
@@ -103,7 +88,7 @@ export function assembleCritique(routes: DeepPassRouteResult[], deps: AssembleCr
     findings,
     notReviewed,
     validation: {
-      hallucinationDrops: gated.hallucinationDrops,
+      hallucinationDrops: tail.hallucinationDrops,
       captureUnstable: deps.captureUnstable === true,
     },
     metadata: buildResultMetadata({
