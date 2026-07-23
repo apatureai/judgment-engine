@@ -30,13 +30,31 @@ export function extractSuggestionTokens(suggestion: string): string[] {
   return [...tokens];
 }
 
+/** Escape a string for literal use inside a RegExp. */
+function escapeRegExp(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
 /**
- * True when a significant suggestion token string-matches the later diff's added
- * text. Conservative: requires at least one structured token to match.
+ * True when `token` appears as a WHOLE token in `haystack`, i.e. not flanked by a
+ * character from the same token alphabet (`[\w#.%-]`). A plain substring test
+ * would false-positive on a DIFFERENT value: `16px` inside `116px`, or `gap-4`
+ * inside `gap-40` — labelling a fix "applied" when a different value was written.
+ * The flank check makes "the value appears in the diff" mean what it says.
+ */
+function tokenAppearsIn(token: string, haystack: string): boolean {
+  return new RegExp(`(?<![\\w#.%-])${escapeRegExp(token)}(?![\\w#.%-])`).test(haystack);
+}
+
+/**
+ * True when a significant suggestion token appears (as a whole token) in the
+ * later diff's added text. Conservative: requires at least one structured token
+ * to match, and each token must match as a unit (never as a substring of a
+ * different value).
  */
 export function suggestionMatchesDiff(suggestion: string, laterDiffAddedText: string): boolean {
   const haystack = laterDiffAddedText.toLowerCase();
-  return extractSuggestionTokens(suggestion).some((t) => haystack.includes(t));
+  return extractSuggestionTokens(suggestion).some((t) => tokenAppearsIn(t, haystack));
 }
 
 /** Whether the PR merged with at least one blocker finding still unresolved. */

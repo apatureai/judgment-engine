@@ -24,6 +24,16 @@ describe("suggestion string-match (#39)", () => {
     expect(suggestionMatchesDiff("make the spacing nicer and more balanced", "+ lots of unrelated code")).toBe(false);
   });
 
+  it("matches a token as a WHOLE unit, never as a substring of a different value", () => {
+    // A dimension/hex/utility token must not match a DIFFERENT value that merely
+    // contains it — that would label a fix "applied" when it was not.
+    expect(suggestionMatchesDiff("set the gap to 16px", "+ padding: 116px;")).toBe(false); // 16px ⊄ 116px
+    expect(suggestionMatchesDiff("set the gap to 16px", "+ gap: 16px;")).toBe(true); // exact value applied
+    expect(suggestionMatchesDiff("use the gap-4 utility", '+ className="gap-40"')).toBe(false); // gap-4 ⊄ gap-40
+    expect(suggestionMatchesDiff("use color #1a7", "+ color: #1a7;")).toBe(true);
+    expect(suggestionMatchesDiff("use color #1a7", "+ color: #1a73e8;")).toBe(false); // #1a7 ⊄ #1a73e8
+  });
+
   it("flags merged-with-blockers-unresolved", () => {
     expect(mergedWithBlockersUnresolved({ merged: true, unresolvedBlockerCount: 2 })).toBe(true);
     expect(mergedWithBlockersUnresolved({ merged: true, unresolvedBlockerCount: 0 })).toBe(false);
