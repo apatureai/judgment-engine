@@ -105,6 +105,16 @@ export class EvidenceMetricDlpError extends Error {
 
 const MAX_LABEL_LENGTH = 128;
 
+/**
+ * A label value is "content-shaped" if it contains any control character (the
+ * C0 range \u0000-\u001F, which includes \n \r \t \v \f; or DEL \u007F) or a
+ * Unicode line/paragraph separator (\u2028 / \u2029). An id/enum never does;
+ * raw text / prompts / secrets do. Checking only `\n` would let `\r`-delimited
+ * or control-laden content slip past the DLP filter.
+ */
+// eslint-disable-next-line no-control-regex -- control chars are exactly what we reject
+const CONTENT_SHAPED_LABEL = /[\u0000-\u001F\u007F\u2028\u2029]/;
+
 export function isEvidenceMetric(name: string): boolean {
   return CATALOG_NAMES.has(name);
 }
@@ -121,8 +131,8 @@ export function assertEvidenceMetricSafe(event: EvidenceMetricEvent): EvidenceMe
     if (!ALLOWED_EVIDENCE_LABEL_KEYS.has(key)) {
       throw new EvidenceMetricDlpError(`label "${key}" is not a DLP-safe evidence-metric label`);
     }
-    if (typeof value === "string" && (value.includes("\n") || value.length > MAX_LABEL_LENGTH)) {
-      throw new EvidenceMetricDlpError(`label "${key}" looks like content (multi-line or > ${MAX_LABEL_LENGTH} chars), not an id`);
+    if (typeof value === "string" && (CONTENT_SHAPED_LABEL.test(value) || value.length > MAX_LABEL_LENGTH)) {
+      throw new EvidenceMetricDlpError(`label "${key}" looks like content (control chars / line breaks or > ${MAX_LABEL_LENGTH} chars), not an id`);
     }
   }
   return event;

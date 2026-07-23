@@ -52,4 +52,26 @@ describe("DLP-safe evidence metrics — nothing sensitive in telemetry (#156)", 
     expect(() => assertEvidenceMetricSafe({ ...base, labels: { keyId: "line1\nline2" } })).toThrow(/content/);
     expect(() => assertEvidenceMetricSafe({ ...base, labels: { capability: "x".repeat(200) } })).toThrow(EvidenceMetricDlpError);
   });
+
+  it("rejects non-\\n line breaks and control chars (not just \\n) in a label value", () => {
+    // \r-delimited or control-laden content under 128 chars must not slip past the DLP filter.
+    expect(() => assertEvidenceMetricSafe({ ...base, labels: { keyId: "line1\rline2" } })).toThrow(/content/);
+    expect(() => assertEvidenceMetricSafe({ ...base, labels: { keyId: "line1\r\nline2" } })).toThrow(/content/);
+    expect(() => assertEvidenceMetricSafe({ ...base, labels: { tenantId: "a\tb" } })).toThrow(/content/);
+    expect(() => assertEvidenceMetricSafe({ ...base, labels: { capability: "a\u2028b" } })).toThrow(/content/); // line separator
+    expect(() => assertEvidenceMetricSafe({ ...base, labels: { producerVersion: "a\u0000b" } })).toThrow(/content/); // NUL
+  });
+
+  it("still admits legitimate single-line ids (no false positives)", () => {
+    const ok = {
+      ...base,
+      labels: {
+        keyId: "sha256:0f1e2d",
+        tenantId: "550e8400-e29b-41d4-a716-446655440000",
+        capability: "storybook.metadata",
+        producerVersion: "evidence-producer/1",
+      },
+    };
+    expect(assertEvidenceMetricSafe(ok)).toBe(ok);
+  });
 });
