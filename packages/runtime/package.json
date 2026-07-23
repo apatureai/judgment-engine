@@ -10,7 +10,7 @@
   "files": ["dist"],
   "scripts": { "test": "vitest run" },
   "dependencies": {
-    "@aws-sdk/client-s3": "^3.1086.0",
+    "@aws-sdk/client-s3": "^3.1091.0",
     "@engine/api": "workspace:*",
     "@engine/context": "workspace:*",
     "@engine/critique": "workspace:*",
@@ -22,7 +22,7 @@
     "@engine/secrets": "workspace:*",
     "@engine/storage": "workspace:*",
     "@engine/types": "workspace:*",
-    "openai": "^6.46.0",
+    "openai": "^6.48.0",
     "pg": "^8.22.0",
     "zod": "^4.4.3"
   },
