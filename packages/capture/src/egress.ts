@@ -9,13 +9,25 @@
  * #73; this is the testable allow/deny core plus per-domain rate/size caps.
  */
 
-/** Denied IPv4 ranges: RFC-1918, loopback, link-local (incl. 169.254.169.254 metadata), unspecified. */
+/**
+ * Denied IPv4 ranges: RFC-1918, loopback, link-local (incl. 169.254.169.254 —
+ * AWS/GCP/Azure/DO metadata), unspecified, PLUS the cloud-metadata endpoints that
+ * do NOT live in link-local space (the module's purpose is to block ALL cloud
+ * metadata, not just the 169.254 ones):
+ *   - 100.64.0.0/10 (RFC-6598 shared/CGN) — Alibaba Cloud metadata 100.100.100.200,
+ *     directly relevant given the DashScope/Qwen dependency; also not globally
+ *     routable, so no legitimate public font/image lives there.
+ *   - 192.0.0.0/24 (RFC-6890 IETF protocol assignments) — Oracle Cloud metadata
+ *     192.0.0.192; likewise never a legitimate public resource.
+ */
 const PRIVATE_V4_CIDRS = [
   "0.0.0.0/8",
   "10.0.0.0/8",
+  "100.64.0.0/10",
   "127.0.0.0/8",
   "169.254.0.0/16",
   "172.16.0.0/12",
+  "192.0.0.0/24",
   "192.168.0.0/16",
 ] as const;
 

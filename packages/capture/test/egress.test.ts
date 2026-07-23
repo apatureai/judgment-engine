@@ -14,13 +14,27 @@ describe("isPrivateOrReservedIp", () => {
     expect(isPrivateOrReservedIp("172.31.255.255")).toBe(true);
     expect(isPrivateOrReservedIp("192.168.0.1")).toBe(true);
     expect(isPrivateOrReservedIp("127.0.0.1")).toBe(true);
-    expect(isPrivateOrReservedIp("169.254.169.254")).toBe(true); // cloud metadata
+    expect(isPrivateOrReservedIp("169.254.169.254")).toBe(true); // AWS/GCP/Azure/DO metadata
+  });
+
+  it("denies cloud-metadata endpoints outside link-local (Alibaba / Oracle SSRF)", () => {
+    // Alibaba Cloud metadata (100.64.0.0/10 CGN) — reachable given the DashScope/Qwen dependency.
+    expect(isPrivateOrReservedIp("100.100.100.200")).toBe(true);
+    expect(isPrivateOrReservedIp("100.64.0.0")).toBe(true);
+    expect(isPrivateOrReservedIp("100.127.255.255")).toBe(true);
+    // Oracle Cloud metadata (192.0.0.0/24 IETF assignments).
+    expect(isPrivateOrReservedIp("192.0.0.192")).toBe(true);
+    // Hex-form v4-mapped IPv6 of the Alibaba metadata IP must be denied too (SSRF bypass).
+    expect(isPrivateOrReservedIp("::ffff:6464:64c8")).toBe(true); // 100.100.100.200
   });
 
   it("allows public addresses", () => {
     expect(isPrivateOrReservedIp("8.8.8.8")).toBe(false);
     expect(isPrivateOrReservedIp("172.32.0.1")).toBe(false); // just outside 172.16/12
     expect(isPrivateOrReservedIp("1.1.1.1")).toBe(false);
+    expect(isPrivateOrReservedIp("100.63.255.255")).toBe(false); // just below 100.64/10
+    expect(isPrivateOrReservedIp("100.128.0.0")).toBe(false); // just above 100.64/10
+    expect(isPrivateOrReservedIp("192.0.1.1")).toBe(false); // just outside 192.0.0.0/24
   });
 
   it("handles IPv6 loopback, ULA, link-local, and v4-mapped (dotted, hex, and compat forms)", () => {
