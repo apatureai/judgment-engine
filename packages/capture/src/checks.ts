@@ -1,4 +1,5 @@
 import type { Viewport } from "@engine/types";
+import { compositeOver, isOpaque, parseCssColor } from "./color.js";
 
 /**
  * Deterministic, code-computed UI checks (TRD §4.2/§6.3/§6.5). The model must
@@ -27,9 +28,17 @@ export interface TextNodeStyle {
   /** Effective font size in CSS px. */
   fontSizePx: number;
   fontWeight: number;
-  /** Foreground/background as CSS color strings (hex or rgb()/rgba()). */
+  /** Foreground as a CSS color string; may be translucent (`rgba(…, .55)`). */
   color: string;
-  backgroundColor: string;
+  /**
+   * The FLATTENED, fully opaque backdrop behind the text — the element's own
+   * background composited over its ancestors and the page canvas
+   * (`toTextNodeStyles` resolves it). `null` when it could not be determined,
+   * e.g. nothing in the stack is opaque and the canvas color is unknown. A null
+   * backdrop makes the contrast check stay silent instead of guessing: an
+   * invented ratio would be published as a measured fact.
+   */
+  backgroundColor: string | null;
   rect: Rect;
   /** scrollWidth of the node's content; > rect.width means horizontal overflow. */
   contentWidthPx: number;
@@ -59,29 +68,6 @@ interface Rgb {
   r: number;
   g: number;
   b: number;
-}
-
-/** Parse a CSS color (#rgb, #rrggbb, rgb()/rgba()) to 0..255 channels, or null. */
-export function parseColor(css: string): Rgb | null {
-  const s = css.trim().toLowerCase();
-
-  const hexMatch = /^#([0-9a-f]{3}|[0-9a-f]{6})$/.exec(s);
-  if (hexMatch?.[1]) {
-    const hex = hexMatch[1];
-    const full = hex.length === 3 ? [...hex].map((c) => c + c).join("") : hex;
-    return {
-      r: parseInt(full.slice(0, 2), 16),
-      g: parseInt(full.slice(2, 4), 16),
-      b: parseInt(full.slice(4, 6), 16),
-    };
-  }
-
-  const rgbMatch = /^rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*(?:,\s*[\d.]+\s*)?\)$/.exec(s);
-  if (rgbMatch) {
-    return { r: Number(rgbMatch[1]), g: Number(rgbMatch[2]), b: Number(rgbMatch[3]) };
-  }
-
-  return null;
 }
 
 function channelLuminance(c: number): number {
@@ -119,9 +105,17 @@ export const MIN_TOUCH_TARGET_PX = 44;
 export function contrastViolations(nodes: TextNodeStyle[]): DeterministicFinding[] {
   const out: DeterministicFinding[] = [];
   for (const node of nodes) {
-    const fg = parseColor(node.color);
-    const bg = parseColor(node.backgroundColor);
-    if (!fg || !bg) continue; // can't assert -> stay silent rather than guess
+    // Every `continue` below is the same decision: the true ratio is not
+    // knowable from what was captured, so no fact is emitted. Silence, never a
+    // guess — a wrong number here is published as a measurement.
+    if (node.backgroundColor === null) continue;
+    const bg = parseCssColor(node.backgroundColor);
+    if (bg === null || !isOpaque(bg)) continue;
+    const rawFg = parseCssColor(node.color);
+    if (rawFg === null || rawFg.a === 0) continue;
+    // Translucent text is composited onto the resolved backdrop; its rendered
+    // color is what a reader actually sees, and what WCAG is defined over.
+    const fg = compositeOver(rawFg, bg);
     const ratio = contrastRatio(fg, bg);
     const threshold = contrastThreshold(node);
     if (ratio < threshold) {

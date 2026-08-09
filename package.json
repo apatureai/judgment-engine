@@ -25,7 +25,9 @@
     "typecheck": "tsc -b",
     "clean": "tsc -b --clean",
     "test": "vitest run",
-    "lint": "eslint . --max-warnings=0"
+    "lint": "eslint . --max-warnings=0",
+    "browser:install": "node scripts/browser-install.mjs",
+    "review": "node packages/cli/dist/main.js"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

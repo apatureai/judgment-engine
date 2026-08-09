@@ -23,6 +23,22 @@ export {
 } from "./registry.js";
 export type { PassModelConfig, PassModelOverrides, ModelClientFactory } from "./registry.js";
 export { MockModelClient, defaultModelFactory } from "./mock-model.js";
+export {
+  createHttpChatCompletionsCreate,
+  decodeSseStream,
+  parseSseData,
+  toHttpChatBody,
+} from "./http-model.js";
+export type { HttpModelEndpoint } from "./http-model.js";
+export { resolveModelRuntime, ModelConfigError } from "./model-runtime.js";
+export type { ModelEnv, ModelRuntime, ModelRuntimeMode, ModelRuntimeOptions } from "./model-runtime.js";
+export {
+  CannedModelClient,
+  CannedScriptSchema,
+  cannedModelFactory,
+  parseCannedScript,
+} from "./canned-model.js";
+export type { CannedScript } from "./canned-model.js";
 export { critique, ENGINE_VERSION, PROMPT_VERSION, RUBRIC_VERSION } from "./critique.js";
 export type { CritiqueDeps } from "./critique.js";
 export { buildResultMetadata, assertVersionStamped, versionSpanAttributes } from "./version-stamp.js";

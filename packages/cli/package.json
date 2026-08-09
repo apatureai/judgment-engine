@@ -1,0 +1,22 @@
+{
+  "name": "@engine/cli",
+  "version": "0.0.0",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "description": "judgment-engine CLI: run a grounded design review against a URL or the bundled demo site.",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": { ".": { "types": "./dist/index.d.ts", "default": "./dist/index.js" } },
+  "bin": { "judgment-engine": "./dist/main.js" },
+  "files": ["dist", "fixtures"],
+  "scripts": { "test": "vitest run" },
+  "dependencies": {
+    "@engine/capture": "workspace:*",
+    "@engine/context": "workspace:*",
+    "@engine/critique": "workspace:*",
+    "@engine/review": "workspace:*",
+    "@engine/storage": "workspace:*",
+    "@engine/types": "workspace:*"
+  }
+}

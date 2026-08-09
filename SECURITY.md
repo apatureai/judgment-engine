@@ -43,15 +43,15 @@ log/trace redaction, but none of it has had an external security audit. Do not
 give an unmaintained service your production credentials, your object store, or
 customer data.
 
-**The isolation this design depends on is not in this repository.** Capture is
-meant to render third-party preview deploys — attacker-influenced URLs and
-pages. The isolating Firecracker microVM sandbox and the Playwright capture
-worker were never implemented here; `captureInSandbox` is a stub and the real
-capture path is an HTTP call to a service that does not exist in this tree.
-`packages/capture/src/egress.ts` holds the egress/SSRF policy, including
-cloud-metadata endpoint blocking, but that is policy logic, not a sandbox. If
-you wire a real browser behind that seam, the isolation is entirely yours to
-provide.
+**Capture runs a real browser, and the isolation this design depends on is not
+in this repository.** `captureWithBrowser` drives headless Chromium in your own
+process. Capture is meant to render third-party preview deploys —
+attacker-influenced URLs and pages — and the design called for one Firecracker
+microVM per job with `nftables` egress enforcement. That sandbox was never
+implemented here. `packages/capture/src/egress.ts` holds the egress/SSRF policy,
+including cloud-metadata endpoint blocking, but it is policy logic that nothing
+enforces at the network layer, and the live capture path does not call it. Point
+the CLI at pages you trust, or provide the isolation yourself.
 
 **The API's only caller authentication is a shared HMAC secret.** There is no
 user authentication; tenancy is caller-asserted and scoped by the HMAC over the
@@ -60,11 +60,11 @@ the open internet.
 
 **Model output is untrusted input.** Findings are schema-validated and passed
 through the drop-and-count hallucination gate, but the resulting text is still
-model-authored. Escape it wherever you render it. Note also that the
-instruction-hierarchy prompt defense against injection embedded in a screenshot
-lives in `packages/critique/src/prompt.ts` and is **not wired into the running
-pipeline** (see the README's status section) — if you connect a live model, wire
-it in first.
+model-authored. Escape it wherever you render it. The instruction-hierarchy
+defense against injection embedded in a screenshot lives in
+`packages/critique/src/prompt.ts` and is sent on every deep pass, but treat it as
+a partial mitigation: the load-bearing defenses are the schema-constrained output
+and the grounding gate.
 
 **`Dockerfile` and `fly.toml` are the old staging configuration.** They reflect
 Apature's deployment, not a hardened general-purpose one. Review them rather

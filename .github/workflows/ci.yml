@@ -45,6 +45,64 @@ jobs:
       - name: Test
         run: pnpm test
 
+  quickstart:
+    # The README's quickstart, run for real: a headless Chromium captures the
+    # bundled demo site, and the grounding gate deletes the two deliberately
+    # ungrounded findings in the canned script. If this drifts, the README is
+    # lying, so it fails the build.
+    name: quickstart · real capture
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6
+        with:
+          version: 9.15.0
+
+      - name: Setup Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build
+        run: pnpm build
+
+      # The command the README tells a reader to run; `--with-deps` adds the
+      # system libraries a bare CI image lacks.
+      - name: Install Chromium
+        run: pnpm browser:install --with-deps
+
+      # The deterministic contrast facts are published as measurements, so the
+      # extractor is checked against what a real Chromium reports — the one seam
+      # the fake-browser unit tests cannot cover.
+      - name: DOM extractor against a real Chromium
+        run: node scripts/ci/extractor-smoke.mjs
+
+      - name: Run the quickstart
+        run: pnpm review
+
+      - name: Assert the artifacts the README promises
+        run: |
+          set -euo pipefail
+          test -f out/review.json
+          test -f out/system-prompt.txt
+          test -f out/geometry.json
+          test -f out/deterministic-facts.txt
+          test -f out/screenshots/index/desktop.png
+          test "$(node -e 'process.stdout.write(String(require("./out/review.json").findings.length))')" = "3"
+          grep -q "GROUNDING RULES (mandatory):" out/system-prompt.txt
+          grep -q "INSTRUCTION HIERARCHY" out/system-prompt.txt
+          if grep -qE "pricing-table|/checkout" out/review.json; then
+            echo "ungrounded findings survived the drop-and-count gate"
+            exit 1
+          fi
+
   release-gate:
     # #155: the promotion gate itself is exercised on every build — a passing
     # candidate must exit 0 and a deliberately regressed candidate must be

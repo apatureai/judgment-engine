@@ -4,7 +4,6 @@ import {
   contrastViolations,
   deterministicChecks,
   overflowViolations,
-  parseColor,
   touchTargetViolations,
   type InteractiveElement,
   type TextNodeStyle,
@@ -25,15 +24,7 @@ const textNode = (over: Partial<TextNodeStyle> = {}): TextNodeStyle => ({
   ...over,
 });
 
-describe("color + contrast math", () => {
-  it("parses hex and rgb()/rgba()", () => {
-    expect(parseColor("#fff")).toEqual({ r: 255, g: 255, b: 255 });
-    expect(parseColor("#1a2b3c")).toEqual({ r: 26, g: 43, b: 60 });
-    expect(parseColor("rgb(10, 20, 30)")).toEqual({ r: 10, g: 20, b: 30 });
-    expect(parseColor("rgba(10,20,30,0.5)")).toEqual({ r: 10, g: 20, b: 30 });
-    expect(parseColor("currentColor")).toBeNull();
-  });
-
+describe("contrast math", () => {
   it("computes the WCAG contrast ratio (black on white = 21:1)", () => {
     const ratio = contrastRatio({ r: 0, g: 0, b: 0 }, { r: 255, g: 255, b: 255 });
     expect(ratio).toBeCloseTo(21, 0);
@@ -57,6 +48,30 @@ describe("contrast violations", () => {
 
   it("stays silent when a color cannot be parsed (no guessing)", () => {
     expect(contrastViolations([textNode({ color: "var(--fg)" })])).toEqual([]);
+    expect(contrastViolations([textNode({ color: "oklch(0.7 0.1 200)" })])).toEqual([]);
+  });
+
+  it("stays silent when the backdrop could not be determined", () => {
+    // The regression this guards: an unresolved backdrop used to arrive as the
+    // transparent string `rgba(0, 0, 0, 0)`, which parsed as opaque black and
+    // reported black-on-white body text as 1.00:1.
+    expect(contrastViolations([textNode({ backgroundColor: null })])).toEqual([]);
+    expect(contrastViolations([textNode({ backgroundColor: "rgba(0, 0, 0, 0)" })])).toEqual([]);
+  });
+
+  it("composites translucent text onto the backdrop before measuring", () => {
+    // rgba(0,0,0,.45) over white renders as rgb(140,140,140) — 3.36:1, a real
+    // violation. Read as opaque black it would be 21:1 and silently missed.
+    const faded = textNode({ color: "rgba(0, 0, 0, 0.45)", backgroundColor: "#ffffff" });
+    const [violation] = contrastViolations([faded]);
+    expect(violation?.detail).toBe("text contrast 3.36:1 is below WCAG AA 4.5:1");
+    // …and the same text at 55% clears the bar, so this is a measurement, not a
+    // blanket "translucent text fails" rule.
+    expect(contrastViolations([textNode({ color: "rgba(0, 0, 0, 0.55)" })])).toEqual([]);
+  });
+
+  it("ignores fully transparent text rather than measuring an invisible color", () => {
+    expect(contrastViolations([textNode({ color: "rgba(0, 0, 0, 0)" })])).toEqual([]);
   });
 });
 

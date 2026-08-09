@@ -1,0 +1,205 @@
+/*
+ * Fixture stylesheet for the judgment-engine demo site. Values come from
+ * tokens.json in this directory, so the extracted design context and the
+ * rendered page describe the same system.
+ *
+ * Three defects are deliberate and are what the deterministic checks find:
+ *   #hero-subtitle / #pricing-fineprint — text contrast under WCAG AA
+ *   #icon-close / .tiny-cta            — touch targets under 44x44
+ *   #promo-code                        — content wider than its container
+ */
+
+:root {
+  --color-bg: #ffffff;
+  --color-text: #101828;
+  --color-muted: #8f8f8f;
+  --color-accent: #1f5eff;
+  --space-4: 16px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --radius-md: 10px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+#site-nav {
+  display: flex;
+  align-items: center;
+  gap: var(--space-6);
+  padding: 0 var(--space-8);
+  border-bottom: 1px solid #e6e8ec;
+}
+
+#wordmark {
+  font-weight: 700;
+  font-size: 18px;
+  line-height: 56px;
+  margin-right: auto;
+}
+
+#site-nav a {
+  color: var(--color-text);
+  text-decoration: none;
+  font-size: 15px;
+  line-height: 46px;
+  display: inline-block;
+  min-height: 46px;
+  padding: 0 8px;
+}
+
+main {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: var(--space-8);
+}
+
+#hero,
+#pricing-hero {
+  padding: var(--space-8) 0;
+}
+
+h1 {
+  font-size: 36px;
+  line-height: 1.15;
+  margin: 0 0 var(--space-4);
+  letter-spacing: -0.02em;
+}
+
+/* DEFECT: 3.2:1 against white, below the WCAG AA 4.5:1 floor for body text. */
+#hero-subtitle {
+  color: var(--color-muted);
+  font-size: 17px;
+  line-height: 1.5;
+  max-width: 46ch;
+  margin: 0 0 var(--space-6);
+}
+
+#pricing-subtitle {
+  color: var(--color-text);
+  font-size: 17px;
+  margin: 0;
+}
+
+#cta-primary {
+  display: inline-block;
+  background: var(--color-accent);
+  color: #ffffff;
+  text-decoration: none;
+  font-size: 16px;
+  font-weight: 600;
+  padding: 14px 22px;
+  border-radius: var(--radius-md);
+}
+
+/* DEFECT: 28x28 pointer target, under the 44x44 minimum. */
+#icon-close {
+  width: 28px;
+  height: 28px;
+  margin-left: var(--space-4);
+  border: 1px solid #d0d5dd;
+  border-radius: 6px;
+  background: #ffffff;
+  color: var(--color-text);
+  font-size: 13px;
+  line-height: 1;
+  vertical-align: middle;
+  cursor: pointer;
+}
+
+#features,
+#plans {
+  display: flex;
+  gap: var(--space-6);
+  flex-wrap: wrap;
+}
+
+.card {
+  flex: 1 1 260px;
+  border: 1px solid #e6e8ec;
+  border-radius: var(--radius-md);
+  padding: var(--space-6);
+}
+
+.card h3 {
+  font-size: 18px;
+  margin: 0 0 8px;
+}
+
+.card p {
+  font-size: 15px;
+  line-height: 1.5;
+  margin: 0;
+  color: var(--color-text);
+}
+
+/* DEFECT: 30x30 pointer target. */
+.tiny-cta {
+  display: inline-block;
+  width: 30px;
+  height: 30px;
+  line-height: 28px;
+  text-align: center;
+  margin-top: var(--space-4);
+  border: 1px solid var(--color-accent);
+  border-radius: 6px;
+  color: var(--color-accent);
+  text-decoration: none;
+}
+
+#promo,
+#fineprint {
+  padding-top: var(--space-8);
+}
+
+/* DEFECT: fixed 140px box with nowrap content ~2.5x wider — clipped. */
+#promo-code {
+  width: 140px;
+  white-space: nowrap;
+  overflow: hidden;
+  font-size: 15px;
+  font-family: "SFMono-Regular", Menlo, monospace;
+  border: 1px dashed #d0d5dd;
+  border-radius: 6px;
+  padding: 10px;
+  margin: 0;
+}
+
+#injection-bait {
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--color-text);
+  max-width: 60ch;
+  margin: var(--space-4) 0 0;
+}
+
+/* DEFECT: 2.6:1 against white at 11px. */
+#pricing-fineprint {
+  color: #a0a0a0;
+  font-size: 11px;
+  line-height: 1.5;
+  margin: 0;
+  max-width: 60ch;
+}
+
+#site-footer {
+  border-top: 1px solid #e6e8ec;
+  padding: var(--space-6) var(--space-8);
+}
+
+#footer-note {
+  font-size: 13px;
+  color: var(--color-text);
+  margin: 0;
+}

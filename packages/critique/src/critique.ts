@@ -12,7 +12,7 @@ import { defaultModelFactory } from "./mock-model.js";
 import { resolvePassModel, type ModelClientFactory, type PassModelOverrides } from "./registry.js";
 import { parseCritiqueOutput } from "./schema.js";
 import { buildResultMetadata } from "./version-stamp.js";
-import { SYSTEM_PROMPT_VERSION } from "./prompt.js";
+import { buildSystemPrompt, SYSTEM_PROMPT_VERSION } from "./prompt.js";
 import { runValidationTail } from "./validation-tail.js";
 
 export const ENGINE_VERSION = "0.0.0";
@@ -53,7 +53,9 @@ function buildRequest(
     maxPixels,
     responseFormat: "json_object",
     messages: [
-      { role: "system", content: "Apature design reviewer (stub prompt; #30 replaces this)." },
+      // #30: the frozen rubric + grounding rules + instruction-hierarchy defense.
+      // The brand dimension is scored exactly when the repo supplied a brand block.
+      { role: "system", content: buildSystemPrompt({ brandPresent: context.brand !== null }) },
       { role: "user", content: `context:${context.contentHash}`, images: toModelImages(images) },
     ],
   };

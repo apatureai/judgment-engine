@@ -63,34 +63,44 @@ uv pip install -e '.[dev]'
 uv run pytest
 ```
 
-Verified on 2026-08-09 on macOS with Node 24.14.0 and pnpm 9.15.0: lint clean,
-typecheck clean, 632 vitest tests across 99 files passing, 20 Rust tests
-passing, 26 + 53 pytest tests passing. The `container` job in
-`.github/workflows/ci.yml` needs Docker plus a live Postgres service and was
-not run locally.
+The CLI needs a Chromium binary as well:
+
+```sh
+pnpm browser:install   # playwright-core install chromium, ~275 MB downloaded
+pnpm review            # captures the bundled demo site, writes out/
+```
+
+Verified on 2026-08-09 on macOS 15.6 with Node 24.14.0 and pnpm 9.15.0: lint
+clean, typecheck clean, 739 vitest tests across 112 files passing, 20 Rust tests
+passing, 26 + 53 pytest tests passing, and `pnpm review` producing 3 findings
+with 2 gate drops. The `container` job in `.github/workflows/ci.yml` needs a live
+Postgres service; the image itself was built locally with `docker build`.
 
 ## The one rule that still matters
 
 **No test may call a live model, sandbox, browser, GPU, or network.** Every live
-I/O in this codebase sits behind an injected seam; tests use the mock model
-adapter and stub capture, and that is what keeps the pipeline deterministic and
-CI-runnable. A change that reaches the network from a test is broken by
-construction, whatever it does otherwise.
+I/O in this codebase sits behind an injected seam: the capture worker is driven
+through the `CaptureBrowser` port and tested against a fake page, the model
+adapter is tested against a fake `fetch`, and the orchestrator is tested against
+stubs. That is what keeps the pipeline deterministic and CI-runnable. A change
+that reaches the network from a test is broken by construction, whatever else it
+does.
+
+The real browser is exercised outside the test suite, by the `quickstart` job in
+`.github/workflows/ci.yml`, which runs `pnpm review` against headless Chromium,
+asserts the artifacts the README promises, and runs
+`scripts/ci/extractor-smoke.mjs` — the in-page DOM extractor against real pages,
+checking that the deterministic contrast facts a real Chromium yields are the
+true ones. Add a case there when you touch `DOM_EXTRACT_EXPRESSION`: a fake page
+cannot tell you what `getComputedStyle` actually returns.
 
 ## Getting oriented
 
-- `README.md` — what the engine is, how a review flows, the `packages/*` map,
-  and an explicit list of what is stubbed or missing. Read the status section
-  before you plan any work.
-- `ARCHITECTURE.md` — job lifecycle, module boundaries, diagrams.
-- `TRD.md` / `PRD.md` — the technical contract and the product requirements.
-- `docs/BENCHMARK.md` — the review-quality measurement methodology.
-- `PROGRESS.md` — the build checklist as it stood at the archive. `[~]` marks
-  "core done, live infrastructure deferred" — the microVM capture sandbox, the
-  Playwright worker, and GPU serving are in that category and are not
-  implemented here.
-- `RELEASE.md` — how a (model, prompt, engine, capture, rubric) candidate was
-  promoted and rolled back.
+`README.md` is the documentation: what the engine is, how a review flows, the
+`packages/*` map, the configuration table, how review quality was measured, and
+an audited status table of what is implemented and what is not. The
+architecture, technical-requirements, benchmark and release documents were
+folded into it when this was archived.
 
 Before you run any of this against real infrastructure, read `SECURITY.md`. It
 is blunt about what is missing.

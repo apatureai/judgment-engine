@@ -1,0 +1,8 @@
+{
+  "name": "northwind-analytics-demo",
+  "private": true,
+  "dependencies": {
+    "class-variance-authority": "^0.7.0",
+    "@radix-ui/react-dialog": "^1.1.0"
+  }
+}

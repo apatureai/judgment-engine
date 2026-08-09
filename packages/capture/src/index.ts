@@ -1,7 +1,4 @@
-import type { Capture, CaptureInSandbox } from "@engine/types";
-
 export {
-  parseColor,
   relativeLuminance,
   contrastRatio,
   contrastViolations,
@@ -18,6 +15,9 @@ export type {
   DeterministicFinding,
   DeterministicCheckInput,
 } from "./checks.js";
+
+export { parseCssColor, isOpaque, compositeOver, flattenBackground } from "./color.js";
+export type { Rgba } from "./color.js";
 
 export {
   PATCH_SIZE,
@@ -120,28 +120,46 @@ export {
 export { decideStorageState, scopeCookiesToOrigin, originHost } from "./storage-state.js";
 export type { StorageStateDecisionInput, StorageStateDecision, Cookie } from "./storage-state.js";
 
-/**
- * Capture sandbox seam (TRD §4). This is the EM0 scaffold stub returning a
- * deterministic shape so downstream packages can wire against the interface;
- * EM1 (#11 Playwright worker, #22 Firecracker microVM, #24/#73 egress) replaces
- * the body with the real isolated capture.
- */
-export const CAPTURE_VERSION = "stub@0";
+export { DEVICE_SCALE_FACTOR, VIEWPORT_SIZES } from "./browser-port.js";
+export type {
+  CaptureBrowser,
+  CaptureBrowserContext,
+  CapturePage,
+  ExtractedElement,
+  ExtractedPage,
+  ScreenshotSink,
+} from "./browser-port.js";
 
-export const captureInSandbox: CaptureInSandbox = async (_url, ctx): Promise<Capture> => {
-  const images = ctx.routes.flatMap((route) =>
-    ctx.viewports.map((viewport) => ({
-      route,
-      viewport,
-      objectKey: `stub/${ctx.installationId}/${route}/${viewport}.png`,
-      width: 1280,
-      height: 720,
-    })),
-  );
-  return {
-    images,
-    geometry: [],
-    pageHealth: { consoleErrors: 0, failedRequests: 0, unstable: false },
-    captureVersion: CAPTURE_VERSION,
-  };
-};
+export {
+  DOM_EXTRACT_EXPRESSION,
+  resolvedBackground,
+  toInteractiveElements,
+  toRawGeometryElements,
+  toTextNodeStyles,
+} from "./dom-extract.js";
+
+export { pngDimensions } from "./png.js";
+export type { PngDimensions } from "./png.js";
+
+/**
+ * The capture sandbox seam (TRD §4). `captureWithBrowser` is the live
+ * implementation, driven through the injected `CaptureBrowser` port;
+ * `launchChromiumCaptureBrowser` (in `./playwright-browser.js`, imported
+ * separately so the browser library stays lazily loaded) binds a real Chromium
+ * to that port.
+ */
+export {
+  BROWSER_CAPTURE_VERSION,
+  captureWithBrowser,
+  createBrowserCapture,
+  defaultViewports,
+  factsForRoute,
+  routeSlug,
+  routeUrl,
+} from "./browser-capture.js";
+export type {
+  BrowserCaptureDeps,
+  BrowserCaptureOptions,
+  BrowserCaptureResult,
+  StabilityCheck,
+} from "./browser-capture.js";

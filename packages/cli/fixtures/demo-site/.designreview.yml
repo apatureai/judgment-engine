@@ -1,0 +1,10 @@
+brand:
+  description: Northwind Analytics — warehouse-native dashboards for small data teams.
+  tone: Plain, factual, unhurried. Never breathless.
+  audience: Analysts and engineers who already know SQL.
+  do:
+    - Lead with what the product does, not what it feels like.
+    - Keep the accent colour for exactly one primary action per screen.
+  dont:
+    - Use more than one exclamation mark on a page.
+    - Put body text below 4.5:1 contrast.

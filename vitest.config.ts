@@ -6,6 +6,8 @@ const fromRoot = (path: string) => fileURLToPath(new URL(path, import.meta.url))
 export default defineConfig({
   resolve: {
     alias: {
+      // More specific subpath first: Vite alias keys match by prefix.
+      "@engine/capture/playwright": fromRoot("./packages/capture/src/playwright-browser.ts"),
       "@engine/types": fromRoot("./packages/types/src/index.ts"),
       "@engine/capture": fromRoot("./packages/capture/src/index.ts"),
       "@engine/critique": fromRoot("./packages/critique/src/index.ts"),
@@ -22,6 +24,7 @@ export default defineConfig({
       "@engine/review": fromRoot("./packages/review/src/index.ts"),
       "@engine/runtime": fromRoot("./packages/runtime/src/index.ts"),
       "@engine/evidence": fromRoot("./packages/evidence/src/index.ts"),
+      "@engine/cli": fromRoot("./packages/cli/src/index.ts"),
     },
   },
   test: {

@@ -1,0 +1,91 @@
+{
+  "_comment": [
+    "Canned model script for the offline demo. These responses are AUTHORED, not recorded",
+    "from a live model: they exist so the pipeline can be exercised end to end with no API",
+    "key. Two of the five findings deliberately cite things the capture never produced —",
+    "#pricing-table is not in the geometry map and /checkout is not a captured route — so",
+    "the drop-and-count gate in packages/critique/src/hallucination-gate.ts deletes them and",
+    "reports the drops. Run with --model live to see what a real model says instead."
+  ],
+  "triage": {
+    "needsDeepReview": true,
+    "suspectRoutes": ["/", "/pricing"],
+    "obviousBreakage": []
+  },
+  "routes": {
+    "/": {
+      "grade": "needs_work",
+      "overall": "The landing page reads clearly, but the announcement dismiss control is too small to hit and the hero headline competes with the primary action.",
+      "findings": [
+        {
+          "dimension": "accessibility",
+          "severity": "major",
+          "confidence": 0.86,
+          "route": "/",
+          "viewport": "mobile",
+          "elementRef": "#icon-close",
+          "title": "Dismiss control is a 28x28 touch target",
+          "description": "The announcement dismiss button measures 28x28 CSS px in the captured mobile viewport, below the 44x44 minimum, and it sits immediately beside the primary call to action so a mis-tap starts a trial.",
+          "suggestion": "Pad the control to at least 44x44, keeping the 28px visual box if the smaller glyph is wanted.",
+          "introducedByThisPr": true
+        },
+        {
+          "dimension": "visual_hierarchy",
+          "severity": "minor",
+          "confidence": 0.62,
+          "route": "/",
+          "viewport": "desktop",
+          "elementRef": "#hero-title",
+          "title": "Headline and primary action carry similar weight",
+          "description": "At the desktop viewport the headline runs the full column width directly above the accent-filled call to action, so the eye lands on both at once instead of reading the headline first.",
+          "suggestion": "Shorten the headline measure or increase the gap above the call to action.",
+          "introducedByThisPr": false
+        },
+        {
+          "dimension": "spacing",
+          "severity": "nit",
+          "confidence": 0.44,
+          "route": "/",
+          "viewport": "desktop",
+          "elementRef": "#pricing-table",
+          "title": "Pricing table columns are unevenly spaced",
+          "description": "The three pricing columns do not share a common gutter, so the middle plan reads as narrower than the others.",
+          "suggestion": "Use the 24px spacing token between all three columns.",
+          "introducedByThisPr": true
+        }
+      ],
+      "notReviewed": []
+    },
+    "/pricing": {
+      "grade": "ship_with_nits",
+      "overall": "The pricing page is legible, but the Scale plan's action is an arrow glyph rather than a labelled control.",
+      "findings": [
+        {
+          "dimension": "accessibility",
+          "severity": "major",
+          "confidence": 0.79,
+          "route": "/pricing",
+          "viewport": "mobile",
+          "elementRef": "#plan-scale-cta",
+          "title": "Scale plan action is a 30x30 arrow glyph",
+          "description": "The Scale plan's call to action is a 30x30 CSS px arrow with no text label, while the Team plan's is a full-width labelled link, so the two plans do not offer the same affordance.",
+          "suggestion": "Give the Scale plan the same labelled control as Team.",
+          "introducedByThisPr": true
+        },
+        {
+          "dimension": "consistency",
+          "severity": "minor",
+          "confidence": 0.55,
+          "route": "/checkout",
+          "viewport": "desktop",
+          "elementRef": "#place-order",
+          "title": "Checkout button uses a different radius",
+          "description": "The place-order button uses a 4px radius while every other action on the site uses the 10px radius token.",
+          "suggestion": "Apply the radius.md token.",
+          "introducedByThisPr": true
+        }
+      ],
+      "notReviewed": []
+    }
+  }
+}

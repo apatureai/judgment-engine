@@ -4,9 +4,17 @@
   "private": true,
   "license": "MIT",
   "type": "module",
-  "description": "Capture sandbox (captureInSandbox). EM1 implements the Firecracker + Playwright worker.",
+  "description": "Capture worker: deterministic Chromium capture, DOM geometry, deterministic checks, stability and egress policy.",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
+  "exports": {
+    ".": { "types": "./dist/index.d.ts", "default": "./dist/index.js" },
+    "./playwright": { "types": "./dist/playwright-browser.d.ts", "default": "./dist/playwright-browser.js" }
+  },
+  "files": ["dist"],
   "scripts": { "test": "vitest run" },
-  "dependencies": { "@engine/types": "workspace:*" }
+  "dependencies": {
+    "@engine/types": "workspace:*",
+    "playwright-core": "1.62.1"
+  }
 }

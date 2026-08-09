@@ -16,6 +16,7 @@ import {
 } from "@engine/context";
 import {
   assembleCritique,
+  buildSystemPrompt,
   resolvePassModel,
   runDeepPass,
   runTriage,
@@ -28,7 +29,7 @@ import {
   type WireProjectionOptions,
 } from "@engine/critique";
 import type { ModelImage } from "@engine/critique";
-import type { EngineReviewResult, PreviewBuildFact } from "@engine/types";
+import type { Critique, EngineReviewResult, PreviewBuildFact } from "@engine/types";
 
 /**
  * End-to-end review orchestrator (TRD §6, #109): the keystone that composes the
@@ -80,7 +81,10 @@ export interface ReviewRoute {
 
 /** Live I/O seams — all injected so the orchestrator is fully testable with stubs. */
 export interface ReviewDeps {
-  /** The capture sandbox seam (#11/#22). Real Firecracker/Playwright is live-deferred. */
+  /**
+   * The capture seam (#11/#22). `createBrowserCapture` from `@engine/capture`
+   * is the live Chromium implementation; tests inject a stub.
+   */
   captureInSandbox: CaptureInSandbox;
   /** Per-pass model client factory (#27). Tests pass the mock model. */
   modelFactory?: ModelClientFactory;
@@ -99,6 +103,15 @@ export interface ReviewDeps {
   /** Validated promoted report projection; absent means advisory/no display score. */
   calibration?: CalibrationRuntimeBinding;
   confidenceUnavailableReason?: ConfidenceUnavailableReason;
+  /**
+   * Observer for the assembled internal `Critique`, called once immediately
+   * before the wire projection drops the internal-only fields. This is the seam
+   * for `validation.hallucinationDrops` (#32) — the drop COUNT is an SLO input
+   * and is deliberately not part of the consumer wire contract, so a metrics
+   * emitter (or a CLI that wants to report it) reads it here. Never mutates the
+   * result; throwing from it is the caller's problem, not the review's.
+   */
+  onCritique?: (critique: Critique) => void;
 }
 
 export interface ReviewInput {
@@ -129,7 +142,26 @@ export interface ReviewInput {
   concurrency?: number;
 }
 
-const SYSTEM_PROMPT = "Apature design reviewer.";
+/**
+ * Build the frozen system prompt for this review from the resolved repo context.
+ *
+ * The rubric, the grounding rules and the instruction-hierarchy defense against
+ * prompt injection all live in `buildSystemPrompt` (`@engine/critique`); the
+ * orchestrator's job is only to derive its two inputs from the context block, so
+ * both stay in lockstep: the brand dimension is scored exactly when a brand block
+ * was extracted, and every detected component library contributes its rubric
+ * addendum. Deterministic — the same context yields the same prompt bytes, which
+ * is what keeps the prefix cache warm.
+ */
+export function reviewSystemPrompt(context: ContextBlockInput): string {
+  const componentAddenda = context.componentLibraries
+    .map((library) => library.rubricAddendum)
+    .filter((addendum) => addendum.trim().length > 0);
+  return buildSystemPrompt({
+    brandPresent: context.brand !== null,
+    ...(componentAddenda.length > 0 ? { componentAddenda } : {}),
+  });
+}
 
 /** Valid elementRef selectors from the geometry map (#18), for the #32 element_ref drop. */
 function geometrySelectors(geometry: GeometryRect[]): Set<string> {
@@ -161,8 +193,8 @@ export async function runReview(input: ReviewInput, deps: ReviewDeps): Promise<E
   //    (#104) is resolved by the caller and injected.
   const contextBlock = buildContextBlock(input.context);
 
-  // 2. Capture (#11/#22 live seam, injected). Real Firecracker/Playwright is
-  //    deferred; the stub returns a deterministic shape so this composes in CI.
+  // 2. Capture (#11, injected). Chromium in `@engine/capture` is the live
+  //    implementation; tests inject a stub so this composes without a browser.
   const capture = await deps.captureInSandbox(input.url, input.captureContext);
   const selectors = geometrySelectors(capture.geometry);
 
@@ -237,7 +269,7 @@ export async function runReview(input: ReviewInput, deps: ReviewDeps): Promise<E
     {
       client: modelFactory(deepConfig),
       model: deepConfig.model,
-      systemPrompt: SYSTEM_PROMPT,
+      systemPrompt: reviewSystemPrompt(input.context),
       contextBlock: contextBlock.serialized,
       maxPixels,
       concurrency: input.concurrency ?? 3,
@@ -277,6 +309,7 @@ export async function runReview(input: ReviewInput, deps: ReviewDeps): Promise<E
   //    page-health footnote (#20) — console errors / failed requests / blocked
   //    fonts gathered during capture — is surfaced in `artifacts`, never mixed
   //    into findings; a clean page yields null and omits the field (golden-safe).
+  deps.onCritique?.(critique);
   return toEngineReviewResult(critique, {
     ...input.wireOptions,
     pageHealthFootnote: input.wireOptions.pageHealthFootnote ?? pageHealthFootnote(capture.pageHealth),
@@ -341,5 +374,6 @@ function emptyFindingsResult(
   // assembleCritique derives `overall` from route outputs (empty here); for the
   // short-circuit we carry the triage summary through verbatim.
   const stamped = options.overall !== undefined ? { ...critique, overall: options.overall } : critique;
+  deps.onCritique?.(stamped);
   return toEngineReviewResult(stamped, input.wireOptions);
 }

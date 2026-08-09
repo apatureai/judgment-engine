@@ -1,21 +1,56 @@
 {
   "files": [],
   "references": [
-    { "path": "packages/types" },
-    { "path": "packages/capture" },
-    { "path": "packages/critique" },
-    { "path": "packages/db" },
-    { "path": "packages/redis" },
-    { "path": "packages/storage" },
-    { "path": "packages/secrets" },
-    { "path": "packages/observability" },
-    { "path": "packages/jobs" },
-    { "path": "packages/api" },
-    { "path": "packages/context" },
-    { "path": "packages/eval" },
-    { "path": "packages/feedback" },
-    { "path": "packages/review" },
-    { "path": "packages/runtime" },
-    { "path": "packages/evidence" }
+    {
+      "path": "packages/types"
+    },
+    {
+      "path": "packages/capture"
+    },
+    {
+      "path": "packages/critique"
+    },
+    {
+      "path": "packages/db"
+    },
+    {
+      "path": "packages/redis"
+    },
+    {
+      "path": "packages/storage"
+    },
+    {
+      "path": "packages/secrets"
+    },
+    {
+      "path": "packages/observability"
+    },
+    {
+      "path": "packages/jobs"
+    },
+    {
+      "path": "packages/api"
+    },
+    {
+      "path": "packages/context"
+    },
+    {
+      "path": "packages/eval"
+    },
+    {
+      "path": "packages/feedback"
+    },
+    {
+      "path": "packages/review"
+    },
+    {
+      "path": "packages/runtime"
+    },
+    {
+      "path": "packages/evidence"
+    },
+    {
+      "path": "packages/cli"
+    }
   ]
 }

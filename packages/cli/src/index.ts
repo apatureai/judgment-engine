@@ -1,0 +1,11 @@
+export { parseArgs, ArgError, DEFAULT_OPTIONS, USAGE } from "./args.js";
+export type { CliOptions, ModelChoice } from "./args.js";
+export { runCli, fixturesDir } from "./run.js";
+export type { RunIo } from "./run.js";
+export { serveDirectory, resolveRequestPath, candidateFiles } from "./static-server.js";
+export type { StaticSite } from "./static-server.js";
+export { FileScreenshotSink, displayPath } from "./file-sink.js";
+export { loadRepoContext } from "./repo-context.js";
+export type { LoadedRepoContext } from "./repo-context.js";
+export { renderSummary, renderFindings, countByKind } from "./report.js";
+export type { RunSummary } from "./report.js";

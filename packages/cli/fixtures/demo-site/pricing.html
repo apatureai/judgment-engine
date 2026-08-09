@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Pricing — Northwind Analytics</title>
+    <link rel="stylesheet" href="/style.css" />
+  </head>
+  <body>
+    <nav id="site-nav" aria-label="Primary">
+      <span id="wordmark">Northwind</span>
+      <a id="nav-product" href="/">Product</a>
+      <a id="nav-pricing" href="/pricing">Pricing</a>
+      <a id="nav-docs" href="/">Docs</a>
+    </nav>
+
+    <main>
+      <section id="pricing-hero">
+        <h1 id="pricing-title">Pricing</h1>
+        <p id="pricing-subtitle">Two plans. Both include every connector.</p>
+      </section>
+
+      <section id="plans">
+        <div class="card">
+          <h3 id="plan-team">Team</h3>
+          <p id="plan-team-price">$40 / seat / month</p>
+          <a id="plan-team-cta" href="/">Choose Team</a>
+        </div>
+        <div class="card">
+          <h3 id="plan-scale">Scale</h3>
+          <p id="plan-scale-price">$90 / seat / month</p>
+          <!-- Deliberate defect: the secondary CTA is a 30x30 target. -->
+          <a id="plan-scale-cta" class="tiny-cta" href="/">&rarr;</a>
+        </div>
+      </section>
+
+      <section id="fineprint">
+        <!-- Deliberate defect: 11px #a0a0a0 on white is far under WCAG AA. -->
+        <p id="pricing-fineprint">
+          Annual billing only. Seats are counted at renewal. Overages are invoiced monthly.
+        </p>
+      </section>
+    </main>
+
+    <footer id="site-footer">
+      <p id="footer-note">Northwind Analytics — a fixture page for judgment-engine.</p>
+    </footer>
+  </body>
+</html>
