@@ -1,14 +1,14 @@
 /**
  * `DerivedEvidenceBundleV1` — the producer-owned contract for the signed
  * evidence package Judgment Engine returns for an `EvidenceRequestV1` (core
- * ADR-0008; TRD §3.2). It is the ONLY door evidence enters through, so it is
+ * TRD §3.2). It is the ONLY door evidence enters through, so it is
  * fail-closed on identity + integrity: tenant/repo/request/commit/UI-DNA bind to
  * the originating request, and the RFC 8785 canonical digest + Ed25519 signature
  * verify. Entropy Engine's `EvidenceAcceptanceGate` is the consumer; this shape
  * maps 1:1 to Entropy's read profile so one golden verifies byte-for-byte in
  * both repositories.
  *
- * Provenance is not authority (ADR-0008 / SCITT): a valid signature attests
+ * Provenance is not authority (SCITT): a valid signature attests
  * lineage only — it never creates a finding, approves UI DNA, or makes feedback
  * training-grade. That decision is the consumer's, downstream of this bundle.
  */

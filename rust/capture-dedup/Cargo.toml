@@ -3,7 +3,7 @@ name = "capture-dedup"
 version = "0.1.0"
 edition = "2021"
 description = "Perceptual near-duplicate detection for capture screenshots (dhash + DCT phash). Deterministic, std-only, no unsafe."
-license = "UNLICENSED"
+license = "MIT"
 publish = false
 
 [dependencies]

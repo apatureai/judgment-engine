@@ -2,6 +2,7 @@
   "name": "@engine/feedback",
   "version": "0.0.0",
   "private": true,
+  "license": "MIT",
   "type": "module",
   "description": "Engine feedback: explicit/implicit signal capture, per-repo memory, rater down-weighting, preference export.",
   "main": "./dist/index.js",

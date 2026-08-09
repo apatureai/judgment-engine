@@ -8,7 +8,7 @@ version = "0.0.1"
 description = "Offline batch-grader that scores an owned-judge candidate checkpoint against the packages/eval golden set (#125)."
 readme = "README.md"
 requires-python = ">=3.11"
-license = { text = "UNLICENSED" }
+license = { text = "MIT" }
 dependencies = [
   "pydantic>=2.6",
 ]

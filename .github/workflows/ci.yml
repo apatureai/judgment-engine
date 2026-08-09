@@ -5,7 +5,6 @@ on:
   push:
     branches:
       - main
-      - agent/build
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
@@ -136,7 +135,7 @@ jobs:
         run: cargo fmt --manifest-path rust/capture-dedup/Cargo.toml --check
 
   container:
-    name: production image · smoke · SBOM · scan
+    name: production image · smoke
     runs-on: ubuntu-latest
     services:
       postgres:
@@ -159,39 +158,3 @@ jobs:
 
       - name: Verify migration, Node 24, liveness, readiness, and graceful shutdown
         run: scripts/ci/container-smoke.sh apature-judgment-engine:ci
-
-      - name: Generate image SBOM
-        uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
-        with:
-          image: apature-judgment-engine:ci
-          artifact-name: judgment-engine-image.spdx.json
-          output-file: judgment-engine-image.spdx.json
-          format: spdx-json
-          upload-release-assets: false
-
-      - name: Scan production image
-        id: scan
-        continue-on-error: true
-        uses: anchore/scan-action@e1165082ffb1fe366ebaf02d8526e7c4989ea9d2 # v7.4.0
-        with:
-          image: apature-judgment-engine:ci
-          output-format: json
-          output-file: judgment-engine-image.grype.json
-          fail-build: true
-          severity-cutoff: high
-          only-fixed: true
-
-      - name: Retain vulnerability evidence
-        if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: judgment-engine-image-vulnerability-report
-          path: judgment-engine-image.grype.json
-          if-no-files-found: error
-          retention-days: 30
-
-      - name: Enforce image vulnerability gate
-        if: always()
-        env:
-          SCAN_OUTCOME: ${{ steps.scan.outcome }}
-        run: test "$SCAN_OUTCOME" = success

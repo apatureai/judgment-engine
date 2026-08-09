@@ -2,6 +2,7 @@
   "name": "@engine/redis",
   "version": "0.0.0",
   "private": true,
+  "license": "MIT",
   "type": "module",
   "description": "Engine orchestrator hot paths: resilient Redis client + key namespaces + eviction guard (token-buckets/quotas only; the job store is Postgres).",
   "main": "./dist/index.js",

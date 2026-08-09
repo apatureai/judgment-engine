@@ -2,10 +2,10 @@
 
 Perceptual near-duplicate detection for capture screenshots: retries, reruns, and
 superseded pushes produce pixel-different but perceptually identical frames, and every
-duplicate that reaches the judge burns VLM tokens — the COGS center. This crate hashes
+duplicate that reaches the judge burns VLM tokens — the dominant cost of a review. This crate hashes
 frames so the capture pipeline can skip near-duplicates of already-judged screenshots.
 
-Founder-directed language spike executing ADR-0001's revisit clause: *"Rust/WASM
+A language spike against the standing rule: *"Rust/WASM
 deferred until a measured hotspot."* This is the measurement.
 
 ## What's here
@@ -48,7 +48,7 @@ Regenerate goldens after any algorithm change:
 
 Rust is **~9.4× faster** on the contract hash.
 
-## Verdict against ADR-0001's revisit gate
+## Verdict against the revisit gate
 
 **Not a hotspot. The deferral stands.** At an aggressive 10,000 reviews/day ×
 12 screenshots = 120k frames/day:

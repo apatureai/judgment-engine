@@ -58,7 +58,7 @@ describe("releaseGate (#155)", () => {
   });
 });
 
-describe("blocking-mode guard (E11, #155 / core#168 step 4)", () => {
+describe("blocking-mode guard (E11, #155)", () => {
   it("blocking without any calibration report is blocked", () => {
     const decision = releaseGate(
       { ...fixture("passing.advisory.json"), targetMode: "blocking", calibrationReport: null },

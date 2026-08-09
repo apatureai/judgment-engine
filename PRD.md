@@ -1,17 +1,15 @@
 # Apature Judgment Engine - Product Requirements Document
 
 Created: 2026-06-15
-Source: extracted from `apatureai/core` PRD as of 2026-06-15.
+Source: extracted from Apature's internal product spec as of 2026-06-15.
 
 ## 1. Product Summary
 
-Apature Judgment Engine is the shared technical substrate behind Apature's product surfaces. It captures rendered UI, extracts repository context, runs grounded VLM critique, validates findings, records feedback, and exposes a stable `critique(images, context) -> Findings` contract to Gate, MCP Review, Interactive Review, UI DNA, Entropy Engine, Source Of Truth, and DNA Consultant.
+Apature Judgment Engine is the shared technical substrate behind Apature's product surfaces. It captures rendered UI, extracts repository context, runs grounded VLM critique, validates findings, records feedback, and exposes a stable `critique(images, context) -> Findings` contract to Gate, MCP Review, UI DNA, Entropy Engine, and Source Of Truth.
 
 It is not a buyer-facing product. It is the reusable engine that makes the products credible.
 
-## 2. Company Role
-
-The company is defended by judgment data, UI DNA, and grounding infrastructure, not by a raw model call.
+## 2. Responsibilities
 
 Judgment Engine owns the parts that make a generic vision model act like a trusted reviewer:
 
@@ -30,11 +28,9 @@ Internal consumers:
 
 - Gate: PR review and Check Run delivery.
 - MCP Review: in-loop review and recheck tools.
-- Interactive Review: stateful capture and critique for interaction flows.
 - UI DNA: extraction and rendered visual evidence.
 - Entropy Engine: rendered drift evidence and feedback loops.
 - Source Of Truth: approved context blocks and provenance.
-- DNA Consultant: orchestration over all surfaces.
 
 ## 4. Scope
 
@@ -58,7 +54,6 @@ Out of scope:
 - MCP tool UX. MCP Review owns that.
 - Product dashboards and buyer-facing workflows except shared data APIs.
 - Code edits, commits, or generated fixes.
-- Company thesis and investor narrative. Core owns that.
 
 ## 5. Core Contract
 
@@ -119,7 +114,7 @@ Current default:
 
 - Qwen3-VL.
 - DashScope path for v1.
-- Self-hosted vLLM or SGLang as the act-2 enterprise lever.
+- Self-hosted vLLM or SGLang for enterprise data residency (deferred).
 
 Rules:
 
@@ -156,7 +151,7 @@ Judgment Engine owns the feedback substrate:
 - preference dataset export,
 - prompt and rubric evolution metadata.
 
-The dataset is the long-term company asset, so automated link unfurlers and weak implicit signals must not contaminate labels.
+Label quality is load-bearing, so automated link unfurlers and weak implicit signals must not contaminate labels.
 
 ## 11. Security And Privacy
 

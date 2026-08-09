@@ -2,6 +2,7 @@
   "name": "@engine/runtime",
   "version": "0.0.0",
   "private": true,
+  "license": "MIT",
   "type": "module",
   "description": "Production API and worker composition roots for the Judgment Engine.",
   "main": "./dist/index.js",

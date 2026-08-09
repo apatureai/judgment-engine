@@ -2,7 +2,7 @@ import type { DerivedEvidenceBundleV1, UnsignedDerivedEvidenceBundle } from "./b
 
 /**
  * `EvidenceRequestV1` — the producer-owned request a `DerivedEvidenceBundleV1`
- * is produced FOR and must bind to (core ADR-035; TRD §3.2). The consumer's
+ * is produced FOR and must bind to (TRD §3.2). The consumer's
  * acceptance gate re-checks this identity binding against the originating
  * request; mirroring it producer-side lets Judgment Engine prove a bundle binds
  * before it is ever returned. The binding fields match Entropy's analysis-request

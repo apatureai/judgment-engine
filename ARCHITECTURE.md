@@ -5,12 +5,12 @@ Status: architecture record (decisions E1–E6 applied)
 
 ## 1. Architecture Summary
 
-Judgment Engine is the shared, multi-consumer substrate behind Apature's product surfaces (Gate, MCP Review, Interactive Review, UI DNA, and others). It accepts a review job, captures the rendered UI deterministically, extracts repo context, runs grounded Qwen3-VL critique, validates findings, records feedback, and returns a versioned result. It is not buyer-facing.
+Judgment Engine is the shared, multi-consumer substrate behind Apature's product surfaces (Gate, MCP Review, UI DNA, and others). It accepts a review job, captures the rendered UI deterministically, extracts repo context, runs grounded Qwen3-VL critique, validates findings, records feedback, and returns a versioned result. It is not buyer-facing.
 
 Two principles drive the design:
 
 - **Trust over cleverness.** A screenshot of a half-loaded page or a hallucinated finding ends an install. Determinism in capture and a drop-and-count validation gate are load-bearing, not polish.
-- **The moat is the data and the grounding, not the model call.** Every review is instrumented to produce a clean labeled preference tuple, and the engine is built so the default judge can later become a fine-tuned Qwen3-VL behind the same adapter.
+- **Grounding and labeled feedback, not the model call, produce the verdict.** Every review is instrumented to produce a clean labeled preference tuple, and the engine is built so the default judge can later become a fine-tuned Qwen3-VL behind the same adapter.
 
 ## 2. Job Lifecycle
 
@@ -67,8 +67,8 @@ flowchart LR
   end
   subgraph Models
     DS["DashScope qwen3-vl-plus/flash"]
-    VLLM["Self-host vLLM/SGLang (act-2)"]
-    FT["Fine-tuned Qwen3-VL (act-3)"]
+    VLLM["Self-host vLLM/SGLang (deferred)"]
+    FT["Fine-tuned Qwen3-VL (deferred)"]
   end
   G --> API
   M --> API
@@ -113,7 +113,7 @@ flowchart LR
   G --> H["Stamp report + versions -> Findings"]
 ```
 
-- **Structured output:** DashScope is a two-step path (Thinking critique → non-thinking `json_object` coercion → Zod) because thinking and JSON mode are mutually exclusive and `max_tokens` cannot be set with `json_object`. Self-host uses single-call guided decoding (SGLang + XGrammar) — the better path, deferred to act-2. SGLang is the primary self-host recommendation: RadixAttention prefix reuse fits the byte-identical context block, and SGLang overlaps grammar-mask generation with inference so guided decoding stays cheap (vLLM degrades at batch >=8). See TRD §7 (2026-06-20 research note, #76).
+- **Structured output:** DashScope is a two-step path (Thinking critique → non-thinking `json_object` coercion → Zod) because thinking and JSON mode are mutually exclusive and `max_tokens` cannot be set with `json_object`. Self-host uses single-call guided decoding (SGLang + XGrammar) — the better path, deferred. SGLang is the primary self-host recommendation: RadixAttention prefix reuse fits the byte-identical context block, and SGLang overlaps grammar-mask generation with inference so guided decoding stays cheap (vLLM degrades at batch >=8). See TRD §7 (2026-06-20 research note, #76).
 - **Image budget:** Qwen3-VL patch-16 + `min_pixels`/`max_pixels` (not Claude's `⌈w/28⌉`/2576px/4784-token constants); `max_pixels` enforced in the adapter and is the cost lever. Prefix caching keyed on the byte-identical context block.
 - **Hallucination gate:** findings whose `route`/`element_ref` are not in the captured set / DOM geometry map are dropped and counted; the drop rate is an SLO that feeds eval.
 - **Publication authority (added July 14, 2026; #175):** a grounded review is not
@@ -127,7 +127,7 @@ flowchart LR
   publication check time are stamped in result metadata. UI-DNA is the sole
   authority; Judgment Engine never writes authority or customer code.
 
-## 7. Data Moat & Learning Pipeline (Decision E5)
+## 7. Feedback & Learning Pipeline (Decision E5)
 
 ```mermaid
 flowchart TD
@@ -135,13 +135,13 @@ flowchart TD
   B --> C["Per-repo memory digest (<=600 tok) -> deep-pass suffix"]
   B --> D{"Tenant training consent?"}
   D -- "yes" --> E["PII scan -> DVC-versioned export on R2 (preferred/rejected pairs)"]
-  E --> F["ORPO fine-tune (act-3)"]
+  E --> F["ORPO fine-tune (deferred)"]
   F --> G["Eval-gated shadow promotion behind the model adapter"]
 ```
 
 - Storage/versioning: Postgres + a **DVC-versioned export on the existing R2** for reproducible, point-in-time training sets with lineage (finding → verdict → screenshot). No new infra.
 - Label quality: rater-permission weighting, collaborator-vs-drive-by down-weighting, the in-loop recheck auto-label (densest, cleanest signal), suggestion string-match as the only implicit positive. Link-unfurlers and "touched the element" never count.
-- Governance: screenshots are PII — explicit tenant **training consent** + a PII scan gate what may enter a cross-tenant training set. Per-repo memory ships now (immediate personalization); the fine-tuned judge is the compounding act-3 asset behind the same adapter. Per-tenant LoRA is deferred.
+- Governance: screenshots are PII — explicit tenant **training consent** + a PII scan gate what may enter a cross-tenant training set. Per-repo memory ships now (immediate personalization); the fine-tuned judge is the deferred compounding asset behind the same adapter. Per-tenant LoRA is deferred.
 
 ## 8. Capacity, Promotion & Observability (Decision E6)
 
@@ -170,10 +170,10 @@ flowchart TD
 | # | Decision | MVP | Migrate to | Trigger |
 |---|---|---|---|---|
 | E1 | Job API + store | Postgres jobs + `pg_notify` + cooperative cancel | completion-webhook callback; Temporal | poll volume / pipeline complexity |
-| E2 | Model serving | DashScope-only behind adapter (two-step JSON) | self-host vLLM (guided decoding) → fine-tuned | revenue vs GPU idle; residency need |
+| E2 | Model serving | DashScope-only behind adapter (two-step JSON) | self-host vLLM (guided decoding) → fine-tuned | GPU utilization vs managed-endpoint cost; residency need |
 | E3 | Capture isolation | BUILD Firecracker-on-Fly cold-start + nftables | warm-pool (snapshot/UFFD); in-VPC | latency budget at scale; enterprise |
 | E4 | Output & trust | two-step + drop-and-count + phash/structural-diff + confidence ceiling | json_schema coercion; conditional re-ask | DashScope json_schema GA; precision need |
-| E5 | Data moat | DVC export on R2 + consent/PII gate; per-repo memory | ORPO fine-tune → per-tenant LoRA | dataset volume; act-3 |
+| E5 | Feedback dataset | DVC export on R2 + consent/PII gate; per-repo memory | ORPO fine-tune → per-tenant LoRA | dataset volume |
 | E6 | Capacity & promotion | token-bucket + per-tenant quota + priority queues; registry + CI eval-gate + version stamping | shadow/canary rollout; artifact registry | consumer count; model-change cadence |
 
-Hard invariants across every migration: no `contents: write`; the model judges, never edits/drives; deterministic-capture trust; drop-and-count for unknown route/element_ref; the data + grounding is the moat; screenshots are PII; SSRF/egress/DNS-rebind controls mandatory; Apature manages model serving by default (no BYOK) — enterprise residency is the in-VPC self-host path.
+Hard invariants across every migration: no `contents: write`; the model judges, never edits/drives; deterministic-capture trust; drop-and-count for unknown route/element_ref; screenshots are PII; SSRF/egress/DNS-rebind controls mandatory; Apature manages model serving by default (no BYOK) — enterprise residency is the in-VPC self-host path.

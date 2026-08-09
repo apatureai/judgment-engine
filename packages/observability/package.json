@@ -2,6 +2,7 @@
   "name": "@engine/observability",
   "version": "0.0.0",
   "private": true,
+  "license": "MIT",
   "type": "module",
   "description": "Engine OpenTelemetry spans + trace-context propagation + SLO metrics across the capture/context/critique pipeline.",
   "main": "./dist/index.js",

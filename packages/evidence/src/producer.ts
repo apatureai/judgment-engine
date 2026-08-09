@@ -13,7 +13,7 @@ import {
 } from "./bundle.js";
 
 /**
- * The signed `DerivedEvidenceBundleV1` producer (judgment-engine#156; ADR-0008,
+ * The signed `DerivedEvidenceBundleV1` producer (judgment-engine#156;
  * TRD §3.2). A pure deterministic builder assembles the bundle; an injected
  * Ed25519 signer (KMS/HSM/local) signs the RFC 8785 canonical bytes. NO private
  * key lives in source or config — the signer is a port.

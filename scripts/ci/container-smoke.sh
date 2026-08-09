@@ -31,6 +31,9 @@ if ! grep --fixed-strings --line-regexp "$release_command" fly.toml >/dev/null; 
 fi
 docker run --rm --entrypoint test "$image" -f node_modules/@engine/db/dist/cli/migrate.js
 
+# Throwaway CI-local values only: the DB URL points at the ephemeral
+# postgres:17-alpine service container defined in .github/workflows/ci.yml, and
+# every "smoke-*" value below is a literal placeholder. No real credentials.
 database_url=postgresql://postgres:postgres@127.0.0.1:5432/postgres
 docker run --rm --network host \
   --env DATABASE_URL="$database_url" \

@@ -1,4 +1,6 @@
-app = "apature-judgment-engine"
+# Example service configuration from the archived deployment. Set your own Fly
+# app name and region before deploying anything from this repository.
+app = "judgment-engine"
 primary_region = "iad"
 
 [build]

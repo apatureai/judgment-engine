@@ -1,6 +1,6 @@
 # apature-eval
 
-Offline **batch-grader** for the owned judge (§16, issue #125). Given a recorded
+Offline **batch-grader** for the owned judge (issue #125). Given a recorded
 judge-checkpoint run and the human-labeled golden set, it emits a **scorecard**
 (grade agreement + per-dimension detection metrics). Pure Python: **no GPU, no
 network, no model call**, fully deterministic — it grades outputs that were
@@ -97,7 +97,7 @@ sc.grade_agreement.human_grades        # paired vector for the TS kappa/AC2 path
 
 ## Plugging in a real backend later
 
-The grader consumes *recorded* outputs, so a live judge (vLLM / DashScope, §16)
+The grader consumes *recorded* outputs, so a live judge (vLLM / DashScope)
 plugs in with a thin adapter that maps its critique output to `CandidateRun`;
 `grade(...)` is unchanged and the tests keep running on fixtures.
 

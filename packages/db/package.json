@@ -2,6 +2,7 @@
   "name": "@engine/db",
   "version": "0.0.0",
   "private": true,
+  "license": "MIT",
   "type": "module",
   "description": "Judgment Engine durable state: deterministic up/down migration runner + schema.",
   "main": "./dist/index.js",

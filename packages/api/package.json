@@ -2,6 +2,7 @@
   "name": "@engine/api",
   "version": "0.0.0",
   "private": true,
+  "license": "MIT",
   "type": "module",
   "description": "Engine async job API: POST/GET/DELETE /jobs with HMAC verification, installationId scoping, x-schema-version, and depth routing.",
   "main": "./dist/index.js",

@@ -4,7 +4,7 @@ import type { RegistryStamp } from "./registry.js";
 import { DEFAULT_SLO_TARGETS, evaluateSlos, type SloCounts, type SloResult, type SloTargets } from "./slo.js";
 
 /**
- * Release gate (#155; TRD §10/§13/§14; core#168 steps 1 and 4).
+ * Release gate (#155; TRD §10/§13/§14).
  *
  * The single promote/block decision over a candidate (model, prompt, engine,
  * capture, rubric) triplet's frozen-set eval results. It composes the pieces

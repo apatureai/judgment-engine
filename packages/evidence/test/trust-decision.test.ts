@@ -7,7 +7,7 @@ import {
   SemanticAuthorityError,
 } from "../src/index.js";
 
-describe("ArtifactTrustDecisionV1 — lineage is not authority (#156, ADR-0008/SCITT)", () => {
+describe("ArtifactTrustDecisionV1 — lineage is not authority (#156, SCITT)", () => {
   it("verified lineage grants only the explicitly policy-granted uses (deduped)", () => {
     const d = decideArtifactTrust({
       bundleId: "b1",

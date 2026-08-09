@@ -2,7 +2,7 @@ import type { Viewport } from "@engine/types";
 
 /**
  * Per-pass model abstraction (TRD §6/§7, #26). Every model backend — DashScope
- * (v1), self-host vLLM (#76, act-2), a fine-tuned checkpoint (#79, act-3), or a
+ * (v1), self-host vLLM (#76), a fine-tuned checkpoint (#79), or a
  * different VLM/Claude — sits behind this one `ModelClient` interface, so a model
  * swap is a config change with no call-site change in `critique()` or any
  * consumer.

@@ -46,7 +46,7 @@ export interface CalibrationAttestationV1 {
 }
 
 /**
- * Promotion artifact ratified by core ADR-022. All numeric decisions live here;
+ * Promotion artifact for eval-gated promotion. All numeric decisions live here;
  * the runtime consumes this value and never invents a surface-local default.
  */
 export interface CalibrationReportV1 {

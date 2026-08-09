@@ -41,7 +41,7 @@ export interface Cookie {
   path?: string;
 }
 
-/** The host an origin URL resolves to (`https://preview.x.com/p` -> `preview.x.com`). */
+/** The host an origin URL resolves to (`https://preview.example.com/p` -> `preview.example.com`). */
 export function originHost(origin: string): string {
   try {
     return new URL(origin).host.toLowerCase();

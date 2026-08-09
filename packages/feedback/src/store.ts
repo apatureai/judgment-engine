@@ -2,7 +2,7 @@ import type { SqlExecutor } from "@engine/db";
 
 /**
  * Feedback store (TRD §8). Persists the signals on findings that become the data
- * moat. #38 explicit (thumbs / `/ignore`) lands here with "latest per (finding,
+ * dataset. #38 explicit (thumbs / `/ignore`) lands here with "latest per (finding,
  * rater) wins"; #39 implicit and #40 recheck extend it. The POST-only ingestion
  * endpoint (reaction API / slash command + HMAC) is product delivery (Gate); the
  * engine owns persistence.

@@ -6,3 +6,12 @@ coverage/
 .env
 .env.*
 !.env.example
+
+# Editor / OS noise
+.idea/
+.vscode/
+*.log
+
+# uv creates these when following the python/* build instructions; CI installs
+# with `uv pip install -e` rather than `uv sync`, so they are not part of the build.
+uv.lock

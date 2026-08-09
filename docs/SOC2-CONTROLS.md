@@ -1,19 +1,11 @@
 # SOC 2 controls map (readiness)
 
-> Spec ref: TRD §11, §15. Issue #55. SOC 2 (Type II via Vanta) is the
-> **enterprise-tier** gate, not a free/early cost. The live work — onboarding
-> Vanta, connecting it to our infra, and automating continuous evidence
-> collection — is an ops/account task that requires production accounts and is
-> tracked as `[~]` in PROGRESS. **This document is the engine-side artifact that
-> precedes it:** a mapping from the SOC 2 Trust Service Criteria (TSC) to the
-> controls the engine already implements, so Vanta onboarding is configuration,
-> not discovery.
+> Spec ref: TRD §11, §15. A mapping from the SOC 2 Trust Service Criteria to the
+> controls the engine implements, and where the evidence for each one lives. This
+> is a readiness map, not an attestation — no audit was ever performed.
 
 ## Scope
 
-- **Tier:** Enterprise only. Free/public and paid SMB tiers are covered by the
-  DPA + GDPR posture (`COMPLIANCE.md`); the SOC 2 report is offered to enterprise
-  customers under NDA.
 - **Trust Service Criteria in scope:** Security (Common Criteria, required) +
   Confidentiality + Availability. Processing Integrity and Privacy map partially
   via the eval gate and the GDPR posture respectively.
@@ -32,23 +24,7 @@
 | CC7.2 — monitoring | Tracing spans + propagation + metrics | `@engine/observability` (#8) | dashboards |
 | CC8.1 Change management — eval-gated promotion | Model/prompt registry; promotion blocked without an eval pass; rollback | `@engine/eval` `ModelPromptRegistry` (#71) | registry rows, CI logs |
 | CC8.1 — CI quality gate | lint + typecheck + tests on every PR; regression + quality gates | `.github/workflows/ci.yml`, `@engine/eval` (#47/#48) | CI run history |
-| CC9.2 Vendors — sub-processors | Sub-processor list maintained | `COMPLIANCE.md` DPA Annex | DPA |
+| CC9.2 Vendors — sub-processors | Sub-processor list maintained | `COMPLIANCE.md` §1 | sub-processor list |
 | A1.2 Availability — DR | Dual-write R2 + S3; survives single-provider outage | `DualWriteObjectStore` | infra config |
 | C1.1/C1.2 Confidentiality — classification/disposal | PII scan excludes PII from training; retention disposal | `scanForPii` (#74), retention (#51) | code, tests |
 | PI1 Processing integrity | Drop-and-count grounding; no-partial critique; canary recall gate | `hallucinationGate` (#32), `runDeepPass` (#29), `#44`/`#47` | tests, eval reports |
-
-## Evidence automation (the Vanta task — `[~]` live)
-
-Once Vanta is onboarded, the following connect for **continuous** evidence:
-
-- Cloud (AWS/Cloudflare): KMS key policies, bucket encryption + lifecycle,
-  IAM least-privilege.
-- GitHub: branch protection, required CI checks, code-review enforcement.
-- Postgres (Neon): access controls, backup config.
-- HR/identity: onboarding/offboarding, MFA, background checks.
-- Monitoring: alerting + incident-response runbooks.
-
-These require production-account access and are **not engine code**; they are
-tracked as the `[~]` portion of #55. This document keeps the control→evidence
-mapping current so the onboarding is configuration against an already-true
-posture rather than a remediation project.

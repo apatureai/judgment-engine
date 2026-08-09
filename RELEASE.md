@@ -30,14 +30,14 @@ record is `ModelPromptRegistry` (Postgres, migration 0005).
    verify `/readyz` + one staging smoke (submit → poll → result) before
    promoting traffic.
 
-## Blocking-mode guard (E11 / core#168 step 4)
+## Blocking-mode guard (E11)
 
 Blocking mode cannot ship on quality bars alone. The gate additionally
 requires a calibration report that is: present, `sufficient_evidence`,
 unexpired, identity-matched to the exact candidate stamp, and whose blocker
 false-positive rate clears the declared false-block target at the interval's
 **upper** bound. Until such a report exists, candidates promote as advisory
-only — Gate stays in advisory language (core#184 standing rule).
+only — Gate stays in advisory language (standing product rule).
 
 ## CI enforcement
 
@@ -62,10 +62,11 @@ The previous promoted triplet stays deployable at all times:
 - **Verification:** after revert, confirm `/readyz`, one smoke review, and
   that result version stamps show the reverted triplet.
 
-## Staging smoke (human-owned, remaining #155 scope)
+## Staging smoke (never run)
 
-Staging environment (Postgres/Redis/object store/DashScope or self-host
-endpoint) + a recorded smoke driving one review job through the async API,
-plus the #166 chaos legs (kill worker during capture and during inference).
-Tracked as the ops half of #155; this document's flow is exercised there
-before first production promotion.
+The flow above was never exercised end to end. Doing so needs a staging
+environment (Postgres, Redis, an object store, and a DashScope or self-host
+model endpoint) plus a recorded smoke driving one review job through the async
+API, and chaos legs that kill the worker during capture and during inference.
+That infrastructure was never provisioned, so no candidate was ever promoted
+outside of the gate's own test fixtures.

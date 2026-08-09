@@ -2,6 +2,7 @@
   "name": "@engine/context",
   "version": "0.0.0",
   "private": true,
+  "license": "MIT",
   "type": "module",
   "description": "Repo-context extraction: design tokens (Tailwind/CSS vars/tokens.json), brand, component detection, diff->route, deterministic content-hashed context block.",
   "main": "./dist/index.js",

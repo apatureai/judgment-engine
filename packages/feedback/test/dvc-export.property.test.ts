@@ -1,6 +1,6 @@
 /**
  * Property-based laws for the content-addressed dataset export. The dataset
- * version IS the integrity anchor of the preference-tuple moat (and the byte
+ * version IS the integrity anchor of the preference-tuple dataset (and the byte
  * contract the Python mirror re-derives, #127), so these hold over generated
  * tuples, not just fixtures:
  *

@@ -1,7 +1,7 @@
 # apature-preference-dataset
 
 Offline prep tool that turns `judgment-engine`'s **revealed-preference verdicts**
-into training-ready datasets for the **owned judge** (core §16 / #78).
+into training-ready datasets for the **owned judge** (#78).
 
 It reads the tuples the TypeScript side already produces and emits KTO + SFT
 JSONL plus a dataset card. It is pure and deterministic: **no network, no model,
@@ -111,7 +111,7 @@ concrete local artifact via a pluggable **`ArtifactResolver`**. A record reuses
   `NotImplementedError`. The production backend pulls artifacts from the DVC
   remote / Cloudflare-R2 bucket `dvc-export.ts` pushes to, with object-store
   credentials and a content-addressed cache. It is deliberately unbuilt here so
-  v1 stays network- and secret-free; wiring it is the follow-up (see PR).
+  this package stays network- and secret-free, and it was never wired up.
 
 ### DPO/ORPO pairing (#124)
 
@@ -163,7 +163,8 @@ uv run pytest        # or: .venv/bin/pytest
 
 ## Status / scope
 
-Spike scaffold. **Additive and standalone** — it is not wired into the TS build,
-CI, or `pnpm` workspace; it consumes exported artifacts only. Downstream (the
-actual TRL fine-tune / offline batch grading of a checkpoint, §16) is
-deliberately **not** in this package — see the roadmap in the PR description.
+Spike scaffold. **Additive and standalone** — it is not part of the TS build or
+the `pnpm` workspace (CI does run its pytest suite); it consumes exported
+artifacts only. Downstream work is deliberately **not** in this package:
+`python/eval` is the offline batch grader, and the TRL fine-tune it prepares
+data for was never run.

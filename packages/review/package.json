@@ -2,6 +2,7 @@
   "name": "@engine/review",
   "version": "0.0.0",
   "private": true,
+  "license": "MIT",
   "type": "module",
   "description": "End-to-end review orchestrator: composes context + capture + triage + deep-pass + assemble + wire-projection into one review pipeline. The keystone the async job API runs as its processor.",
   "main": "./dist/index.js",

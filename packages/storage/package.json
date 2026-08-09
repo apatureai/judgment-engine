@@ -2,6 +2,7 @@
   "name": "@engine/storage",
   "version": "0.0.0",
   "private": true,
+  "license": "MIT",
   "type": "module",
   "description": "Engine object storage: R2-primary/S3 dual-write put/get keyed by job id + on-demand short-TTL signed URLs.",
   "main": "./dist/index.js",

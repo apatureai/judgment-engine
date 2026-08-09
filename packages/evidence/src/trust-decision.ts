@@ -1,6 +1,5 @@
 /**
- * `ArtifactTrustDecisionV1` (judgment-engine#156; core ADR-0008 / ADR-043,
- * SCITT architecture).
+ * `ArtifactTrustDecisionV1` (judgment-engine#156; SCITT architecture).
  *
  * A verified signature attests LINEAGE only — that these exact bytes were
  * produced by the named key. It is NOT semantic authority: a valid signature
@@ -23,7 +22,7 @@ export const ARTIFACT_TRUST_DECISION_VERSION = "artifact-trust-decision/1" as co
 export type AllowedUse = "drift_analysis_input" | "grounding_context" | "audit_reference";
 
 /**
- * Uses a signature ALONE can never authorize (ADR-0008: provenance ≠ accuracy).
+ * Uses a signature ALONE can never authorize (provenance ≠ accuracy).
  * These are deliberately NOT part of `AllowedUse`, so a trust decision cannot
  * grant them.
  */
@@ -78,7 +77,7 @@ export function isUsePermitted(decision: ArtifactTrustDecisionV1, use: AllowedUs
 
 export class SemanticAuthorityError extends Error {
   constructor(use: ForbiddenBySignatureAlone) {
-    super(`a verified signature is provenance, not authority: it can never authorize "${use}" (ADR-0008)`);
+    super(`a verified signature is provenance, not authority: it can never authorize "${use}"`);
     this.name = "SemanticAuthorityError";
   }
 }

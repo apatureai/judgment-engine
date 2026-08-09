@@ -1,6 +1,6 @@
 /**
  * `@engine/evidence` — the producer of the signed `DerivedEvidenceBundleV1`
- * Entropy Engine's acceptance gate consumes (judgment-engine#156; ADR-0008).
+ * Entropy Engine's acceptance gate consumes (judgment-engine#156).
  *
  * Judgment Engine owns checkout/capture, adapter authorization, artifact
  * custody, bundle identity, and signing. This package is contract-only wire +

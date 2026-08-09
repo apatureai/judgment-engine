@@ -2,6 +2,7 @@
   "name": "@engine/jobs",
   "version": "0.0.0",
   "private": true,
+  "license": "MIT",
   "type": "module",
   "description": "Engine async job store: idempotent enqueue, pg_notify dispatch, SKIP LOCKED claim over Postgres.",
   "main": "./dist/index.js",
