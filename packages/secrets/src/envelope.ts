@@ -3,7 +3,7 @@ import type { KmsKeyProvider } from "./kms.js";
 
 /** Identifies the CMK + repo a secret is sealed for. */
 export interface RepoScope {
-  /** Per-tenant (or shared) CMK id — the only key held in the managed KMS. */
+  /** Per-tenant (or shared) CMK id: the only key held in the managed KMS. */
   cmkId: string;
   /** Repo the data key is scoped to (`<owner>/<name>`). */
   repoId: string;
@@ -13,7 +13,7 @@ export interface RepoScope {
  * Envelope-encrypted secret at rest (§11). The plaintext is encrypted with a
  * fresh per-repo data key (DEK, AES-256-GCM); the DEK is wrapped under the CMK
  * named by `cmkId`. The `repoId` is bound as additional authenticated data, so
- * a sealed secret can only be opened in the same repo scope — cross-repo reuse
+ * a sealed secret can only be opened in the same repo scope; cross-repo reuse
  * fails authentication even though no per-repo KMS key exists. Only the envelope
  * is persisted; plaintext and the raw DEK exist only at point of use.
  */

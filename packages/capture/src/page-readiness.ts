@@ -3,7 +3,7 @@
  * `networkidle` is the single biggest source of hallucinated critiques: an
  * analytics beacon or a long-poll keeps the network busy forever (timeout →
  * capture mid-render) or a tracking pixel fires early (idle → capture before
- * fonts/layout settle). So readiness here NEVER uses networkidle — it settles on
+ * fonts/layout settle). So readiness here NEVER uses networkidle. It settles on
  * EXPLICIT signals in a fixed order:
  *
  *   goto(domcontentloaded, 30s budget)
@@ -13,15 +13,15 @@
  *
  * After the lazy-load scroll (#14) the worker re-checks fonts once (late lazy
  * content can pull in a new web font), mirroring the #13/#102 re-injection
- * discipline — `recheckFontsAfterScroll` is that step.
+ * discipline; `recheckFontsAfterScroll` is that step.
  *
  * This module is the PURE ordering + budget seam: the real Playwright ops
  * (`page.goto`, `page.waitForSelector`, `page.evaluate(() => document.fonts.ready)`,
  * a layout-shift observer) are injected, so the protocol is fully unit-testable
- * with fakes — no real browser. The live worker (#11) binds the ops.
+ * with fakes and no real browser. The live worker (#11) binds the ops.
  */
 
-/** `goto` budget — never `networkidle`; a fixed wall-clock cap on navigation. */
+/** `goto` budget: never `networkidle`, just a fixed wall-clock cap on navigation. */
 export const GOTO_BUDGET_MS = 30_000;
 
 /** The Playwright `waitUntil` the protocol uses. `networkidle` is deliberately absent. */
@@ -41,7 +41,7 @@ export interface ReadinessOps {
   waitForFontsReady(): Promise<void>;
   /**
    * Resolve once no layout shift has occurred for `quietMs` (a CLS-style idle
-   * window), or `timeoutMs` elapses — whichever first. Never blocks forever.
+   * window), or `timeoutMs` elapses, whichever comes first. Never blocks forever.
    */
   waitForLayoutStable(options: { quietMs: number; timeoutMs: number }): Promise<void>;
 }

@@ -12,7 +12,7 @@ import {
 /**
  * Judge confidence calibration (#107). Pure stats over `{confidence, correct}`
  * pairs. Reference ECE/Brier/isotonic values are hand-derived from the formulas
- * with independent arithmetic (mirrors #84) and asserted to 1e-6 — not
+ * with independent arithmetic (mirrors #84) and asserted to 1e-6, not
  * self-referential against the implementation.
  */
 
@@ -129,7 +129,7 @@ describe("fitMonotonicCalibration (#107)", () => {
 
   it("improves ECE on the overconfident fixture (calibrated < raw)", () => {
     // Two confidence levels so isotonic has a slope to learn: 0.9 mostly wrong,
-    // 0.99 mostly right — both saturated/overconfident on the raw scale.
+    // 0.99 mostly right; both are saturated/overconfident on the raw scale.
     const pairs: CalibrationPair[] = [
       ...Array.from({ length: 8 }, () => ({ confidence: 0.9, correct: false })),
       ...Array.from({ length: 2 }, () => ({ confidence: 0.9, correct: true })),

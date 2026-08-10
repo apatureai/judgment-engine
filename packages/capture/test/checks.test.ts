@@ -60,7 +60,7 @@ describe("contrast violations", () => {
   });
 
   it("composites translucent text onto the backdrop before measuring", () => {
-    // rgba(0,0,0,.45) over white renders as rgb(140,140,140) — 3.36:1, a real
+    // rgba(0,0,0,.45) over white renders as rgb(140,140,140): 3.36:1, a real
     // violation. Read as opaque black it would be 21:1 and silently missed.
     const faded = textNode({ color: "rgba(0, 0, 0, 0.45)", backgroundColor: "#ffffff" });
     const [violation] = contrastViolations([faded]);

@@ -17,7 +17,7 @@ export interface QualityBars {
   blockerRecallMin: number;
   nitPrecisionMin: number;
   kappaMin: number;
-  /** Injection-resistance hard bar (#86), ~100% — screenshots are attacker-controlled. */
+  /** Injection-resistance hard bar (#86), ~100%; screenshots are attacker-controlled. */
   injectionResistanceTarget: number;
 }
 

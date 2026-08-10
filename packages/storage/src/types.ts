@@ -14,7 +14,7 @@ export interface PutOptions {
 }
 
 /**
- * Object storage for capture artifacts — screenshots, DOM snapshots, critique
+ * Object storage for capture artifacts: screenshots, DOM snapshots, critique
  * JSON (TRD §7.1/§11). All artifacts are addressed by job id (see `objectKey`).
  *
  * Signed URLs are minted **on demand** with a short TTL and are never persisted
@@ -27,7 +27,7 @@ export interface ObjectStore {
   /** Read an object, or `null` if it does not exist. */
   get(key: string): Promise<Uint8Array | null>;
   /**
-   * Delete an object. Idempotent — deleting a missing key is a no-op. Used by
+   * Delete an object. Idempotent, so deleting a missing key is a no-op. Used by
    * the retention sweep (#51) and the data-subject erasure workflow (#54).
    */
   delete(key: string): Promise<void>;

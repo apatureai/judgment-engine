@@ -17,7 +17,7 @@ describe("cross-repo calibration contract (sigil#2)", () => {
       const b = contractPairs(spec);
       expect(a).toEqual(b);
     }
-    // The quantized generator produces exact bin-boundary confidences — the
+    // The quantized generator produces exact bin-boundary confidences, the
     // FP-sensitive inputs where a binning-convention drift shows up first.
     const all = CONTRACT_VECTORS.flatMap((s) => contractPairs(s)).map((p) => p.confidence);
     for (const edge of [0.1, 0.3, 0.7, 1]) {

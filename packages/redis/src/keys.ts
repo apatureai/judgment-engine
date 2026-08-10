@@ -2,13 +2,13 @@
  * Redis key namespaces for the engine orchestrator hot paths (TRD §3/§11/§13).
  *
  * Per the architecture review (E1), the durable job store and dispatch live in
- * **Postgres + pg_notify** (#65) — NOT Redis. Redis holds only the fairness and
+ * **Postgres + pg_notify** (#65), NOT Redis. Redis holds only the fairness and
  * rate-limit state that must be fast and shared across orchestrator instances:
  *
- * - `tb:`    — global model-endpoint token-bucket (#36), keyed by endpoint.
- * - `quota:` — per-tenant quota counters (#67), TTL windows.
- * - `pq:`    — per-tenant priority-queue depth/markers for fair scheduling (#67).
- * - `cb:`    — circuit-breaker state, e.g. `cb:model:<endpoint>`.
+ * - `tb:`    global model-endpoint token-bucket (#36), keyed by endpoint.
+ * - `quota:` per-tenant quota counters (#67), TTL windows.
+ * - `pq:`    per-tenant priority-queue depth/markers for fair scheduling (#67).
+ * - `cb:`    circuit-breaker state, e.g. `cb:model:<endpoint>`.
  */
 export const REDIS_NAMESPACES = {
   tokenBucket: "tb:",

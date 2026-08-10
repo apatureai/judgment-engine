@@ -27,7 +27,7 @@ const unsignedExample = JSON.parse(
   readFileSync(fileURLToPath(new URL("./fixtures/unsigned-bundle.example.json", import.meta.url)), "utf8"),
 ) as UnsignedDerivedEvidenceBundle;
 
-/** A local Ed25519 signer for the test — production wires a KMS-backed port. */
+/** A local Ed25519 signer for the test; production wires a KMS-backed port. */
 function localSigner(keyId: string): { port: Ed25519SignerPort; rawPublicKey: Uint8Array } {
   const { publicKey, privateKey } = generateKeyPairSync("ed25519");
   const rawPublicKey = new Uint8Array(publicKey.export({ format: "der", type: "spki" }).subarray(-32));
@@ -37,7 +37,7 @@ function localSigner(keyId: string): { port: Ed25519SignerPort; rawPublicKey: Ui
   };
 }
 
-/** Mirror of Entropy's `nodeEd25519Verifier` — proves the gate would verify the signature. */
+/** Mirror of Entropy's `nodeEd25519Verifier`, proving the gate would verify the signature. */
 const ED25519_SPKI_PREFIX = Uint8Array.from([0x30, 0x2a, 0x30, 0x05, 0x06, 0x03, 0x2b, 0x65, 0x70, 0x03, 0x21, 0x00]);
 function verifyEd25519(message: Uint8Array, signature: Uint8Array, rawPublic: Uint8Array): boolean {
   const spki = new Uint8Array(ED25519_SPKI_PREFIX.length + rawPublic.length);

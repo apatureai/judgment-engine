@@ -1,7 +1,7 @@
 /**
  * Deterministic motion freeze for capture (TRD §4.1, #13). CSS animations,
  * transitions, and scroll-behaviour make a page render differently on every
- * shot — an in-flight fade or a mid-cycle carousel churns the stability gate
+ * shot: an in-flight fade or a mid-cycle carousel churns the stability gate
  * (#15 → false "unstable" → #70 ceiling) and makes the VLM critique transient
  * motion frames that no real user pauses on. The JS clock pin (#102, see
  * `capture-clock.ts`) freezes time-driven UI; this module freezes the CSS
@@ -9,20 +9,20 @@
  *
  * Two layers, primary + secondary:
  *
- * 1. PRIMARY — `freezeAnimations()`: pause the document's animation timeline at
+ * 1. PRIMARY (`freezeAnimations()`): pause the document's animation timeline at
  *    the engine level (CDP `Animation.setPlaybackRate(0)`). This is specificity-
  *    PROOF: it acts on the running animations directly, NOT through the cascade,
  *    so a late `.spinner{animation:spin 1s infinite !important}` (specificity
  *    0,1,0) is frozen just the same. Run LAST, after the lazy-load scroll, so
  *    animations that late JS mounted are caught too.
  *
- * 2. SECONDARY — the CSS kill sheet + `prefers-reduced-motion: reduce`: zeroes
+ * 2. SECONDARY (the CSS kill sheet + `prefers-reduced-motion: reduce`): zeroes
  *    animation/transition/scroll-behaviour and suppresses media-query-gated
  *    motion, re-injected after the scroll. This is DEFENSE IN DEPTH, not the
  *    guarantee: an author `!important` rule with higher specificity than `*`
  *    out-cascades it (CSS sorts `!important` author declarations by specificity
  *    BEFORE source order, so re-injecting a `*`-only sheet "last" does NOT beat
- *    `.cls !important` — the bug this layering fixes). It still handles the
+ *    `.cls !important`, the bug this layering fixes). It still handles the
  *    common case (no-`!important` animations, transitions, scroll-behaviour,
  *    reduced-motion-aware sites) cheaply and covers transitions, which the
  *    Animation domain's `setPlaybackRate` does not.
@@ -36,7 +36,7 @@
 /**
  * The kill stylesheet. `*` + `*::before` + `*::after` so pseudo-element motion
  * is caught too. `!important` and the `0.01ms` (not `0`) durations are the
- * standard reduced-motion recipe — a tiny non-zero duration lets animations that
+ * standard reduced-motion recipe: a tiny non-zero duration lets animations that
  * gate JS on `animationend`/`transitionend` still fire their end event (so the
  * page doesn't hang) while completing instantly.
  */
@@ -90,7 +90,7 @@ export interface MotionFreezePhases {
  *   → scrollForLazyLoad → addStyleSheet(freeze) → freezeAnimations()
  * so motion is suppressed before first paint (secondary CSS layer + reduced-
  * motion), the CSS sheet is re-applied after the scroll for the common case, and
- * — LAST — the animation timeline is paused at the engine level so EVERY running
+ * LAST of all, the animation timeline is paused at the engine level so EVERY running
  * animation is frozen regardless of cascade specificity, including ones late JS
  * mounted with a higher-specificity `!important` rule the CSS sheet can't beat.
  * After this resolves the page has no in-flight motion, ready for the screenshot.

@@ -12,8 +12,8 @@ import {
 } from "../src/index.js";
 
 /**
- * The whole capture worker driven against a FAKE browser — no Chromium, no
- * network. The fake records every op in order so the determinism lifecycle
+ * The whole capture worker driven against a FAKE browser, with no Chromium and
+ * no network. The fake records every op in order so the determinism lifecycle
  * (#12/#13/#14/#102) can be asserted, and returns a recorded extractor payload.
  */
 
@@ -66,7 +66,7 @@ const EXTRACTED: ExtractedPage = {
       text: null,
     },
     {
-      // A <p> is not a landmark, so it never enters the geometry map — but its
+      // A <p> is not a landmark, so it never enters the geometry map, but its
       // computed style still feeds the deterministic contrast check.
       tag: "p",
       id: "hero-subtitle",

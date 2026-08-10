@@ -70,7 +70,7 @@ def test_training_grade_only_filter():
 #
 # The `fixtures/dvc/` tree is real `buildDvcDataset()` output; BOTH tuples omit
 # `source` (the DVC-export test-factory shape). A Python-recomputed content
-# address must equal the TS side's — previously `dataset_version`/`iter_dedup`
+# address must equal the TS side's. Previously `dataset_version`/`iter_dedup`
 # re-hashed `exclude_none=False`, injecting `source:null` and diverging the id.
 
 

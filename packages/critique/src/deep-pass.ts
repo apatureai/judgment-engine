@@ -28,7 +28,7 @@ export interface DeepPassRoute {
   /** Per-repo memory digest suffix (#41), optional. */
   feedbackDigest?: string;
   /**
-   * Top-k UI-DNA genome rules retrieved for THIS route (#104) — the resolved
+   * Top-k UI-DNA genome rules retrieved for THIS route (#104): the resolved
    * design-system rules relevant to the route's components/diff. Trusted grounding
    * (from our resolved genome, not the page). Absent leaves the prompt unchanged.
    */
@@ -36,7 +36,7 @@ export interface DeepPassRoute {
   /**
    * Untrusted DOM text extracted from the page (#53). Fenced in the
    * `untrusted_page_content` delimiter and governed by the data-not-instructions
-   * rule in the system prompt — never treated as instructions.
+   * rule in the system prompt, never treated as instructions.
    */
   pageText?: string;
 }
@@ -54,13 +54,13 @@ export interface DeepPassDeps {
   /**
    * Serving path (#76). DashScope can't combine thinking + structured output, so
    * it uses the two-step (default). Self-host vLLM does single-call guided
-   * decoding (thinking + json_schema in ONE request) — set `guidedDecoding: true`.
+   * decoding (thinking + json_schema in ONE request); set `guidedDecoding: true`.
    */
   guidedDecoding?: boolean;
   /**
    * PR-level build/runtime facts from Gate's preview-command supervisor (gate
    * #70 U1, #98). Rendered into every route's prompt as grounded build signals
-   * (capped). Optional — absent leaves the prompt byte-identical.
+   * (capped). Optional; absent leaves the prompt byte-identical.
    */
   buildFacts?: PreviewBuildFact[];
 }
@@ -71,7 +71,7 @@ export const MAX_BUILD_FACTS = 12;
 /**
  * Render PR-level build/runtime facts (#98) as a clearly-labeled, capped,
  * deduped block of TRUSTED signals (they come from our own supervisor, not the
- * page — so they are facts, not fenced untrusted content). Returns "" when there
+ * page, so they are facts, not fenced untrusted content). Returns "" when there
  * are none, keeping the prompt byte-identical to the no-facts case.
  */
 export function renderBuildFacts(facts: PreviewBuildFact[] | undefined): string {

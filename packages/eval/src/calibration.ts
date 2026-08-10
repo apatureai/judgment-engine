@@ -1,6 +1,6 @@
 /**
  * Judge confidence calibration (#107). Pure eval stats over already-labeled
- * `{ confidence, correct }` pairs — a finding's verbalized confidence (0..1,
+ * `{ confidence, correct }` pairs: a finding's verbalized confidence (0..1,
  * #33/#70) vs whether it matched golden ground truth (#45). NO live model.
  *
  * The 2025-26 literature is consistent: LLM/VLM-as-judge verbalized confidence
@@ -10,12 +10,12 @@
  * may fall back to the historical hand-picked floor/ceiling.
  *
  * Provides:
- *   - `expectedCalibrationError(pairs, bins?)` — binned ECE + a reliability table
+ *   - `expectedCalibrationError(pairs, bins?)`: binned ECE + a reliability table
  *     (per-bin predicted-mean vs empirical-correct-rate + count).
- *   - `brierScore(pairs)` — mean squared error of confidence vs outcome.
- *   - `bootstrapEceCI(pairs, bins?, options?)` — seeded percentile CI on ECE,
+ *   - `brierScore(pairs)`: mean squared error of confidence vs outcome.
+ *   - `bootstrapEceCI(pairs, bins?, options?)`: seeded percentile CI on ECE,
  *     reusing the #46 mulberry32 bootstrap.
- *   - `fitMonotonicCalibration(pairs)` — isotonic regression (PAVA) mapping raw
+ *   - `fitMonotonicCalibration(pairs)`: isotonic regression (PAVA) mapping raw
  *     verbalized confidence -> calibrated probability; identity when unfit.
  *
  * Sources (accessed 2026-06-21): arXiv:2508.06225 (ECE/ACE/MCE/Brier/NLL),
@@ -207,7 +207,7 @@ export interface CalibrationTransformV1 {
  * saturated verbalized score into a real probability before the #33 floor.
  *
  * The map is the IDENTITY when it cannot be fit (no pairs, or every confidence
- * identical — there is nothing to learn a slope from). The returned function
+ * identical, since there is nothing to learn a slope from). The returned function
  * always clamps its output to [0, 1].
  *
  * Pure / deterministic: same pairs -> same map. Adoption is eval-gated (#48/#71);

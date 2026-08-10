@@ -1,5 +1,5 @@
 /**
- * Argument parsing for the `judgment-engine` CLI. Pure — it never touches the
+ * Argument parsing for the `judgment-engine` CLI. Pure: it never touches the
  * filesystem, the network or `process`, so every flag combination is unit-tested.
  */
 

@@ -3,7 +3,7 @@
 Offline **batch-grader** for the owned judge (issue #125). Given a recorded
 judge-checkpoint run and the human-labeled golden set, it emits a **scorecard**
 (grade agreement + per-dimension detection metrics). Pure Python: **no GPU, no
-network, no model call**, fully deterministic — it grades outputs that were
+network, no model call**, fully deterministic. It grades outputs that were
 recorded earlier.
 
 This is the *eval* half of the owned-judge loop; `python/preference-dataset` is
@@ -13,22 +13,22 @@ the *training* half.
 
 `packages/eval` (TypeScript) is the source of truth for the golden-set format and
 the metric math. This package deliberately does **not** duplicate the hard
-statistics it owns — quadratic-weighted kappa + bootstrap CIs, Krippendorff's
+statistics it owns: quadratic-weighted kappa + bootstrap CIs, Krippendorff's
 alpha, Gwet's AC2, isotonic calibration, ECE/Brier, and the SLO / quality /
 promotion gates.
 
 What it *does* mirror, so a fixture grades identically on both sides:
 
-- the golden-set shapes and format-reading helpers — `finding_key`,
-  `consensusFindings`, `raterGrades` (`golden.py`, mirroring
-  `packages/eval/src/golden-set.ts` + `packages/types/src/findings.ts`);
-- the basic finding-detection counting — set-intersection TP/FP/FN and the
-  `prFromCounts` empty-set convention (`scorecard.py`, mirroring
-  `packages/eval/src/metrics.ts`).
+- the golden-set shapes and format-reading helpers (`finding_key`,
+  `consensusFindings`, `raterGrades`) in `golden.py`, mirroring
+  `packages/eval/src/golden-set.ts` + `packages/types/src/findings.ts`;
+- the basic finding-detection counting: set-intersection TP/FP/FN and the
+  `prFromCounts` empty-set convention, in `scorecard.py`, mirroring
+  `packages/eval/src/metrics.ts`.
 
 For grade agreement the scorecard reports exact/adjacent rates and a confusion
 matrix, and **emits the paired `human_grades` / `model_grades` vectors** that the
-TS chance-corrected estimators consume — it does not compute kappa/AC2 here.
+TS chance-corrected estimators consume. It does not compute kappa/AC2 here.
 
 ## Golden format consumed
 
@@ -76,8 +76,8 @@ What a checkpoint produced, recorded to disk (`CandidateRun`):
 ```
 
 A recorded engine `Finding` may carry extra fields (`confidence`, `viewport`,
-`title`, …); they are ignored. Predictions need not cover every golden case — the
-scorecard aligns by id and reports any gap under `alignment`.
+`title`, …); they are ignored. Predictions need not cover every golden case, and
+the scorecard aligns by id and reports any gap under `alignment`.
 
 ## Use
 

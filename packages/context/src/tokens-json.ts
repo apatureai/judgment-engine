@@ -23,7 +23,7 @@ function valueToString(value: unknown): string | null {
 }
 
 /**
- * A DTCG alias value is a reference whose WHOLE value is `{token.path}` — a dotted
+ * A DTCG alias value is a reference whose WHOLE value is `{token.path}`, a dotted
  * token name. The strict pattern (letters/digits/`.`/`-`/`_` only, no quotes,
  * colons, or inner braces) is load-bearing: it must never mistake a JSON-stringified
  * composite token (e.g. `{"x":0,"y":1}`) for a reference.
@@ -38,7 +38,7 @@ function aliasTarget(value: string): string | null {
  * Resolve DTCG aliases in a flat TokenMap: a value that is a single `{token.path}`
  * reference is replaced by the referenced token's resolved value, following alias
  * chains. A reference to a missing token, or a reference cycle, is left as its
- * ORIGINAL literal — surfaced for debugging, never silently dropped or looped.
+ * ORIGINAL literal, surfaced for debugging and never silently dropped or looped.
  * Pure and deterministic.
  */
 export function resolveTokenAliases(map: TokenMap): TokenMap {
@@ -46,7 +46,7 @@ export function resolveTokenAliases(map: TokenMap): TokenMap {
   for (const [name, value] of Object.entries(map)) {
     const first = aliasTarget(value);
     if (first === null) {
-      out[name] = value; // concrete value (incl. serialized composites) — unchanged
+      out[name] = value; // concrete value (incl. serialized composites), unchanged
       continue;
     }
     // Follow the alias chain to a concrete value; stop on cycle or dangling ref,

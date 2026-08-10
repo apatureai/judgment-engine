@@ -1,7 +1,7 @@
 import type { Finding } from "@engine/types";
 
 /**
- * Post-parse validation gate + hallucination metric (TRD §6.4, #32) — the core
+ * Post-parse validation gate + hallucination metric (TRD §6.4, #32), the core
  * anti-hallucination mechanism. `json_object` (#31) guarantees valid JSON, not
  * valid fields, so after parse we:
  *   1. clamp confidence into [0,1] (non-finite -> 0),

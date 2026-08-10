@@ -16,7 +16,7 @@ import {
  *                        dimension in the rubric, and its absence suppresses it
  *   package.json       → detected component libraries → rubric addenda (#60)
  *
- * Every file is optional. A missing file degrades the context, never the run —
+ * Every file is optional. A missing file degrades the context, never the run:
  * an ungrounded review is a weaker review, not a failed one.
  */
 

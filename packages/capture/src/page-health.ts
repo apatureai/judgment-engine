@@ -2,7 +2,7 @@ import type { PageHealth } from "@engine/types";
 
 /**
  * Page-health footnote (TRD §4.2). Console errors and failed network requests
- * are collected during capture but kept OUT of the design findings set — a 500
+ * are collected during capture but kept OUT of the design findings set: a 500
  * or a console exception is an app-health signal, not a design critique. They
  * surface only as a footnote delivery can attach.
  *
@@ -22,7 +22,7 @@ export interface FailedRequest {
 /**
  * A `document.fonts` entry sampled by the worker AFTER `fonts.ready` resolves.
  * `fonts.ready` resolves even when a web font was blocked (by the egress policy
- * #24 or a CDN outage) and silently substituted — so a non-"loaded" status is
+ * #24 or a CDN outage) and silently substituted, so a non-"loaded" status is
  * the only signal that the rendered glyphs aren't what real users see (#83).
  */
 export interface FontFaceStatus {

@@ -21,7 +21,7 @@ Please do not file a vulnerability as a normal public issue.
 Be realistic about what happens next. A report here may go unread, and if it is
 read, the most likely outcome is that it stays open. If the Security tab offers
 no reporting option, there is no private channel at all. In either case, treat
-the issue as permanently unfixed and act accordingly — fork and fix.
+the issue as permanently unfixed and act accordingly: fork and fix.
 
 ## Before you run this code
 
@@ -44,8 +44,8 @@ customer data.
 
 **Capture runs a real browser, and the isolation this design depends on is not
 in this repository.** `captureWithBrowser` drives headless Chromium in your own
-process. Capture is meant to render third-party preview deploys —
-attacker-influenced URLs and pages — and the design called for one Firecracker
+process. Capture is meant to render third-party preview deploys, meaning
+attacker-influenced URLs and pages, and the design called for one Firecracker
 microVM per job with `nftables` egress enforcement. That sandbox was never
 implemented here. `packages/capture/src/egress.ts` holds the egress/SSRF policy,
 including cloud-metadata endpoint blocking, but it is policy logic that nothing

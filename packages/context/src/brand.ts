@@ -2,7 +2,7 @@ import { parse } from "yaml";
 import { isRecord } from "./guards.js";
 
 /**
- * `.designreview.yml` brand-block extraction (TRD §6) — the highest-leverage
+ * `.designreview.yml` brand-block extraction (TRD §6), the highest-leverage
  * human-written context. The brand dimension is suppressed entirely when the
  * block is absent (`extractBrandBlock` returns null), so the critique never
  * invents brand-fit findings without a stated brand.

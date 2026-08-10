@@ -3,7 +3,7 @@
  * `AbortController` per in-flight job and threads its signal into the inference
  * HTTP stream and the capture sandbox. On `DELETE /jobs/:id`, after the store is
  * flipped to `cancelling`, `cancel(jobId)` aborts the inference stream and tears
- * down the microVM (the injected `killSandbox` seam — real Fly Machines stop is
+ * down the microVM (the injected `killSandbox` seam; real Fly Machines stop is
  * wired in #22). Teardown is best-effort: correctness never depends on the kill
  * landing in time (the no-result invariant comes from `complete`/`fail` only
  * acting on `running` rows).

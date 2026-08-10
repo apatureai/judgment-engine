@@ -10,14 +10,14 @@ import type {
 
 /**
  * DashScope model client (TRD §6.1/§6.5, #27). Streams against the DashScope
- * OpenAI-compatible endpoint (the OpenAI SDK shape — never `@anthropic-ai/sdk`),
+ * OpenAI-compatible endpoint (the OpenAI SDK shape, never `@anthropic-ai/sdk`),
  * selects the Thinking checkpoint for the deep pass (reasoning on, temp ~0.6),
  * splits the reasoning stream (`reasoning_content`) from the answer, and threads
  * an AbortSignal into every call. The exact same client serves self-host
  * vLLM/SGLang by pointing the create fn at that endpoint (#76).
  *
  * The streaming `create` is injected so the client is unit-tested against a fake
- * stream — NEVER a live model. `createOpenAICompatibleCreate` adapts a real
+ * stream, NEVER a live model. `createOpenAICompatibleCreate` adapts a real
  * OpenAI-SDK client in production.
  */
 

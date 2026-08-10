@@ -7,7 +7,7 @@ import type { Rect } from "./checks.js";
  * Tiles are downscaled to the model's `max_pixels` budget BEFORE upload so the
  * server never silently resizes (which would desync element refs). The exact
  * capture/sent ratio is tracked so any coordinate the model returns in sent
- * space is rescaled back to captured space — element_ref boxes then land 1:1.
+ * space is rescaled back to captured space, so element_ref boxes land 1:1.
  *
  * Budgets are per-tier config (triage vs deep), never a hardcoded Claude cap.
  * The actual pixel resampling (sharp) is the worker seam; this module is the
@@ -19,7 +19,7 @@ export const PATCH_SIZE = 16;
 export const DIMENSION_MULTIPLE = 2 * PATCH_SIZE;
 
 /**
- * Per-tier `max_pixels` budgets (total pixels per sent tile). Tunable config —
+ * Per-tier `max_pixels` budgets (total pixels per sent tile). Tunable config:
  * triage uses the fast model with a smaller budget; deep gets more detail.
  */
 export const PIXEL_BUDGETS: Record<ReviewDepth, number> = {
@@ -31,7 +31,7 @@ export interface ScaledDimensions {
   /** Sent (downscaled) dimensions, each a multiple of `DIMENSION_MULTIPLE`. */
   width: number;
   height: number;
-  /** captured/sent ratio per axis — multiply model-returned coords by this. */
+  /** captured/sent ratio per axis; multiply model-returned coords by this. */
   ratioX: number;
   ratioY: number;
 }
@@ -61,7 +61,7 @@ export function fitToPixelBudget(
   }
 
   const area = capturedWidth * capturedHeight;
-  // Only shrink — within budget keeps native size (still patch-aligned).
+  // Only shrink: within budget keeps native size (still patch-aligned).
   const scale = area > maxPixels ? Math.sqrt(maxPixels / area) : 1;
 
   const width = roundDownToMultiple(capturedWidth * scale, multiple);

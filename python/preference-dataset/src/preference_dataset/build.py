@@ -10,7 +10,7 @@ Three views are produced, all derivable 1:1 from the tuples (nothing invented):
 
   - **KTO** (`kto.jsonl`): every tuple -> `{prompt, completion, label}` where
     label is `desirable`/`undesirable`. Matches `trl.KTOTrainer`'s unpaired
-    schema — the exact fit for #85's binary signal.
+    schema, the exact fit for #85's binary signal.
   - **SFT** (`sft.jsonl`): endorsed tuples only -> `{prompt, completion}`.
     Teaches the judge to surface the findings teams actually accepted.
   - **DPO/ORPO** (`dpo.jsonl`): endorsed-vs-dismissed `{prompt, chosen, rejected}`
@@ -37,7 +37,7 @@ from .schema import PreferenceExample
 
 
 def _prompt(ex: PreferenceExample) -> dict[str, Any]:
-    """The model-facing context for a finding — references, not bytes."""
+    """The model-facing context for a finding: references, not bytes."""
     return {
         "imageRef": ex.imageRef,
         "contextHash": ex.contextHash,
@@ -66,11 +66,11 @@ def to_sft_row(ex: PreferenceExample) -> dict[str, Any]:
 # were judged on the same evidence, so the pairing key is the shared context:
 # the rendered-UI screenshot ref (`imageRef`) AND the repo-context hash
 # (`contextHash`). Within one such context an ENDORSED finding is `chosen` and a
-# DISMISSED finding is `rejected` — the team's revealed preference between two
+# DISMISSED finding is `rejected`, the team's revealed preference between two
 # candidate critiques of the *same* screen.
 #
 # Because the prompt must be byte-identical for chosen and rejected, the DPO
-# prompt carries only that shared context (imageRef + contextHash) — NOT the
+# prompt carries only that shared context (imageRef + contextHash), NOT the
 # per-finding route/viewport that the KTO/SFT `_prompt` includes, which could
 # differ between the two findings and break the pairing invariant.
 
@@ -258,7 +258,7 @@ def build_card(
 
 
 def _relpath_for(ex: PreferenceExample) -> str:
-    """Logical dataset path for a tuple — mirrors `relpathFor` in dvc-export.ts."""
+    """Logical dataset path for a tuple; mirrors `relpathFor` in dvc-export.ts."""
     return f"{ex.promptVersion}/{ex.findingId}.json"
 
 
@@ -275,13 +275,13 @@ def dataset_version(examples: Iterable[PreferenceExample]) -> str:
     """The DVC dataset version id (`<md5>.dir`) for the built set.
 
     Byte-identical to `buildDvcDataset()` in `dvc-export.ts`: each tuple becomes a
-    content-addressed cache entry `{md5, relpath}` (the md5 is the TS field set —
+    content-addressed cache entry `{md5, relpath}` (the md5 is the TS field set;
     see `dvc_object_md5`), the listing is sorted by canonical UTF-8 bytes of
     `relpath`, and the version is the md5 of that `.dir` listing, suffixed `.dir`.
     Same tuples => the same id the TS side computes, so a Python-built card's
     `version` equals the TS DVC content address (previously it re-hashed
     `exclude_none=False`, injecting `source:null` for source-omitted tuples and
-    diverging the id — #127). The byte-order relpath sort is locale- and
+    diverging the id, #127). The byte-order relpath sort is locale- and
     ICU-independent, so non-ASCII or punctuation-heavy relpaths do not diverge
     across runtimes (#133).
     """

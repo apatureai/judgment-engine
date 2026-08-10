@@ -1,10 +1,10 @@
 import type { Viewport } from "@engine/types";
 
 /**
- * Per-pass model abstraction (TRD §6/§7, #26). Every model backend — DashScope
- * (v1), self-host vLLM (#76), a fine-tuned checkpoint (#79), or a
- * different VLM/Claude — sits behind this one `ModelClient` interface, so a model
- * swap is a config change with no call-site change in `critique()` or any
+ * Per-pass model abstraction (TRD §6/§7, #26). Every model backend sits behind
+ * this one `ModelClient` interface: DashScope (v1), self-host vLLM (#76), a
+ * fine-tuned checkpoint (#79), or a different VLM/Claude. A model swap is
+ * therefore a config change with no call-site change in `critique()` or any
  * consumer.
  */
 export type ModelBackend = "dashscope" | "self-host" | "mock";
@@ -56,7 +56,7 @@ export interface ModelResponse {
   finishReason: string;
 }
 
-/** Per-call options — an AbortSignal is threaded into every stream call (#27, supersession #66). */
+/** Per-call options; an AbortSignal is threaded into every stream call (#27, supersession #66). */
 export interface ModelCallOptions {
   signal?: AbortSignal;
 }

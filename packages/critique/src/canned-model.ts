@@ -11,8 +11,8 @@ import type {
  * Replay model client: answers the pipeline's calls from a recorded/authored
  * script instead of a network round-trip.
  *
- * This exists so the whole pipeline — capture, grounding, the drop-and-count
- * hallucination gate, grade reconciliation, the wire projection — can be
+ * This exists so the whole pipeline (capture, grounding, the drop-and-count
+ * hallucination gate, grade reconciliation, the wire projection) can be
  * exercised end to end with no API key. It is NOT a model and makes no attempt
  * to be one: it does not look at the images, and whatever the script says is
  * what it says. The engine's validation tail then treats that output exactly as
@@ -98,7 +98,7 @@ export class CannedModelClient implements ModelClient {
     const critique = route !== null ? this.script.routes[route] : undefined;
 
     // Deep pass, step 1: prose. Carry the route in a marker so the non-thinking
-    // coercion step — whose only input is this prose — can find it again.
+    // coercion step, whose only input is this prose, can find it again.
     if (request.responseFormat === undefined) {
       return `[route:${route ?? "unknown"}]\n${critique?.overall ?? "no scripted critique"}`;
     }

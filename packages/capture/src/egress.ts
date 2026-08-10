@@ -3,21 +3,21 @@
  * preview code, so it must never reach internal/cloud-metadata addresses
  * (SSRF), while still fetching public fonts/images so the page renders.
  *
- * This module is the pure POLICY decision, applied to the *resolved* IP — the
+ * This module is the pure POLICY decision, applied to the *resolved* IP. The
  * worker re-resolves DNS and re-checks here right before connect to defeat
  * rebinding. The kernel-level enforcement (nftables in the guest namespace) is
  * #73; this is the testable allow/deny core plus per-domain rate/size caps.
  */
 
 /**
- * Denied IPv4 ranges: RFC-1918, loopback, link-local (incl. 169.254.169.254 —
- * AWS/GCP/Azure/DO metadata), unspecified, PLUS the cloud-metadata endpoints that
+ * Denied IPv4 ranges: RFC-1918, loopback, link-local (incl. 169.254.169.254, the
+ * AWS/GCP/Azure/DO metadata address), unspecified, PLUS the cloud-metadata endpoints that
  * do NOT live in link-local space (the module's purpose is to block ALL cloud
  * metadata, not just the 169.254 ones):
- *   - 100.64.0.0/10 (RFC-6598 shared/CGN) — Alibaba Cloud metadata 100.100.100.200,
+ *   - 100.64.0.0/10 (RFC-6598 shared/CGN): Alibaba Cloud metadata 100.100.100.200,
  *     directly relevant given the DashScope/Qwen dependency; also not globally
  *     routable, so no legitimate public font/image lives there.
- *   - 192.0.0.0/24 (RFC-6890 IETF protocol assignments) — Oracle Cloud metadata
+ *   - 192.0.0.0/24 (RFC-6890 IETF protocol assignments): Oracle Cloud metadata
  *     192.0.0.192; likewise never a legitimate public resource.
  */
 const PRIVATE_V4_CIDRS = [
@@ -63,7 +63,7 @@ export function isPrivateOrReservedIp(ip: string): boolean {
 
   // IPv6
   if (host === "::" || host === "::1") return true; // unspecified / loopback
-  // v4-mapped/compat — check the embedded v4 in EITHER form:
+  // v4-mapped/compat: check the embedded v4 in EITHER form:
   //   dotted  (::ffff:169.254.169.254, ::169.254.169.254)
   //   hex     (::ffff:a9fe:a9fe)  ← the metadata-SSRF bypass if only dotted is checked
   const embedded = embeddedV4(host);
@@ -134,7 +134,7 @@ export type Resolver = (host: string) => Promise<string[]>;
  * RIGHT BEFORE connect and applies {@link evaluateEgress} to EVERY resolved
  * address, so a DNS-rebind that flips a name from a public record (at
  * validation) to an internal one (at connect) is caught here and fails closed.
- * Denies if resolution is empty/throws or ANY address is internal — a name that
+ * Denies if resolution is empty/throws or ANY address is internal, so a name that
  * round-robins a public and a private record never passes. The worker must pin
  * the socket to an address this approved (no third resolution before connect).
  */

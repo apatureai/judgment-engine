@@ -20,7 +20,7 @@ export interface EnqueueJobInput {
   installationId: string;
   /** Intent kind, e.g. "pr_review". */
   intentType: string;
-  /** `{consumer}:{installationId}:{intentType}:{intentHash}` — the dedup key. */
+  /** `{consumer}:{installationId}:{intentType}:{intentHash}`: the dedup key. */
   idempotencyKey: string;
   depth: ReviewDepth;
   /** Opaque job payload (target, trace carrier, ...). */
@@ -153,7 +153,7 @@ export class IdempotencyRequestConflictError extends Error {
  * woken by `pg_notify` on `engine_jobs` and claim with `FOR UPDATE SKIP LOCKED`,
  * so there is no busy-poll.
  *
- * Ownership (#166): `SKIP LOCKED` only arbitrates the claim transaction — it is
+ * Ownership (#166): `SKIP LOCKED` only arbitrates the claim transaction; it is
  * not a durable lease. Every claim records a lease (`lease_owner`,
  * `lease_expires_at`) and bumps `claim_generation`; the owning worker renews the
  * lease while working, and every finalization is fenced on the generation, so a
@@ -248,7 +248,7 @@ export class JobStore {
   /**
    * Renew the lease for a claim the worker still owns. Returns false when the
    * worker no longer holds the claim (lease recovered, job finalized, or a
-   * newer generation claimed it) — the caller must treat the attempt as lost
+   * newer generation claimed it). The caller must treat the attempt as lost
    * and stop publishing.
    */
   async renewLease(
@@ -329,8 +329,8 @@ export class JobStore {
 
   /**
    * Recover attempts whose worker is gone (#166): any `running` row past its
-   * lease expiry — or past the optional hard attempt deadline even with a live
-   * heartbeat — requeues below the attempt budget or fails terminally at it,
+   * lease expiry, or past the optional hard attempt deadline even with a live
+   * heartbeat, requeues below the attempt budget or fails terminally at it,
    * with a bounded reason recording the lost owner. Expired or never-leased
    * `cancelling` rows finalize to `canceled` (a job canceled while still queued
    * is never claimed, so no worker would ever finalize it). Requeued ids are

@@ -1,17 +1,17 @@
 /**
  * Cross-repo calibration contract (sigil#2). @engine/eval's ECE/Brier math is
  * the org's canonical calibration IP; the standalone assurance lane (sigil)
- * mirrors it rather than importing it (private repos, no registry — a literal
+ * mirrors it rather than importing it (private repos, no registry; a literal
  * dependency would also complicate sigil's independence provenance). This
- * module renders deterministic golden vectors — LCG-generated calibration
+ * module renders deterministic golden vectors (LCG-generated calibration
  * pairs INCLUDING exact bin-boundary confidences, where implementations
- * diverge first — with this package's computed ECE/Brier/reliability outputs.
+ * diverge first) with this package's computed ECE/Brier/reliability outputs.
  *
  * The committed `fixtures/calibration-contract.golden.json` is the contract
  * artifact, the same discipline as the TS↔Python preference-schema seam
  * (#123) and the wire golden: a sync test here fails if this package's math
  * drifts from the committed file, and sigil's mirror test consumes a copy of
- * the file, so a deliberate change breaks BOTH repos' checks — which is the
+ * the file, so a deliberate change breaks BOTH repos' checks, which is the
  * point.
  */
 
@@ -34,7 +34,7 @@ export const CONTRACT_VECTORS: readonly ContractVectorSpec[] = [
 /**
  * Deterministic pair generation, mirrored byte-for-byte in sigil's contract
  * test. Confidences are quantized to 1/40 steps so exact bin-edge values
- * (0.1, 0.3, 0.7, 1.0 at 10 bins) occur often — the FP-sensitive region where
+ * (0.1, 0.3, 0.7, 1.0 at 10 bins) occur often: the FP-sensitive region where
  * a binning-convention drift shows up first. Integer math only until the
  * final division, so both repos generate identical inputs.
  */
@@ -46,7 +46,7 @@ export function contractPairs(spec: ContractVectorSpec): CalibrationPair[] {
   };
   const pairs: CalibrationPair[] = [];
   for (let i = 0; i < spec.count; i++) {
-    const confidence = (next() % 41) / 40; // 0, 0.025, …, 1 — hits every 10-bin edge
+    const confidence = (next() % 41) / 40; // 0, 0.025, …, 1; hits every 10-bin edge
     const correct = next() % 1000 < confidence * 1000; // correlated outcome
     pairs.push({ confidence, correct });
   }

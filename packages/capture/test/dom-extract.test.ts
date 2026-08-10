@@ -7,7 +7,7 @@ import {
   type ExtractedPage,
 } from "../src/index.js";
 
-/** A recorded extractor payload — what one `page.evaluate` round-trip returns. */
+/** A recorded extractor payload: what one `page.evaluate` round-trip returns. */
 function element(overrides: Partial<ExtractedElement> = {}): ExtractedElement {
   return {
     tag: "p",

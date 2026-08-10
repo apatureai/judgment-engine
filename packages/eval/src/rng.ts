@@ -9,7 +9,7 @@
 
 /**
  * Deterministic mulberry32 PRNG: a seed yields a function returning the next
- * float in [0, 1). The same seed always produces the same stream — the basis of
+ * float in [0, 1). The same seed always produces the same stream, the basis of
  * reproducible eval sampling.
  */
 export function mulberry32(seed: number): () => number {

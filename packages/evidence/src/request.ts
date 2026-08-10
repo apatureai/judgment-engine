@@ -1,7 +1,7 @@
 import type { DerivedEvidenceBundleV1, UnsignedDerivedEvidenceBundle } from "./bundle.js";
 
 /**
- * `EvidenceRequestV1` — the producer-owned request a `DerivedEvidenceBundleV1`
+ * `EvidenceRequestV1`: the producer-owned request a `DerivedEvidenceBundleV1`
  * is produced FOR and must bind to (TRD §3.2). The consumer's
  * acceptance gate re-checks this identity binding against the originating
  * request; mirroring it producer-side lets Judgment Engine prove a bundle binds
@@ -53,7 +53,7 @@ export interface BindingCheck {
 }
 
 /**
- * Whether a bundle binds to the request that authorized it — the SAME identity
+ * Whether a bundle binds to the request that authorized it, using the SAME identity
  * check the acceptance gate enforces (tenant/repo/request/commit/UI-DNA
  * version+digest). Naming the mismatched fields makes a wrong-identity bundle
  * observable producer-side, before it is returned.
@@ -79,7 +79,7 @@ export class RequestBindingError extends Error {
   }
 }
 
-/** Fail closed unless the (unsigned) bundle binds to `request` — a producer-side guard before signing. */
+/** Fail closed unless the (unsigned) bundle binds to `request`: a producer-side guard before signing. */
 export function assertBundleBindsToRequest(bundle: UnsignedDerivedEvidenceBundle, request: EvidenceRequestV1): UnsignedDerivedEvidenceBundle {
   const check = bundleBindsToRequest(bundle, request);
   if (!check.bound) throw new RequestBindingError(check.mismatches);

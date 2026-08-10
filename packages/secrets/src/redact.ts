@@ -16,7 +16,7 @@ export const TRUNCATED_MAX_DEPTH = "[Truncated: max depth]";
  * adversarial or accidentally shared-/deep-heavy payload must not turn a log
  * line into a CPU/memory bomb. Because `seen` only tracks the *ancestor path*
  * (so genuine DAGs are preserved, not mis-flagged as "[Circular]"), a shared
- * subtree is legitimately re-walked once per referencing path — which is
+ * subtree is legitimately re-walked once per referencing path, which is
  * exponential for a nested diamond. These caps keep the walk O(nodes) and the
  * output bounded regardless of input shape.
  */
@@ -53,7 +53,7 @@ function looksLikeImageData(value: string): boolean {
 
 /** Mutable per-call traversal state, threaded through the recursion. */
 interface RedactState {
-  /** The *current ancestor path* — for cycle detection (see `redactValue`). */
+  /** The *current ancestor path*, for cycle detection (see `redactValue`). */
   readonly path: WeakSet<object>;
   /** Global count of container nodes emitted so far this traversal. */
   nodes: number;
@@ -63,8 +63,8 @@ interface RedactState {
  * Recursive worker. `state.path` tracks the *current ancestor path*, not every
  * node ever visited: each container is removed once its own subtree finishes.
  * This catches genuine cycles (a node reachable from itself) while NOT
- * mis-flagging a shared (diamond/DAG) reference — the same object referenced by
- * two siblings — as "[Circular]", which would silently drop data from the log.
+ * mis-flagging a shared (diamond/DAG) reference, the same object referenced by
+ * two siblings, as "[Circular]", which would silently drop data from the log.
  *
  * Preserving DAGs means a shared subtree is re-walked per referencing path, so
  * two bounds keep the walk safe: `MAX_REDACT_DEPTH` caps recursion and
@@ -73,7 +73,7 @@ interface RedactState {
  *
  * SECURITY: sensitive keys are replaced with `REDACTED` *before* any recursion,
  * so key scrubbing always applies to everything emitted. Truncation only ever
- * collapses/drops a non-sensitive subtree into a sentinel string — it can never
+ * collapses/drops a non-sensitive subtree into a sentinel string; it can never
  * cause a sensitive value to be emitted unredacted.
  */
 function redactValue(value: unknown, state: RedactState, depth: number): unknown {

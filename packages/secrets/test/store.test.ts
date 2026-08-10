@@ -96,7 +96,7 @@ describe("redact keeps secrets out of logs/traces", () => {
     // Nested diamond: each level references the level below it twice, so the
     // number of *paths* doubles per level. Path-based cycle tracking correctly
     // keeps this a DAG (no false [Circular]), but without a cap it would be
-    // re-walked exponentially. 40 levels = ~2^40 paths — must stay bounded.
+    // re-walked exponentially. 40 levels = ~2^40 paths, which must stay bounded.
     let node: Record<string, unknown> = { leaf: true };
     for (let i = 0; i < 40; i++) {
       node = { left: node, right: node, depth: i };
@@ -113,7 +113,7 @@ describe("redact keeps secrets out of logs/traces", () => {
     const size = JSON.stringify(out).length;
     expect(size).toBeLessThan(2_000_000);
 
-    // The bound is actually exercised — a truncation sentinel appears somewhere.
+    // The bound is actually exercised: a truncation sentinel appears somewhere.
     expect(JSON.stringify(out)).toContain("[Truncated:");
   });
 

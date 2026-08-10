@@ -9,7 +9,7 @@ import type {
 /**
  * Deterministic in-memory model client. It is the default stand-in until the
  * real DashScope adapter (#27) and self-host vLLM client (#76) are wired, and
- * the client used in all tests — NEVER call a real model in tests. It echoes the
+ * the client used in all tests. NEVER call a real model in tests. It echoes the
  * requested model so the per-pass routing is observable, and returns an empty
  * findings JSON so the pipeline parses end to end.
  */

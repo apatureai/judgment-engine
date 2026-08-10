@@ -7,7 +7,7 @@ import type {
 } from "./findings.js";
 
 /**
- * Consumer-facing wire result returned over the async job API — the projection of
+ * Consumer-facing wire result returned over the async job API: the projection of
  * the internal `Critique` that crosses the repo boundary. It MUST stay identical
  * to Gate's `GateReviewResult` (TRD §2, §3); the shared golden fixture
  * (`fixtures/gate-review-result.golden.json`, copied from apatureai/gate) is the
@@ -17,7 +17,7 @@ export const SCHEMA_VERSION = "1";
 
 export type WireGrade = "ship" | "ship_with_nits" | "needs_work" | "blocked";
 
-/** The 8-dimension design rubric on the wire — the closed enum, mirrored from the internal `Dimension` (#159). */
+/** The 8-dimension design rubric on the wire: the closed enum, mirrored from the internal `Dimension` (#159). */
 export type WireDimension =
   | "visual_hierarchy"
   | "spacing"
@@ -32,7 +32,7 @@ export interface WireFinding {
   id: string;
   /**
    * The rubric dimension the engine selected for this finding (#159). Emitted
-   * DIRECTLY from the validated internal finding — never derived from title,
+   * DIRECTLY from the validated internal finding, never derived from title,
    * severity, or prose. Additive + optional (schema v1, x-schema-version, like
    * `confidence` in #150): the projection always emits it going forward; it is
    * optional only so results stored before the field existed still type-check.

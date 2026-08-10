@@ -2,7 +2,7 @@
  * DLP-safe evidence-producer metrics (judgment-engine#156; TRD §18).
  *
  * The producer emits operational metrics for build/sign/verify latency, bundle
- * size, capability gaps, and rejection reasons — but NEVER raw page text,
+ * size, capability gaps, and rejection reasons, but NEVER raw page text,
  * prompts, screenshots, or secrets. Every metric event is a fixed catalog name
  * plus a strictly-allowlisted set of enum/id/hash labels; `assertEvidenceMetricSafe`
  * fails closed on an off-catalog name, an off-allowlist label key, or a
@@ -40,7 +40,7 @@ export const EVIDENCE_METRICS: readonly EvidenceMetricDef[] = Object.freeze([
 const CATALOG_NAMES: ReadonlySet<string> = new Set(EVIDENCE_METRICS.map((m) => m.name));
 
 /**
- * Rejection reasons — mirrors Entropy's gate `RejectionCode` vocabulary
+ * Rejection reasons, mirroring Entropy's gate `RejectionCode` vocabulary
  * (cross-repo), so producer rejection metrics use the SAME reason names the
  * consumer emits. Kept in sync with `apatureai/entropy-engine` gate result.ts.
  */
@@ -68,7 +68,7 @@ export type EvidenceRejectionReason =
   | "undisclosed_execution"
   | "stale_generated_at";
 
-/** DLP-safe labels — enum/id/hash only. There is structurally no field for content. */
+/** DLP-safe labels: enum/id/hash only. There is structurally no field for content. */
 export interface EvidenceMetricLabels {
   outcome?: "built" | "signed" | "verified" | "rejected";
   rejectionReason?: EvidenceRejectionReason;

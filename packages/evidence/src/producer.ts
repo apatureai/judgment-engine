@@ -16,7 +16,7 @@ import {
  * The signed `DerivedEvidenceBundleV1` producer (judgment-engine#156;
  * TRD §3.2). A pure deterministic builder assembles the bundle; an injected
  * Ed25519 signer (KMS/HSM/local) signs the RFC 8785 canonical bytes. NO private
- * key lives in source or config — the signer is a port.
+ * key lives in source or config; the signer is a port.
  *
  * The canonicalizer is byte-identical to Entropy's verifier (`canonicalize.ts`
  * is the same file), so the digest a producer computes here equals the digest
@@ -95,7 +95,7 @@ export function buildDerivedEvidenceBundle(input: BuildBundleInput): UnsignedDer
   };
 }
 
-/** The RFC 8785 canonical digest (`sha256:<hex>`) of an unsigned bundle — the signed bytes' fingerprint. */
+/** The RFC 8785 canonical digest (`sha256:<hex>`) of an unsigned bundle: the signed bytes' fingerprint. */
 export function bundleCanonicalDigest(unsigned: UnsignedDerivedEvidenceBundle): string {
   return `sha256:${createHash("sha256").update(canonicalBytes(unsigned)).digest("hex")}`;
 }

@@ -7,7 +7,7 @@ import type { ModelClientFactory } from "./registry.js";
  * Which model client a process is actually running (#27). The engine has always
  * had two: the deterministic in-memory `MockModelClient` and the real
  * OpenAI-compatible client. Choosing between them from configuration is easy to
- * get silently wrong — a run against the mock produces a well-formed, entirely
+ * get silently wrong: a run against the mock produces a well-formed, entirely
  * empty review that looks like a clean bill of health. So the choice is resolved
  * ONCE, here, and returned alongside a human-readable `description` that every
  * entry point is expected to print before it reviews anything.
@@ -34,7 +34,7 @@ export interface ModelRuntime {
 
 export interface ModelRuntimeOptions {
   /**
-   * Resolve a captured image's object key to a URL the model can fetch — a
+   * Resolve a captured image's object key to a URL the model can fetch: a
    * signed object-store URL in production, a `data:` URI for local runs. Required
    * for the live path to send images; defaults to passing the object key through.
    */

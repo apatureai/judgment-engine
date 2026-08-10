@@ -8,8 +8,8 @@ still running. Issues and pull requests may sit unread indefinitely, and most
 will not be merged. That is not a judgment on your patch; there is simply nobody
 shipping from here anymore.
 
-Forking is the encouraged path. The license is MIT — take it, rename it, change
-whatever you like. You do not need to ask, and there is no CLA.
+Forking is the encouraged path. The license is MIT, so take it, rename it,
+change whatever you like. You do not need to ask, and there is no CLA.
 
 ## If you open a pull request anyway
 
@@ -44,11 +44,11 @@ The TypeScript workspace is `packages/*` (`@engine/*`). `vitest.config.ts`
 aliases every package to its `src/index.ts`, so most tests run against sources
 rather than build output. One exception: `packages/runtime/test/runtime.test.ts`
 loads the emitted `dist/` graph under native Node ESM resolution, which is why
-`pnpm test` runs `tsc -b` first — it works on a clean checkout with no other
+`pnpm test` runs `tsc -b` first. It works on a clean checkout with no other
 steps.
 
-Rust — `rust/capture-dedup`, perceptual near-duplicate detection, std-only with
-no dependencies:
+Rust, in `rust/capture-dedup`: perceptual near-duplicate detection, std-only
+with no dependencies.
 
 ```sh
 cargo test  --manifest-path rust/capture-dedup/Cargo.toml
@@ -56,8 +56,8 @@ cargo clippy --manifest-path rust/capture-dedup/Cargo.toml --all-targets -- -D w
 cargo fmt   --manifest-path rust/capture-dedup/Cargo.toml --check
 ```
 
-Python — `python/eval` and `python/preference-dataset` are two independent uv
-projects (not part of the pnpm workspace):
+Python: `python/eval` and `python/preference-dataset` are two independent uv
+projects, and neither is part of the pnpm workspace.
 
 ```sh
 cd python/eval            # then repeat for python/preference-dataset
@@ -92,9 +92,10 @@ does.
 The real browser is exercised outside the test suite, by the `quickstart` job in
 `.github/workflows/ci.yml`, which runs `pnpm review` against headless Chromium,
 asserts the artifacts the README promises, and runs
-`scripts/ci/extractor-smoke.mjs` — the in-page DOM extractor against real pages,
-checking that the deterministic contrast facts a real Chromium yields are the
-true ones. Add a case there when you touch `DOM_EXTRACT_EXPRESSION`: a fake page
+`scripts/ci/extractor-smoke.mjs`, which runs the in-page DOM extractor against
+real pages and checks that the deterministic contrast facts a real Chromium
+yields are the true ones. Add a case there when you touch
+`DOM_EXTRACT_EXPRESSION`: a fake page
 cannot tell you what `getComputedStyle` actually returns.
 
 ## Getting oriented

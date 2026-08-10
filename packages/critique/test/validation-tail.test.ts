@@ -89,7 +89,7 @@ describe("runValidationTail — the shared gate/calibrate/filter/reconcile seque
       identity,
     });
     expect(out.findings).toHaveLength(1);
-    expect(out.findings[0]?.severity).toBe("major"); // blocker downgraded — cannot block
+    expect(out.findings[0]?.severity).toBe("major"); // blocker downgraded, cannot block
     expect(out.grade).toBe("needs_work");
   });
 });

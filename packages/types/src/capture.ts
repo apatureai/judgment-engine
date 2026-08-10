@@ -2,7 +2,7 @@ import type { Viewport } from "./findings.js";
 
 /**
  * Capture sandbox contract (TRD §4, §5). Everything runs behind
- * `captureInSandbox(url, ctx)` — one Firecracker microVM per job; the in-VPC
+ * `captureInSandbox(url, ctx)`: one Firecracker microVM per job; the in-VPC
  * path runs the same interface in the customer cloud. Implementations own
  * Playwright, the readiness/stability protocol, egress policy, and storageState.
  */
@@ -30,7 +30,7 @@ export interface CaptureImage {
   height: number;
 }
 
-/** Recorded DOM geometry — element refs are grounded in real rects, not VLM pixels. */
+/** Recorded DOM geometry; element refs are grounded in real rects, not VLM pixels. */
 export interface GeometryRect {
   route: string;
   viewport: Viewport;
@@ -45,8 +45,8 @@ export interface PageHealth {
   /** True when perceptual + structural hashes flag the page as unstable. */
   unstable: boolean;
   /**
-   * Web fonts that did not finish loading after `document.fonts.ready` (#83) —
-   * the browser silently substituted a fallback, which `fonts.ready` can't
+   * Web fonts that did not finish loading after `document.fonts.ready` (#83).
+   * The browser silently substituted a fallback, which `fonts.ready` can't
    * distinguish from a real font bug. Recorded so a substituted font is a
    * footnote, not a hallucinated "broken text" finding. Defaults to 0.
    */

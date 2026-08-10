@@ -8,7 +8,7 @@ import { sortTokens, type TokenMap } from "./tokens.js";
  * (TRD §6/§7, #63). All extractors are assembled into ONE block, serialized
  * deterministically (recursively sorted keys, no timestamps, sorted arrays) and
  * placed under the model's prefix-cache boundary. The cache is keyed on the
- * content hash of the assembled inputs — NOT a wall-clock TTL — so it stays
+ * content hash of the assembled inputs, NOT a wall-clock TTL, so it stays
  * warm until the repo's tokens/config actually change.
  *
  * Bump `CONTEXT_VERSION` when the serialization format changes; it is part of
@@ -28,7 +28,7 @@ export interface ContextBlockInput {
 
 export interface ContextBlock {
   contextVersion: string;
-  /** sha256 of the serialized block — the prefix-cache key. */
+  /** sha256 of the serialized block: the prefix-cache key. */
   contentHash: string;
   /** Deterministic serialization placed under the model prefix-cache boundary. */
   serialized: string;

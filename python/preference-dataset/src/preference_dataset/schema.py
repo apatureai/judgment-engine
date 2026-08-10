@@ -1,6 +1,6 @@
 """Typed schema for the preference-dataset tuples emitted by judgment-engine.
 
-This is a *faithful mirror* of the TypeScript producer — do not invent fields
+This is a *faithful mirror* of the TypeScript producer. Do not invent fields
 here. The source of truth is:
 
   - `packages/feedback/src/preference-export.ts`  (`PreferenceExample`)

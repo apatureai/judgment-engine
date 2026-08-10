@@ -31,14 +31,14 @@ export class FileScreenshotSink implements ScreenshotSink {
     this.keys.push(key);
   }
 
-  /** `file://` URL for a key — what the wire result's artifact URLs point at locally. */
+  /** `file://` URL for a key: what the wire result's artifact URLs point at locally. */
   urlFor(key: string): string {
     return `file://${this.pathFor(key)}`;
   }
 
   /**
    * `data:` URI for a key. A live model fetches image URLs itself, and it cannot
-   * reach a path on this machine — so a local run inlines the bytes. Production
+   * reach a path on this machine, so a local run inlines the bytes. Production
    * uses a short-TTL signed object-store URL instead (`ObjectStore.signedGetUrl`).
    */
   async dataUriFor(key: string): Promise<string> {

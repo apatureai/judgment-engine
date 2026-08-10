@@ -65,7 +65,7 @@ def test_grade_agreement_rates(run, golden):
 
 def test_grade_agreement_paired_vectors_for_ts_kappa(run, golden):
     ga = grade(run, golden).grade_agreement
-    # Parallel, sorted by case id — this is what the TS kappa/AC2 path consumes.
+    # Parallel, sorted by case id: this is what the TS kappa/AC2 path consumes.
     assert ga.case_ids == ["c1", "c2", "c3"]
     assert ga.human_grades == ["needs_work", "blocked", "ship"]
     assert ga.model_grades == ["needs_work", "needs_work", "ship"]

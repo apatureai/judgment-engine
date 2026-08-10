@@ -1,7 +1,7 @@
 """Typed mirror of the packages/eval golden-set format + the pure derivations
 needed to READ it.
 
-This is a *faithful mirror* of the TypeScript source of truth — do not invent
+This is a *faithful mirror* of the TypeScript source of truth. Do not invent
 fields:
 
   - `packages/eval/src/golden-set.ts`  (`GoldenSet`, `GoldenCase`, `RaterLabel`,
@@ -17,7 +17,7 @@ We deliberately port only the format-reading helpers (`finding_key`,
 `consensus_findings`) so a golden fixture produced for the TS suite is consumed
 byte-for-byte here. We do NOT re-implement the packages/eval statistics
 (quadratic-weighted kappa + bootstrap CIs, Krippendorff's alpha, Gwet's AC2,
-isotonic calibration, ECE/Brier, the SLO/quality/promotion gates) — those stay
+isotonic calibration, ECE/Brier, the SLO/quality/promotion gates); those stay
 owned by `packages/eval`; the scorecard emits the paired grade vectors those
 functions consume rather than recomputing them.
 """
@@ -44,7 +44,7 @@ Severity = Literal["nit", "minor", "major", "blocker"]
 Grade = Literal["ship", "ship_with_nits", "needs_work", "blocked"]
 
 # Ordinal scales, mirroring packages/eval (GRADE_SCALE in metrics.ts; SEV_RANK
-# in golden-set.ts). Order is meaningful — index is the ordinal position.
+# in golden-set.ts). Order is meaningful: index is the ordinal position.
 GRADE_SCALE: tuple[Grade, ...] = ("ship", "ship_with_nits", "needs_work", "blocked")
 SEV_RANK: dict[Severity, int] = {"nit": 0, "minor": 1, "major": 2, "blocker": 3}
 
@@ -98,7 +98,7 @@ class GoldenSet(BaseModel):
 def finding_key(f: LabeledFinding) -> str:
     """Stable match key, identical to golden-set.ts `findingKey`.
 
-    `${dimension}|${route}|${elementRef ?? ""}` — an omitted/null elementRef
+    `${dimension}|${route}|${elementRef ?? ""}`, where an omitted/null elementRef
     collapses to the empty string exactly as the TS side.
     """
     return f"{f.dimension}|{f.route}|{f.elementRef or ''}"
@@ -151,7 +151,7 @@ def consensus_grade(case: GoldenCase) -> Grade:
     packages/eval keeps grades *per rater* and feeds them pairwise to kappa; it
     never defines one consensus grade. For the offline scorecard's model-vs-human
     agreement we need one, so we take the LOWER-MEDIAN of the raters' grades on
-    the ordinal `GRADE_SCALE` — fully deterministic, and the raw per-rater grades
+    the ordinal `GRADE_SCALE`, fully deterministic, and the raw per-rater grades
     stay available via `rater_grades` so the TS kappa path is unaffected.
     """
     if not case.labels:

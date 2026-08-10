@@ -1,15 +1,15 @@
 /**
  * `ArtifactTrustDecisionV1` (judgment-engine#156; SCITT architecture).
  *
- * A verified signature attests LINEAGE only — that these exact bytes were
+ * A verified signature attests LINEAGE only: that these exact bytes were
  * produced by the named key. It is NOT semantic authority: a valid signature
  * alone must never create a finding, approve UI DNA, or make feedback
  * training-grade (SCITT explicitly separates statement provenance from statement
  * accuracy). This type records that separation as data: `lineageVerified` is the
  * cryptographic fact; `allowedUses` is a SEPARATE policy grant.
  *
- * The two use vocabularies are DISJOINT by construction — `AllowedUse` can never
- * contain a `ForbiddenBySignatureAlone` member — so it is impossible to express
+ * The two use vocabularies are DISJOINT by construction (`AllowedUse` can never
+ * contain a `ForbiddenBySignatureAlone` member), so it is impossible to express
  * "a signature authorizes publishing a finding".
  */
 
@@ -34,7 +34,7 @@ export interface ArtifactTrustDecisionV1 {
   keyId: string;
   /** The provenance fact: the bundle's signature + digest + identity binding all verified. */
   lineageVerified: boolean;
-  /** Present iff NOT verified — the rejection reason from the acceptance gate. */
+  /** Present iff NOT verified: the rejection reason from the acceptance gate. */
   lineageRejectionReason?: string;
   /** The policy-granted uses. ALWAYS empty when lineage is not verified. */
   allowedUses: readonly AllowedUse[];
@@ -53,7 +53,7 @@ export interface TrustDecisionInput {
 
 /**
  * Build the trust decision. Without verified lineage, `allowedUses` is forced
- * empty — nothing is permitted. With verified lineage, only the explicitly
+ * empty; nothing is permitted. With verified lineage, only the explicitly
  * policy-granted `AllowedUse` set is permitted (deduped); a forbidden use is
  * unrepresentable in that set.
  */

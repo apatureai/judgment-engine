@@ -1,13 +1,13 @@
 #!/usr/bin/env node
 /**
- * `pnpm browser:install` — install the Chromium build playwright-core drives,
+ * `pnpm browser:install`: install the Chromium build playwright-core drives,
  * then prove it launches.
  *
  * This wraps `playwright-core install chromium` for two reasons. First, the raw
  * command says nothing at all when the browser is already cached, which is
  * indistinguishable from a no-op on the only step of the install that touches
- * the network. Second, "the download finished" is not the claim a reader needs
- * — the claim is "a browser will start", so this launches it and prints the
+ * the network. Second, "the download finished" is not the claim a reader needs.
+ * The claim is "a browser will start", so this launches it and prints the
  * version it got.
  *
  * Extra arguments are forwarded, so CI can run `pnpm browser:install --with-deps`.

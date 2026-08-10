@@ -16,7 +16,7 @@ import { runValidationTail } from "./validation-tail.js";
  * the validation tail must run ONCE, GLOBALLY over the merged findings:
  *   - hallucination gate (#32) against ALL captured routes + geometry,
  *   - confidence ceiling (#70) when the capture was unstable,
- *   - post-filter (#33) — confidence floor + dedupe across viewports + the
+ *   - post-filter (#33): confidence floor + dedupe across viewports + the
  *     global cap (1 blocker + 6), which is meaningless per-route,
  *   - version stamp (#68).
  * Without this, nothing turned `runDeepPass` results into a wire-ready Critique
@@ -27,7 +27,7 @@ import { runValidationTail } from "./validation-tail.js";
  * no findings and is recorded in `notReviewed`.
  */
 export interface AssembleCritiqueDeps {
-  /** Every captured route — the hallucination gate drops findings on uncaptured routes (#32). */
+  /** Every captured route; the hallucination gate drops findings on uncaptured routes (#32). */
   capturedRoutes: string[];
   /** Valid elementRef selectors from the geometry map (#18) for the element_ref drop (#32). */
   geometrySelectors?: Iterable<string>;
@@ -54,7 +54,7 @@ export function assembleCritique(routes: DeepPassRouteResult[], deps: AssembleCr
   const engineVersion = deps.engineVersion ?? ENGINE_VERSION;
   const promptVersion = deps.promptVersion ?? PROMPT_VERSION;
 
-  // The global validation tail (#32/#70/#33/#106) — shared with critique(). Runs
+  // The global validation tail (#32/#70/#33/#106), shared with critique(). Runs
   // ONCE over the merged multi-route findings (the cross-route cap/dedupe/gate are
   // meaningless per-route). Model grade = the worst route grade, floored to what
   // the surviving findings support.

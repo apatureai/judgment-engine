@@ -8,7 +8,7 @@
  *    tiles with 15% overlap, each labeled (`segment k/n, y=Ypx`) so the model
  *    can reference a region and findings map back to a y-offset.
  *
- * Pure geometry — the actual screenshot rastering is the worker seam; this is
+ * Pure geometry: the actual screenshot rastering is the worker seam; this is
  * fully testable without a browser. Each resulting tile is then fitted to the
  * model pixel budget via `fitForDepth` (#16).
  */

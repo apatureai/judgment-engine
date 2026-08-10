@@ -5,7 +5,7 @@ import { runCli } from "./run.js";
 
 /**
  * `judgment-engine` entry point. Exit codes: 0 success, 1 run failure,
- * 2 bad arguments — the same convention as the release-gate CLI.
+ * 2 bad arguments, the same convention as the release-gate CLI.
  */
 async function main(): Promise<number> {
   let options;

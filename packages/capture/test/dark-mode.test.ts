@@ -20,7 +20,7 @@ describe("planColorSchemeContexts (#21)", () => {
 
   it("captures light and dark from SEPARATE contexts (one entry each per viewport)", () => {
     const plan = planColorSchemeContexts({ viewports: ["mobile"], darkMode: true });
-    // Two distinct context objects for the same viewport — never one re-emulated.
+    // Two distinct context objects for the same viewport, never one re-emulated.
     expect(plan).toEqual([
       { viewport: "mobile", colorScheme: "light", emulateBeforeGoto: true },
       { viewport: "mobile", colorScheme: "dark", emulateBeforeGoto: true },

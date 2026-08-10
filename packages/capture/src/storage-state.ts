@@ -52,7 +52,7 @@ export function originHost(origin: string): string {
 
 /**
  * Keep only cookies bound to the EXACT preview origin host. Parent-domain
- * cookies (e.g. `.example.com`, `.okta.com`) are org-wide SSO and are dropped —
+ * cookies (e.g. `.example.com`, `.okta.com`) are org-wide SSO and are dropped;
  * they must never ride along into a per-PR preview capture.
  */
 export function scopeCookiesToOrigin(cookies: Cookie[], origin: string): Cookie[] {

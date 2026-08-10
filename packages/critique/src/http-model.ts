@@ -8,8 +8,8 @@ import type { ChatChunk, ChatCompletionsCreate, ChatCreateParams } from "./dashs
  * or anything else exposing `POST {baseUrl}/chat/completions`) without taking an
  * SDK dependency.
  *
- * Everything DashScope carries in `extra_body` on the SDK path — `enable_thinking`
- * and the per-tier `max_pixels` budget (#69) — is a top-level body field on the
+ * Everything DashScope carries in `extra_body` on the SDK path (`enable_thinking`
+ * and the per-tier `max_pixels` budget, #69) is a top-level body field on the
  * raw HTTP path, which is what the service actually reads; `extra_body` is purely
  * an SDK affordance for forwarding unknown keys.
  *
@@ -46,7 +46,7 @@ export function toHttpChatBody(params: ChatCreateParams): Record<string, unknown
 /**
  * Parse one SSE `data:` payload into a chunk. Returns `null` for the terminal
  * `[DONE]` sentinel and for any payload that is not JSON (keep-alive comments,
- * vendor-specific noise) — a malformed frame must never abort a live stream.
+ * vendor-specific noise): a malformed frame must never abort a live stream.
  */
 export function parseSseData(payload: string): ChatChunk | null {
   const trimmed = payload.trim();
@@ -126,7 +126,7 @@ export function createHttpChatCompletionsCreate(endpoint: HttpModelEndpoint): Ch
       ...(options.signal ? { signal: options.signal } : {}),
     });
     if (!response.ok) {
-      // Surface the endpoint's own error text — an auth or quota failure is the
+      // Surface the endpoint's own error text. An auth or quota failure is the
       // single most common live-path problem and the body says which.
       const detail = (await response.text().catch(() => "")).slice(0, 500);
       throw new Error(

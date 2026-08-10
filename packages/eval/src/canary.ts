@@ -2,8 +2,8 @@ import type { Dimension, Severity } from "@engine/types";
 
 /**
  * Synthetic-canary generator (TRD §10, #44). A programmatic defect injector that
- * mutates a baseline UI in known ways — mutate a design token, break a
- * breakpoint, swap a font — so the ground truth (which finding a correct reviewer
+ * mutates a baseline UI in known ways (mutate a design token, break a
+ * breakpoint, swap a font) so the ground truth (which finding a correct reviewer
  * MUST produce) is known by construction. Cheap to generate in the hundreds; the
  * regression gate (#47) asserts recall against these. The actual rendering of a
  * mutated canary is the capture worker's job (#11); this is the pure spec +

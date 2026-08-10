@@ -5,7 +5,7 @@ import type { PassModelOverrides } from "./registry.js";
  * config swap behind the per-pass adapter (#26): `qwen3-vl` (the v1 default) and
  * `qwen3.5` (the natively-multimodal successor, GA Feb 2026) both serve on the
  * same DashScope OpenAI-compatible endpoint and map 1:1 onto the triage/deep
- * split. Selecting a generation only changes the resolved model ids — backend,
+ * split. Selecting a generation only changes the resolved model ids: backend,
  * thinking flags, image budgeting (#69), and the deep-pass two-step (#29) are
  * unchanged.
  *
@@ -48,7 +48,7 @@ export const MODEL_GENERATIONS: Record<ModelGeneration, GenerationConfig> = {
 
 /**
  * Per-pass model overrides selecting a generation's ids. Composes with
- * `passModelsForTier` (#35) and `resolvePassModel` (#26) — backend + thinking
+ * `passModelsForTier` (#35) and `resolvePassModel` (#26); backend + thinking
  * flags come from the defaults, only the model id changes.
  */
 export function passModelsForGeneration(generation: ModelGeneration): PassModelOverrides {

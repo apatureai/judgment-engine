@@ -3,20 +3,20 @@
  *
  * The Python fine-tuning stack (`python/preference-dataset`) mirrors the
  * TypeScript `PreferenceExample` by hand. Nothing stops the two from silently
- * drifting — a renamed field or a new `Dimension` member on the TS side would
+ * drifting: a renamed field or a new `Dimension` member on the TS side would
  * quietly poison a training set on the Python side. This script derives a single
  * canonical **contract artifact** straight from the TS source of truth:
  *
- *   - `packages/types/src/findings.ts`             — Dimension / Severity / Viewport
- *   - `packages/feedback/src/preference-export.ts` — PreferenceExample + KtoSource
- *   - `packages/feedback/src/dvc-export.ts`         — the real `canonicalJson`
+ *   - `packages/types/src/findings.ts`:             Dimension / Severity / Viewport
+ *   - `packages/feedback/src/preference-export.ts`: PreferenceExample + KtoSource
+ *   - `packages/feedback/src/dvc-export.ts`:         the real `canonicalJson`
  *
  * The artifact records every enum's members and every `PreferenceExample` /
  * `Finding` field, plus a few canonical-JSON samples produced by the *real*
  * serializer. Two guards consume it:
  *
  *   1. a TS regen check (`test/preference-contract.test.ts`) fails if the
- *      committed artifact no longer matches what this script regenerates — i.e.
+ *      committed artifact no longer matches what this script regenerates, i.e.
  *      someone changed the TS types without regenerating;
  *   2. a Python pytest (`tests/test_contract.py`) asserts `schema.py` matches the
  *      artifact field-for-field and enum-for-enum, and that its `canonical_json`
@@ -58,7 +58,7 @@ export interface ContractType {
 export interface ContractSample {
   name: string;
   example: PreferenceExample;
-  /** `canonicalJson(example)` from dvc-export.ts — the byte-exact wire form. */
+  /** `canonicalJson(example)` from dvc-export.ts: the byte-exact wire form. */
   canonicalJson: string;
 }
 

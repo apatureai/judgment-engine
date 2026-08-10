@@ -9,7 +9,7 @@ import type { AddressInfo } from "node:net";
  * 127.0.0.1 on an ephemeral port and serves exactly one directory.
  *
  * Extensionless routes resolve to `<name>.html`, so a review of `/pricing`
- * captures `pricing.html` — the same route shape a real preview deployment has.
+ * captures `pricing.html`, the same route shape a real preview deployment has.
  */
 
 const CONTENT_TYPES: Record<string, string> = {

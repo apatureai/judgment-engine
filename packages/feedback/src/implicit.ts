@@ -2,7 +2,7 @@
  * Implicit feedback detection (TRD §8, #39). The ONLY implicit-positive signal is
  * a **suggestion string-match in a later diff**: if a specific class/token/value
  * from the finding's suggestion appears in a subsequent diff, the fix was likely
- * applied. The weaker "touched-element" heuristic is intentionally NOT used — it
+ * applied. The weaker "touched-element" heuristic is intentionally NOT used, since it
  * conflates rebases/refactors with real fixes. The implicit-negative signal is
  * "merged with blockers unresolved".
  *
@@ -10,7 +10,7 @@
  */
 
 /**
- * Extract the *significant*, matchable tokens from a suggestion — CSS classes,
+ * Extract the *significant*, matchable tokens from a suggestion: CSS classes,
  * hex colors, sized values, quoted strings, and hyphenated/dotted identifiers.
  * Plain English words are excluded so "make it nicer" can't false-positive.
  */
@@ -39,7 +39,7 @@ function escapeRegExp(s: string): string {
  * True when `token` appears as a WHOLE token in `haystack`, i.e. not flanked by a
  * character from the same token alphabet (`[\w#.%-]`). A plain substring test
  * would false-positive on a DIFFERENT value: `16px` inside `116px`, or `gap-4`
- * inside `gap-40` — labelling a fix "applied" when a different value was written.
+ * inside `gap-40`, labelling a fix "applied" when a different value was written.
  * The flank check makes "the value appears in the diff" mean what it says.
  */
 function tokenAppearsIn(token: string, haystack: string): boolean {

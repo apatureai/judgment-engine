@@ -11,7 +11,7 @@ import { hallucinationGate } from "./hallucination-gate.js";
 import { postFilter } from "./post-filter.js";
 
 /**
- * The global validation tail (#32/#70/#33/#106) — the ONE sequence that turns raw
+ * The global validation tail (#32/#70/#33/#106): the ONE sequence that turns raw
  * model findings + a model grade into the gated, calibrated, filtered result the
  * wire carries. Both entry points run it identically: `critique()` over its single
  * pass, and `assembleCritique()` over the merged multi-route findings. It lived
@@ -30,11 +30,11 @@ export interface ValidationTailInput {
   findings: Finding[];
   /** The model's holistic grade, floored to what surviving findings support (#106). */
   modelGrade: Grade;
-  /** Routes actually captured — findings on uncaptured routes are dropped (#32). */
+  /** Routes actually captured; findings on uncaptured routes are dropped (#32). */
   capturedRoutes: Iterable<string>;
   /** Valid geometry selectors for the element_ref drop (#32); omit to skip that check. */
   geometrySelectors?: Iterable<string>;
-  /** Whether the capture was visually unstable — caps confidence (#70). */
+  /** Whether the capture was visually unstable, which caps confidence (#70). */
   captureUnstable: boolean;
   /** The promoted calibration binding, applied only if it matches `identity`. */
   calibration?: CalibrationRuntimeBinding;

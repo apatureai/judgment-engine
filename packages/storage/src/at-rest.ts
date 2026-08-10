@@ -4,7 +4,7 @@ import type { ObjectStore } from "./types.js";
  * At-rest policy for artifacts (§11, #51): per-tenant SSE-KMS key selection and
  * tenant-tier retention. Screenshots, DOM snapshots, and critique JSON are
  * encrypted at rest under a per-tenant key (resolved here) and reaped on a
- * tier-based retention clock — 0 (ephemeral) on free/public, 30 days on paid
+ * tier-based retention clock: 0 (ephemeral) on free/public, 30 days on paid
  * under a DPA. Access is signed-URL only; raw keys/URLs are never logged.
  */
 
@@ -14,7 +14,7 @@ export type RetentionTier = "free" | "public" | "paid";
 const DAY_SECONDS = 86_400;
 
 /**
- * Retention window per tier, in seconds. `0` means "do not retain" — the
+ * Retention window per tier, in seconds. `0` means "do not retain", i.e. the
  * artifact is ephemeral (kept only for the in-flight job/delivery, then reaped);
  * paid tenants retain for 30 days under a DPA for re-checks and disputes.
  */
@@ -66,7 +66,7 @@ export interface RetainedObject {
 }
 
 /**
- * Keys whose retention has elapsed — the input to the deletion sweep (the actual
+ * Keys whose retention has elapsed: the input to the deletion sweep (the actual
  * delete + S3/R2 lifecycle config is ops; this is the engine-owned policy).
  */
 export function expiredKeys(objects: readonly RetainedObject[], now: number = Date.now()): string[] {

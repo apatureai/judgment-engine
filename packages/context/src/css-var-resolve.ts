@@ -4,7 +4,7 @@ import type { TokenMap } from "./tokens.js";
  * Whole-value CSS `var()` reference resolution, shared by the CSS-custom-property
  * extractor and the Tailwind v4 `@theme` extractor (both collect design tokens as
  * `--*` custom properties whose values may reference other properties). A token
- * defined by reference — `--button-bg: var(--color-brand)` — must land in the
+ * defined by reference (`--button-bg: var(--color-brand)`) must land in the
  * grounding map as its VALUE, not the unresolved reference.
  *
  * Only a value that IS a single reference is resolved (the dominant design-token
@@ -19,7 +19,7 @@ const VAR_REF_RE = /^var\(\s*(--[A-Za-z0-9_-]+)\s*(?:,\s*([\s\S]+?)\s*)?\)$/;
  * Resolve a whole-value `var()` reference against a scope (custom-property map),
  * following reference chains. An undefined variable falls back to the `var()`
  * fallback when one is given (resolved too), else the property's original literal
- * is kept. A reference cycle is left as the original literal — never looped.
+ * is kept. A reference cycle is left as the original literal, never looped.
  */
 function resolveCssValue(value: string, scope: TokenMap, seen: ReadonlySet<string>, original: string): string {
   const m = VAR_REF_RE.exec(value.trim());

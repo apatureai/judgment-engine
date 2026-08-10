@@ -4,7 +4,7 @@ import type { Finding } from "@engine/types";
  * Trust-budget post-filter (TRD §6.5, #33). After the hallucination gate (#32):
  *   1. drop findings below the promoted report's calibrated confidence floor,
  *   2. dedupe by `elementRef` + `dimension` across viewports (the same issue seen
- *      on mobile and desktop is one finding — use calibrated confidence only),
+ *      on mobile and desktop is one finding, using calibrated confidence only),
  *   3. cap at 1 blocker + 6 other findings, with deterministic ordering, so the
  *      reviewer's trust budget isn't blown by a wall of low-value nits.
  */
@@ -42,7 +42,7 @@ export function postFilter(findings: Finding[], options: PostFilterOptions = {})
 
   // 2. dedupe by elementRef + dimension. Findings are sorted best-first by
   // compareFindings (severity, THEN confidence), so the first finding per key is
-  // the one to keep. Keeping the first — rather than replacing on raw confidence —
+  // the one to keep. Keeping the first (rather than replacing on raw confidence)
   // is load-bearing: an explicit `f.confidence > existing.confidence` swap would
   // downgrade a higher-severity finding (e.g. a mobile `blocker`) to a lower-
   // severity but higher-confidence one (a desktop `minor`) sharing the same

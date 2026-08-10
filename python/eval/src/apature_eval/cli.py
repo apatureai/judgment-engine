@@ -1,4 +1,4 @@
-"""`apature-eval grade --golden g.json --candidate run.json` — offline scorecard.
+"""`apature-eval grade --golden g.json --candidate run.json`: offline scorecard.
 
 Reads a golden-set export and a recorded candidate run (both JSON) and writes the
 `Scorecard` as JSON to stdout. No network, no model, no keys.

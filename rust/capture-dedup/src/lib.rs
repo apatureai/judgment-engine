@@ -7,11 +7,11 @@
 //!
 //! Two 64-bit hashes are provided:
 //!
-//! - [`dhash`] — difference hash over a 9x8 box-filtered grid. Pure integer math, so
+//! - [`dhash`]: difference hash over a 9x8 box-filtered grid. Pure integer math, so
 //!   the value is bit-exact across platforms and languages; it is the cross-language
 //!   golden contract (see `golden/vectors.json` and the mirror TypeScript
 //!   implementation in `packages/capture/test/dedup-golden.test.ts`).
-//! - [`phash`] — DCT hash: 32x32 box-filter downscale, 2D DCT-II, median threshold on
+//! - [`phash`]: DCT hash. 32x32 box-filter downscale, 2D DCT-II, median threshold on
 //!   the 8x8 low-frequency block. Coefficients are scaled by 64 and rounded (6
 //!   fractional bits) before the median compare so that sub-ulp differences between
 //!   platform `cos` implementations cannot flip bits while low-amplitude structure
@@ -86,7 +86,7 @@ const PHASH_BLOCK: usize = 8;
 ///
 /// The image is box-filtered down to 32x32 mean luminance values, transformed with an
 /// orthonormal 2D DCT-II, and the 8x8 low-frequency block (including DC) is kept.
-/// Each coefficient is scaled by 64 and rounded to the nearest integer — this
+/// Each coefficient is scaled by 64 and rounded to the nearest integer; this
 /// quantization makes the hash immune to last-ulp differences between platform
 /// `cos`/floating-point implementations (analytically-zero coefficients of symmetric
 /// images land on exact 0 instead of ±1e-13 noise) while keeping 6 fractional bits so
@@ -151,7 +151,7 @@ pub fn phash(gray: &[u8], w: usize, h: usize) -> u64 {
                 acc += rows[y][u] * basis[v][y];
             }
             // Scale by 64 (6 fractional bits) before rounding: platform cos/fma noise
-            // is ~1e-13 (~1e-11 after scaling — far below the 0.5 rounding threshold),
+            // is ~1e-13 (~1e-11 after scaling, far below the 0.5 rounding threshold),
             // but real low-amplitude structure in flat screenshot-like images lives in
             // coefficients well under 1.0 and must survive quantization, or every
             // smooth page collapses to a near-zero hash and false near-dup matches.
@@ -260,7 +260,7 @@ pub fn ssim(a: &[u8], b: &[u8], w: usize, h: usize) -> f64 {
 }
 
 /// True when more than two of the pixel's 3x3 neighbours (image-border virtual
-/// neighbours count once) share its exact value — i.e. the pixel sits in a
+/// neighbours count once) share its exact value, i.e. the pixel sits in a
 /// locally flat region. Direct grayscale port of pixelmatch's
 /// `hasManySiblings`.
 fn has_many_siblings(img: &[u8], x: usize, y: usize, w: usize, h: usize) -> bool {
@@ -285,7 +285,7 @@ fn has_many_siblings(img: &[u8], x: usize, y: usize, w: usize, h: usize) -> bool
 /// step, not changing the logic): the pixel is a likely AA artifact when its
 /// 3x3 neighbourhood in `img` has at most two equal siblings but both a darker
 /// and a brighter sibling (a steep local gradient), and the darkest or
-/// brightest such sibling sits in a locally flat region of BOTH images — i.e.
+/// brightest such sibling sits in a locally flat region of BOTH images, i.e.
 /// the surrounding structure is unchanged and only the edge blend moved.
 fn antialiased(img: &[u8], other: &[u8], x: usize, y: usize, w: usize, h: usize) -> bool {
     let center = i32::from(img[y * w + x]);
@@ -353,7 +353,7 @@ pub fn diff_ratio(a: &[u8], b: &[u8], w: usize, h: usize, threshold: u8) -> f64 
     changed as f64 / (w * h) as f64
 }
 
-/// Both change-sensitive scores for one tile — the single call the capture
+/// Both change-sensitive scores for one tile: the single call the capture
 /// worker makes per tile to feed `TileChangeScore` in
 /// `packages/capture/src/change-detection.ts`.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -513,7 +513,7 @@ mod tests {
         // phash caveat, pinned rather than hidden: analytically-sparse synthetic
         // images (pure gradients, exact checkerboards) have almost-all-zero DCT
         // spectra, so BOTH phash values sit near zero and their Hamming distance is
-        // small — the canonical pHash algorithm behaves the same way. Separation on
+        // small, and the canonical pHash algorithm behaves the same way. Separation on
         // such structured-but-flat content is dhash's job (asserted above); phash
         // earns its keep on noise-like natural content (asserted below). Keep the
         // distance nonzero here so the two spectra at least never collapse together.
@@ -593,7 +593,7 @@ mod tests {
     const DIFF_THRESHOLD: u8 = 25;
 
     /// Hard vertical edge (0 → 255) at column `c` with a single-pixel
-    /// anti-aliasing ramp (128) on the edge column — the classic artifact a
+    /// anti-aliasing ramp (128) on the edge column: the classic artifact a
     /// sub-pixel layout shift produces.
     fn aa_ramp_edge(w: usize, h: usize, c: usize) -> Vec<u8> {
         let mut px = Vec::with_capacity(w * h);

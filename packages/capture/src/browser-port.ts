@@ -67,7 +67,7 @@ export interface ExtractedPage {
 }
 
 export interface CapturePage {
-  /** Playwright's `page.clock` — install before navigation, pause after readiness. */
+  /** Playwright's `page.clock`: install before navigation, pause after readiness. */
   clock: {
     install(options: { time: number }): Promise<void>;
     pauseAt(time: number): Promise<void>;

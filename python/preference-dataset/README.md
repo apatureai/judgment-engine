@@ -5,14 +5,14 @@ into training-ready datasets for the **owned judge** (#78).
 
 It reads the tuples the TypeScript side already produces and emits KTO + SFT
 JSONL plus a dataset card. It is pure and deterministic: **no network, no model,
-no keys** — the same input always yields byte-identical output.
+no keys**, so the same input always yields byte-identical output.
 
 ## Why Python (and why here, not in TS)
 
 `judgment-engine` is correctly TypeScript: capture, context extraction, the
 critique wire protocol, delivery, and the *verdict collection* all live in the
-Node service. But the thing this package does — preparing a preference corpus
-for a fine-tune and (next) grading checkpoints — lands in the **Python ML
+Node service. But the thing this package does, preparing a preference corpus
+for a fine-tune and (next) grading checkpoints, lands in the **Python ML
 ecosystem** (`trl`, HF `datasets`, `transformers`, vLLM). Re-implementing
 `KTOTrainer`/`DPOTrainer` input shaping, tokenization, or offline batch grading
 in TS would be swimming upstream. So the boundary is:
@@ -54,18 +54,18 @@ and ICU versions; the integrity check is identical to `pullDataset()`.
 
 ## Inputs it accepts
 
-- A **JSON array** — what `exportPreferenceDataset()` returns, dumped.
-- **JSONL** — one tuple per line (large sets).
-- A **DVC dataset directory** — the content-addressed layout from
+- A **JSON array**: what `exportPreferenceDataset()` returns, dumped.
+- **JSONL**: one tuple per line (large sets).
+- A **DVC dataset directory**: the content-addressed layout from
   `buildDvcDataset()` / `pushDataset()` (`.dir` manifest + `files/md5/…`).
 
 ## Outputs
 
-- `kto.jsonl` — `{prompt, completion, label}` per tuple (`trl.KTOTrainer`).
-- `sft.jsonl` — `{prompt, completion}` for endorsed tuples only.
-- `dpo.jsonl` — `{prompt, chosen, rejected}` pairs (`trl.DPOTrainer` /
+- `kto.jsonl`: `{prompt, completion, label}` per tuple (`trl.KTOTrainer`).
+- `sft.jsonl`: `{prompt, completion}` for endorsed tuples only.
+- `dpo.jsonl`: `{prompt, chosen, rejected}` pairs (`trl.DPOTrainer` /
   `trl.ORPOTrainer`). See below.
-- `dataset-card.json` — counts, class balance, per-dimension/severity/source
+- `dataset-card.json`: counts, class balance, per-dimension/severity/source
   breakdown, a reproducible DVC `version` (the same content-addressed `.dir` id
   `dvc-export.ts` computes), suggested KTO class weights, and a `dpo` block with
   pair counts + skip provenance.
@@ -75,7 +75,7 @@ pixels/text: resolving those object-storage artifacts is an ops seam (DVC / R2).
 `build` keeps it out so it stays a pure transform; the `resolve` step below
 closes that seam behind a pluggable resolver.
 
-## Resolve step (`resolve`) — hydrate refs into multimodal records
+## Resolve step (`resolve`): hydrate refs into multimodal records
 
 `resolve` turns the reference-carrying tuples into training-ready multimodal
 records by mapping each `imageRef` (and, when present, `contextHash`) to a
@@ -103,11 +103,11 @@ concrete local artifact via a pluggable **`ArtifactResolver`**. A record reuses
 
 ### Resolvers: fixture-only in v1, remote is a documented stub
 
-- **`LocalFixtureResolver(root)`** — the only implementation. Maps a ref to a
+- **`LocalFixtureResolver(root)`** is the only implementation. It maps a ref to a
   file under a local directory (`root / ref`), treating the ref as an opaque
   object key; rejects refs that escape `root`. **No network, no credentials, no
-  secrets** — the tests run entirely against a committed fixture tree, no GPU.
-- **`RemoteArtifactResolver`** — a documented **interface stub** that raises
+  secrets**, and the tests run entirely against a committed fixture tree, no GPU.
+- **`RemoteArtifactResolver`** is a documented **interface stub** that raises
   `NotImplementedError`. The production backend pulls artifacts from the DVC
   remote / Cloudflare-R2 bucket `dvc-export.ts` pushes to, with object-store
   credentials and a content-addressed cache. It is deliberately unbuilt here so
@@ -163,7 +163,7 @@ uv run pytest        # or: .venv/bin/pytest
 
 ## Status / scope
 
-Spike scaffold. **Additive and standalone** — it is not part of the TS build or
+Spike scaffold. **Additive and standalone**: it is not part of the TS build or
 the `pnpm` workspace (CI does run its pytest suite); it consumes exported
 artifacts only. Downstream work is deliberately **not** in this package:
 `python/eval` is the offline batch grader, and the TRL fine-tune it prepares

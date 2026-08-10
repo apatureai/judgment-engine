@@ -8,7 +8,7 @@ import { signDerivedEvidenceBundle, type Ed25519SignerPort } from "./producer.js
  * bundle + a signer. Two families:
  *
  *   - IDENTITY mutations mutate a bound field BEFORE signing, so the signature is
- *     genuinely valid over the (wrong) bytes — the gate must reject on the
+ *     genuinely valid over the (wrong) bytes, so the gate must reject on the
  *     identity binding against the request, NOT on the signature. This is the
  *     interesting case a bare digest check would miss.
  *   - INTEGRITY mutations break the signature/digest (tamper-after-sign, forged
@@ -57,7 +57,7 @@ export async function corruptBundle(
   signer: Ed25519SignerPort,
   mutation: BundleMutation,
 ): Promise<CorruptBundle> {
-  // Identity family: mutate then sign — a valid signature over wrong identity.
+  // Identity family: mutate then sign, giving a valid signature over wrong identity.
   const identity = IDENTITY_MUTATIONS[mutation];
   if (identity) {
     const bundle = await signDerivedEvidenceBundle(identity.apply(unsigned), signer);
@@ -65,7 +65,7 @@ export async function corruptBundle(
   }
 
   if (mutation === "stale_major") {
-    // Bump the major past what the consumer accepts, then sign — rejected before signature.
+    // Bump the major past what the consumer accepts, then sign; rejected before signature.
     const bundle = await signDerivedEvidenceBundle({ ...unsigned, schemaVersion: "2.0.0" }, signer);
     return { mutation, bundle, expectedGateCode: "unsupported_major", signatureValidOverBytes: true };
   }
@@ -122,7 +122,7 @@ export async function buildNegativeCorpus(
   return Promise.all(ALL_BUNDLE_MUTATIONS.map((m) => corruptBundle(unsigned, signer, m)));
 }
 
-/** The canonical bytes of a bundle's signed content (signature stripped) — for a mirror verify. */
+/** The canonical bytes of a bundle's signed content (signature stripped), for a mirror verify. */
 export function signedContentBytes(bundle: DerivedEvidenceBundleV1): Uint8Array {
   const { signature: _omit, ...rest } = bundle;
   return canonicalBytes(rest);

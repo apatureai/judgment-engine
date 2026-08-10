@@ -7,7 +7,7 @@ import type { ModelClient, ModelImage } from "./model.js";
  * Triage pass (TRD §6.2, #28). A cheap `qwen3-vl-flash` look over above-the-fold
  * crops + palette + diff summary that decides whether a deep review is warranted,
  * and short-circuits when every captured route's perceptual hash matches the
- * cached baseline (#15/#34) — posting a one-line "no design changes" result
+ * cached baseline (#15/#34), posting a one-line "no design changes" result
  * without spending the deep pass. Emits `needsDeepReview`, `suspectRoutes`, and
  * `obviousBreakage` (overlap, unstyled HTML, broken images, overflow), folding
  * in the deterministic overflow/breakage facts (#19).
@@ -50,7 +50,7 @@ export interface TriageDeps {
   /**
    * Request multimodal `json_object` on the triage call (default true). Set false
    * on generations whose multimodal structured-output support is unconfirmed
-   * (e.g. qwen3.5, #87) — the output is still defensively JSON-parsed and the pass
+   * (e.g. qwen3.5, #87); the output is still defensively JSON-parsed and the pass
    * fails open, so disabling the hint never weakens correctness.
    */
   structuredOutput?: boolean;
@@ -74,7 +74,7 @@ const triageInstruction =
 
 /**
  * Cheap pHash PRE-FILTER only: whether every route has a baseline whose pHash
- * matches within threshold. A match here is NOT sufficient to short-circuit —
+ * matches within threshold. A match here is NOT sufficient to short-circuit:
  * pHash is blind to small/localized changes (#89), so the triage gate confirms a
  * match with a tile-wise sensitive diff (`allRoutesConfirmedUnchanged`) before
  * concluding "unchanged". Retained for callers that want the raw pre-filter.
@@ -93,8 +93,8 @@ function dedupe(values: string[]): string[] {
 /**
  * Run the triage pass, short-circuiting only when every route is positively
  * confirmed unchanged: pHash match (cheap pre-filter) AND a tile-wise
- * change-sensitive diff below threshold (#89). A pHash match alone — which is
- * blind to small color/text/spacing changes — never short-circuits; missing or
+ * change-sensitive diff below threshold (#89). A pHash match alone, which is
+ * blind to small color/text/spacing changes, never short-circuits; missing or
  * ambiguous sensitive-diff input fails open to a deep review.
  */
 export async function runTriage(deps: TriageDeps, routes: TriageRoute[]): Promise<TriageResult> {

@@ -4,7 +4,7 @@ import { Redis, type RedisOptions } from "ioredis";
  * Resilient connection options shared by every engine Redis client.
  *
  * - `maxRetriesPerRequest: null` keeps commands queued across reconnects instead
- *   of failing fast — token-bucket/quota reads must not be silently dropped.
+ *   of failing fast: token-bucket/quota reads must not be silently dropped.
  * - `retryStrategy` always returns a (capped) delay, so the client keeps
  *   reconnecting rather than giving up.
  * - `reconnectOnError` recovers from failovers that briefly return READONLY.

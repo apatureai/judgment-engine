@@ -7,7 +7,7 @@ import {
   type MotionFreezePhases,
 } from "../src/index.js";
 
-/** Specificity as (id, class, type) — compared lexicographically, like CSS. */
+/** Specificity as (id, class, type), compared lexicographically, like CSS. */
 type Specificity = [number, number, number];
 
 function specGte(a: Specificity, b: Specificity): boolean {
@@ -20,7 +20,7 @@ function specGte(a: Specificity, b: Specificity): boolean {
 /**
  * A fake page that models the parts of the CSS cascade that matter for the
  * freeze guarantee: `!important` author declarations are sorted by SPECIFICITY
- * first, and only ties broken by source order — exactly as a real browser does.
+ * first, and only ties broken by source order, exactly as a real browser does.
  * It also models a CDP-level animation-timeline pause that overrides the cascade.
  *
  * `isElementFrozen()` answers the real question the capture cares about: at
@@ -137,7 +137,7 @@ describe("freezeMotionForCapture (#13)", () => {
       goto: async () => {},
       awaitReadiness: async () => {},
       // Late JS mounts `.spinner { animation: spin 1s infinite !important }`
-      // — specificity (0,1,0) beats the freeze sheet's `*` (0,0,0), so re-injecting
+      // Specificity (0,1,0) beats the freeze sheet's `*` (0,0,0), so re-injecting
       // the CSS sheet "last" does NOT win. Only the timeline pause freezes it.
       scrollForLazyLoad: async () => void page.mountLateSpinner(),
     };

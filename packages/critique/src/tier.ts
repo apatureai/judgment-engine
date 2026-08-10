@@ -5,7 +5,7 @@ import type { PassModelOverrides } from "./registry.js";
  * the deep pass on the cheaper `qwen3-vl-flash` (non-thinking Instruct), reserving
  * `qwen3-vl-plus` Thinking for paid/blocking reviews. This is a config-only swap:
  * it returns `PassModelOverrides` for `critique()` / `runDeepPass`, so no call
- * site changes — it composes with the per-pass abstraction (#26).
+ * site changes, and it composes with the per-pass abstraction (#26).
  */
 export type BillingTier = "free" | "paid";
 

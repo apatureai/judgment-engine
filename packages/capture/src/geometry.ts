@@ -4,7 +4,7 @@ import type { Rect } from "./checks.js";
 /**
  * DOM geometry map (TRD §4.2/§6.5). Landmark element rects are serialized as
  * stable `{selector, role, rect}` entries so the model picks an `element_ref`
- * and CODE draws the annotation box from the real rect — we never trust VLM
+ * and CODE draws the annotation box from the real rect; we never trust VLM
  * pixel coordinates. Animated elements are flagged so the phash stability gate
  * (#15) can exclude them.
  *

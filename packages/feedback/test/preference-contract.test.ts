@@ -11,7 +11,7 @@ import {
  * Guards the TS side of the TS<->Python schema contract (#123). If the committed
  * artifact drifts from what the generator derives from the current TS source
  * (a renamed field, a new/removed enum member, a changed nested shape), the
- * regen check below fails loudly — the same artifact the Python pytest asserts
+ * regen check below fails loudly. It is the same artifact the Python pytest asserts
  * against, so a drift is caught on both sides at once.
  */
 describe("preference-example contract artifact", () => {

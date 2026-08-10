@@ -9,7 +9,7 @@ import type { JobProcessor } from "./server.js";
 
 /**
  * Bind the end-to-end review orchestrator (#109, `@engine/review`) as the API's
- * job processor — the real replacement for the EM0 `defaultProcessor` stub (whose
+ * job processor, the real replacement for the EM0 `defaultProcessor` stub (whose
  * comment promised "EM2 replaces this with the real capture + critique
  * pipeline"). The async job path can now run the actual
  * context→capture→triage→deep-pass→assemble→project sequence by passing the

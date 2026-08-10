@@ -6,7 +6,7 @@ from apature_eval.golden import finding_key
 
 
 def test_candidate_finding_ignores_rich_engine_fields():
-    # A recorded engine Finding carries confidence/viewport/title/... — those are
+    # A recorded engine Finding carries confidence/viewport/title/..., and those are
     # dropped, and the match/score fields survive so finding_key still works.
     f = CandidateFinding.model_validate(
         {

@@ -6,7 +6,7 @@ use std::hint::black_box;
 use std::time::Instant;
 
 fn frame(w: usize, h: usize, seed: u32) -> Vec<u8> {
-    // LCG noise (same generator family as the tests) — worst case for the
+    // LCG noise (same generator family as the tests): worst case for the
     // hashes and, being ~everywhere-different, for the AA-aware diff too.
     let mut s = seed;
     let mut px = Vec::with_capacity(w * h);

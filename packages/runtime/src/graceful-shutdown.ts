@@ -1,13 +1,13 @@
 /**
  * Graceful-shutdown wiring shared by the process entrypoints.
  *
- * api-main.ts and worker-main.ts had byte-identical shutdown boilerplate — the
+ * api-main.ts and worker-main.ts had byte-identical shutdown boilerplate: the
  * one-shot `stopping` guard, the `stop()` call, and the SIGTERM/SIGINT
  * registration. The two processes must shut down identically, so that logic
  * lives in one tested place; each entrypoint keeps only its own start call.
  */
 
-/** The minimal surface graceful shutdown needs — a stoppable runtime. */
+/** The minimal surface graceful shutdown needs: a stoppable runtime. */
 export interface Stoppable {
   stop(): Promise<void>;
 }

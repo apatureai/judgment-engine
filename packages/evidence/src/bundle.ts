@@ -1,5 +1,5 @@
 /**
- * `DerivedEvidenceBundleV1` — the producer-owned contract for the signed
+ * `DerivedEvidenceBundleV1`: the producer-owned contract for the signed
  * evidence package Judgment Engine returns for an `EvidenceRequestV1` (core
  * TRD §3.2). It is the ONLY door evidence enters through, so it is
  * fail-closed on identity + integrity: tenant/repo/request/commit/UI-DNA bind to
@@ -9,7 +9,7 @@
  * both repositories.
  *
  * Provenance is not authority (SCITT): a valid signature attests
- * lineage only — it never creates a finding, approves UI DNA, or makes feedback
+ * lineage only; it never creates a finding, approves UI DNA, or makes feedback
  * training-grade. That decision is the consumer's, downstream of this bundle.
  */
 

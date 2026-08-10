@@ -51,7 +51,7 @@ export async function runMigrations(
     const sql = readFileSync(join(dir, `${id}${UP_SUFFIX}`), "utf8");
     // Apply the migration AND record it in one simple-query, so a statement that
     // fails mid-file rolls the whole unit back (incl. the tracking row) under
-    // Postgres'/PGlite's implicit per-query transaction — the runner stays
+    // Postgres'/PGlite's implicit per-query transaction, so the runner stays
     // crash-idempotent, not just skip-idempotent. (id is filename-derived and
     // charset-guarded, so inlining it is safe.)
     await exec.exec(`${sql};\nINSERT INTO schema_migrations (id) VALUES ('${id}');`);

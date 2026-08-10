@@ -20,7 +20,7 @@ export const PROMPT_VERSION = `system-prompt@${SYSTEM_PROMPT_VERSION}`;
 export const RUBRIC_VERSION = "design-rubric@1";
 const DEFAULT_CAPTURE_VERSION = "stub@0";
 
-/** Injectable dependencies — the seam that keeps model backends swappable per pass. */
+/** Injectable dependencies: the seam that keeps model backends swappable per pass. */
 export interface CritiqueDeps {
   /** Build the model client for a resolved pass config (default: mock stand-in). */
   modelFactory?: ModelClientFactory;
@@ -64,7 +64,7 @@ function buildRequest(
 /**
  * The single critique entry point used by every surface (TRD §6.1). It resolves
  * the per-pass model config, builds the request, and routes through the swappable
- * `ModelClient` — a model swap (Qwen3-VL <-> Claude, DashScope <-> self-host) is a
+ * `ModelClient`. A model swap (Qwen3-VL <-> Claude, DashScope <-> self-host) is a
  * config change with no change here or at any call site. The model output is
  * Zod-validated (#31); the result is stamped with the resolved model (#68).
  * Two-step JSON (#29) and the hallucination gate (#32) build on this seam.
@@ -86,7 +86,7 @@ export async function critique(
   const parsed = parseCritiqueOutput(response.text);
   const output = parsed.ok ? parsed.value : null;
 
-  // The global validation tail (#32/#70/#33/#106) — shared with assembleCritique().
+  // The global validation tail (#32/#70/#33/#106), shared with assembleCritique().
   const captureVersion = deps.captureVersion ?? DEFAULT_CAPTURE_VERSION;
   const tail = runValidationTail({
     findings: output?.findings ?? [],

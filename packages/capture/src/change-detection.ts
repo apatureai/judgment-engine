@@ -2,11 +2,11 @@
  * Baseline change-detection (TRD §6.2, #89). The triage short-circuit (#28) is
  * the engine's main cost lever: when a route is "unchanged" vs its cached
  * baseline we skip the deep review. The naive form compared a single global
- * perceptual hash (pHash) and concluded "unchanged" on a match — but pHash keeps
+ * perceptual hash (pHash) and concluded "unchanged" on a match, but pHash keeps
  * only the top-left 8×8 low-frequency DCT block, so it is provably blind to
  * small/localized UI changes (a button shifting to a slightly different blue, a
  * text edit, a small spacing tweak). For a design-review product a false
- * "no change → skip" silently drops a real regression from review — the worst
+ * "no change → skip" silently drops a real regression from review, the worst
  * failure direction.
  *
  * Fix: keep pHash as the CHEAP pre-filter, but never let a pHash *match* alone
@@ -23,7 +23,7 @@
  * real SSIM/pixel-diff + region masking run in the capture worker (the live
  * seam); this module is fully testable with fixtures, no browser or image lib.
  * Note the opposite sensitivity from the settle/stability gate (#15), which
- * WANTS a tolerant pHash to ignore render jitter — the two uses must not share
+ * WANTS a tolerant pHash to ignore render jitter, so the two uses must not share
  * one coarse detector + threshold.
  */
 import { hashesWithin } from "./stability.js";

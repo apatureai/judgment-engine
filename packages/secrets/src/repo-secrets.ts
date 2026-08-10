@@ -4,8 +4,8 @@ import type { KmsKeyProvider } from "./kms.js";
 /**
  * Per-repo secrets the capture sandbox needs (§11/§3.1): an origin-scoped
  * `storageState` (authenticated capture) and a `protectionBypass` token (preview
- * access). Both are envelope-encrypted with `sealForRepo` — a fresh per-repo DEK
- * wrapped under the tenant CMK — so they are stored KMS-encrypted and only
+ * access). Both are envelope-encrypted with `sealForRepo` (a fresh per-repo DEK
+ * wrapped under the tenant CMK), so they are stored KMS-encrypted and only
  * decryptable in their own repo + kind scope.
  */
 export const REPO_SECRET_KINDS = ["storageState", "protectionBypass"] as const;

@@ -12,11 +12,11 @@ STRICT v1 SCOPE (safety):
 
   - The ONLY resolver implemented here is `LocalFixtureResolver`, which maps a
     ref to a file under a local fixture directory. It performs **no network I/O,
-    reads no credentials, and commits no secrets** — everything runs against a
+    reads no credentials, and commits no secrets**. Everything runs against a
     local tree, so the tests need no GPU and no network.
   - The production DVC / Cloudflare-R2 backend is a **documented Protocol stub**
     (`RemoteArtifactResolver`) that raises `NotImplementedError`. Wiring a real
-    object-storage client (auth, retry, content-addressed cache — the same remote
+    object-storage client (auth, retry, content-addressed cache, the same remote
     `dvc-export.ts`'s `pushDataset()` writes to) is intentionally out of scope for
     this v1 and is the PR's stated follow-up.
 
@@ -66,7 +66,7 @@ class LocalFixtureResolver:
     """Resolve refs against a local fixture directory. No network, no credentials.
 
     A ref is treated as an opaque object key and mapped directly under `root`
-    (`root / ref`), mirroring how a content/object store keys its blobs — the
+    (`root / ref`), mirroring how a content/object store keys its blobs: the
     same string the TS side emits is the storage path. The double slash the TS
     exporter can emit (e.g. ``jobs/job-1/screenshots//pricing-desktop``) collapses
     naturally on the filesystem.
@@ -87,7 +87,7 @@ class LocalFixtureResolver:
 
 
 class RemoteArtifactResolver:
-    """DOCUMENTED STUB — the production DVC / R2 backend, deliberately NOT built here.
+    """DOCUMENTED STUB: the production DVC / R2 backend, deliberately NOT built here.
 
     A real implementation would pull `imageRef` / `contextHash` objects from the
     DVC remote / Cloudflare-R2 bucket that `packages/feedback/src/dvc-export.ts`
@@ -116,7 +116,7 @@ class ResolveStats:
     """Provenance for a resolve pass: what hydrated and why tuples dropped.
 
     Every input tuple lands in exactly one of `resolved` / `skipped_no_ref` /
-    `skipped_missing`, so the three always sum to the input count — nothing is
+    `skipped_missing`, so the three always sum to the input count and nothing is
     silently dropped. `context_resolved` is an independent overlay: how many of
     the `resolved` records also had their `contextHash` hydrated to a file.
     """
@@ -163,7 +163,7 @@ def resolve_records(
     The `contextHash` reference is hydrated opportunistically: when it is set and
     the resolver finds a matching artifact, the record gains a `context_path`
     (relative to root) and `context_resolved` is incremented. A missing/absent
-    context is non-fatal — context can be carried inline in the prompt — so it
+    context is non-fatal (context can be carried inline in the prompt), so it
     never blocks a record the way a missing image does.
 
     Image representation:
@@ -194,7 +194,7 @@ def resolve_records(
             stats.skipped_missing += 1
             continue
 
-        record = to_kto_row(ex)  # {prompt, completion, label} — reuse, don't re-shape
+        record = to_kto_row(ex)  # {prompt, completion, label}; reuse, don't re-shape
         if embed_bytes:
             record["image_bytes"] = image.read_bytes()
         else:

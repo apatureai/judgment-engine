@@ -3,14 +3,14 @@ import type { TokenMap } from "./tokens.js";
 
 /**
  * Tailwind v3 token extraction (TRD §6, #56). The fully-resolved theme is
- * produced by Tailwind's own `resolveConfig` — never static-AST-parsed, which
+ * produced by Tailwind's own `resolveConfig`, never static-AST-parsed, which
  * would miss preset/required defaults. Returns the flattened design tokens.
  *
  * `tailwind.config.{js,ts}` is executable code, so the real worker LOADS it in
  * the same isolation class as capture (#22) and passes the resulting config
  * object here; on any throw the caller degrades to CSS-property extraction (#58).
  * This function is the pure resolve + flatten, fully testable with a config
- * object — no untrusted code execution in tests.
+ * object, with no untrusted code execution in tests.
  */
 
 const CATEGORIES = [

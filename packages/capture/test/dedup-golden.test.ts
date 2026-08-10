@@ -1,7 +1,7 @@
 /**
  * Cross-language golden contract for the Rust capture-dedup spike
  * (`rust/capture-dedup`). dhash is pure integer math, so a minimal TypeScript
- * mirror must produce bit-identical u64 hashes for the shared golden vectors —
+ * mirror must produce bit-identical u64 hashes for the shared golden vectors,
  * the same contract style the Python dataset mirror uses (#127/#130). If this
  * test and `cargo test` disagree, one implementation drifted.
  *
@@ -14,7 +14,7 @@
  * through the change-detection decision seam (`detectBaselineChange`) to
  * cross-validate the producer/consumer contract end to end: Rust scores for
  * identical images must decide "confirmed unchanged", scores for structurally
- * different images must decide "changed" — even when pHash matches (the exact
+ * different images must decide "changed", even when pHash matches (the exact
  * blindness the seam exists to catch).
  */
 import { readFileSync } from "node:fs";

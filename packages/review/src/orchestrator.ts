@@ -34,7 +34,7 @@ import type { Critique, EngineReviewResult, PreviewBuildFact } from "@engine/typ
 /**
  * End-to-end review orchestrator (TRD §6, #109): the keystone that composes the
  * engine's individually-built, individually-tested pure pieces into ONE review
- * pipeline. Until this, nothing sequenced them — the async job API shipped the
+ * pipeline. Until this, nothing sequenced them: the async job API shipped the
  * EM0 `defaultProcessor` stub whose comment promised "EM2 replaces this with the
  * real capture + critique pipeline".
  *
@@ -49,7 +49,7 @@ import type { Critique, EngineReviewResult, PreviewBuildFact } from "@engine/typ
  *     -> toEngineReviewResult: the cross-repo wire projection.
  *
  * EVERY live I/O is injected: the model client factory, the capture sandbox seam,
- * and the genome embedder. In tests these are stubs + the mock model — a real
+ * and the genome embedder. In tests these are stubs + the mock model, and a real
  * model / sandbox / browser / GPU is NEVER called. Pure + deterministic given
  * deterministic deps; the output is byte-compatible with the Gate golden wire
  * fixture shape.
@@ -69,7 +69,7 @@ export interface ReviewRoute {
    * short-circuit (fails open to a deep review).
    */
   tileScores?: TriageRoute["tileScores"];
-  /** Deterministic breakage facts (#19) — forces a deep review when present. */
+  /** Deterministic breakage facts (#19); forces a deep review when present. */
   deterministicBreakage?: string[];
   /** Deterministic facts (contrast/overflow/touch-target, #19) for the deep prompt. */
   facts?: string[];
@@ -79,7 +79,7 @@ export interface ReviewRoute {
   feedbackDigest?: string;
 }
 
-/** Live I/O seams — all injected so the orchestrator is fully testable with stubs. */
+/** Live I/O seams, all injected so the orchestrator is fully testable with stubs. */
 export interface ReviewDeps {
   /**
    * The capture seam (#11/#22). `createBrowserCapture` from `@engine/capture`
@@ -106,7 +106,7 @@ export interface ReviewDeps {
   /**
    * Observer for the assembled internal `Critique`, called once immediately
    * before the wire projection drops the internal-only fields. This is the seam
-   * for `validation.hallucinationDrops` (#32) — the drop COUNT is an SLO input
+   * for `validation.hallucinationDrops` (#32): the drop COUNT is an SLO input
    * and is deliberately not part of the consumer wire contract, so a metrics
    * emitter (or a CLI that wants to report it) reads it here. Never mutates the
    * result; throwing from it is the caller's problem, not the review's.
@@ -150,7 +150,7 @@ export interface ReviewInput {
  * orchestrator's job is only to derive its two inputs from the context block, so
  * both stay in lockstep: the brand dimension is scored exactly when a brand block
  * was extracted, and every detected component library contributes its rubric
- * addendum. Deterministic — the same context yields the same prompt bytes, which
+ * addendum. Deterministic: the same context yields the same prompt bytes, which
  * is what keeps the prefix cache warm.
  */
 export function reviewSystemPrompt(context: ContextBlockInput): string {
@@ -168,7 +168,7 @@ function geometrySelectors(geometry: GeometryRect[]): Set<string> {
   return new Set(geometry.map((g) => g.selector));
 }
 
-/** All captured route ids — the hallucination gate (#32) drops findings off these. */
+/** All captured route ids; the hallucination gate (#32) drops findings off these. */
 function capturedRoutes(images: CaptureImage[]): string[] {
   return [...new Set(images.map((i) => i.route))];
 }
@@ -198,7 +198,7 @@ export async function runReview(input: ReviewInput, deps: ReviewDeps): Promise<E
   const capture = await deps.captureInSandbox(input.url, input.captureContext);
   const selectors = geometrySelectors(capture.geometry);
 
-  // A capture that produced no images can't ground any finding — short out to a
+  // A capture that produced no images can't ground any finding, so short out to a
   // clean "nothing reviewed" result rather than running the model on nothing.
   if (capture.images.length === 0) {
     return emptyFindingsResult(input, deps, capture.captureVersion, {
@@ -246,7 +246,7 @@ export async function runReview(input: ReviewInput, deps: ReviewDeps): Promise<E
 
   // Batch the genome retrieval: embed every route's query in ONE embedder call
   // (the Embedder takes a batch), then rank per route against the prebuilt index.
-  // Identical result to embedding each query separately — just one round-trip on
+  // Identical result to embedding each query separately, just one round-trip on
   // the critical path instead of N serial ones (#113). Determinism preserved.
   const genomeRulesByRoute = await selectGenomeRulesBatched(reviewable, deps);
 
@@ -306,8 +306,8 @@ export async function runReview(input: ReviewInput, deps: ReviewDeps): Promise<E
   });
 
   // 6. Project to the cross-repo wire result Gate consumes (golden-shape). The
-  //    page-health footnote (#20) — console errors / failed requests / blocked
-  //    fonts gathered during capture — is surfaced in `artifacts`, never mixed
+  //    page-health footnote (#20), console errors / failed requests / blocked
+  //    fonts gathered during capture, is surfaced in `artifacts`, never mixed
   //    into findings; a clean page yields null and omits the field (golden-safe).
   deps.onCritique?.(critique);
   return toEngineReviewResult(critique, {
@@ -346,7 +346,7 @@ async function selectGenomeRulesBatched(
 }
 
 /**
- * A clean wire result for a review that produced no findings — both the empty
+ * A clean wire result for a review that produced no findings, covering both the empty
  * capture and the triage short-circuit. Routed through the SAME builders as the
  * main path (`assembleCritique` with no routes -> `toEngineReviewResult`) so it
  * inherits the #68 non-empty version-stamp assertion and can't drift from the

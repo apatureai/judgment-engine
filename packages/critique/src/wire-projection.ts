@@ -17,7 +17,7 @@ import type { Critique, EngineReviewResult, Finding, WireFinding } from "@engine
  *
  * The model emits a dedicated `title` + `description` per finding (#100); the
  * projection passes them through. `deriveTitle` remains only as a DEFENSIVE
- * fallback for a finding whose title is empty/whitespace — it derives one from
+ * fallback for a finding whose title is empty/whitespace; it derives one from
  * the description so a malformed model row can never yield a blank wire title.
  */
 
@@ -74,7 +74,7 @@ function toWireFinding(
   const screenshotId = options.screenshotIdFor?.(finding, index) ?? null;
   return {
     id: wireFindingId(index),
-    // #159: the validated internal rubric dimension crosses the wire verbatim —
+    // #159: the validated internal rubric dimension crosses the wire verbatim,
     // never derived from severity/title. Consumers group outcomes by it.
     dimension: finding.dimension,
     severity: finding.severity,
@@ -126,9 +126,9 @@ export function toEngineReviewResult(critique: Critique, options: WireProjection
     notReviewed: critique.notReviewed,
     artifacts: {
       annotatedScreenshots,
-      // engineDebugUrl is optional on the wire — only set it when present.
+      // engineDebugUrl is optional on the wire, so only set it when present.
       ...(options.engineDebugUrl !== undefined ? { engineDebugUrl: options.engineDebugUrl } : {}),
-      // Page-health footnote (#20) — only when capture reported something; a
+      // Page-health footnote (#20), only when capture reported something; a
       // clean page omits the field so the wire result stays byte-compatible.
       ...(options.pageHealthFootnote ? { pageHealthFootnote: options.pageHealthFootnote } : {}),
     },

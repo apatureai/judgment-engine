@@ -1,7 +1,7 @@
 /**
  * Job priority for fair scheduling (#67; architecture review E6). Lower number =
  * higher priority. Gate's blocking PR reviews outrank Gate's background/recheck
- * work, which outranks other consumers — so one consumer's burst can't starve
+ * work, which outranks other consumers, so one consumer's burst can't starve
  * the interactive path. The value is stored on the job row and the claim orders
  * by (priority, created_at).
  */

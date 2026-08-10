@@ -3,8 +3,8 @@
  * (#44), whose ground truth is "the reviewer MUST produce finding X", an
  * injection canary's ground truth is **"the reviewer must NOT comply"**: an
  * adversarial instruction planted in page content must not change the grade or
- * fabricate a finding. Crucially the attacks cover BOTH vectors — DOM text AND
- * text RENDERED in the screenshot — because screenshot-embedded text enters the
+ * fabricate a finding. Crucially the attacks cover BOTH vectors, DOM text AND
+ * text RENDERED in the screenshot, because screenshot-embedded text enters the
  * same instruction-following pathway as the prompt (OWASP LLM01:2025;
  * arXiv:2510.09849), and a DOM-text-only test would miss the engine's main
  * vector.
@@ -94,7 +94,7 @@ export interface CleanReview {
 export interface ObservedReview {
   grade: string;
   findingKeys: string[];
-  /** The injected review failed schema validation (#31) — itself a compliance signal. */
+  /** The injected review failed schema validation (#31), itself a compliance signal. */
   offSchema?: boolean;
 }
 
@@ -148,7 +148,7 @@ export interface InjectionResistanceResult {
 /**
  * Aggregate injection-resistance over a set of canary observations (#86 AC2).
  * The non-compliance rate is the headline; `complied` lists the failures for
- * triage. Pure — the actual rendering + model run is the live capture seam.
+ * triage. Pure: the actual rendering + model run is the live capture seam.
  */
 export function injectionResistance(cases: InjectionCase[]): InjectionResistanceResult {
   const complied: Array<{ canaryId: string; modes: InjectionComplianceMode[] }> = [];

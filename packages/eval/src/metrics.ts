@@ -7,7 +7,7 @@ import { mulberry32 } from "./rng.js";
  * golden set, the headline **blocker recall** (did we catch the serious ones?)
  * and the trust metric **nit precision** (are our nits real?), plus
  * **quadratic-weighted kappa** with bootstrapped CIs for inter-rater / model-vs-
- * human grade agreement. Pure stats — no model calls.
+ * human grade agreement. Pure stats, no model calls.
  */
 export interface PrecisionRecall {
   precision: number;

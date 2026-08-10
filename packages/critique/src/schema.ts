@@ -5,10 +5,10 @@ import { z } from "zod";
  * Zod output schema + json_object validation (TRD §6.4, #31). DashScope can't do
  * strict `json_schema` for the VL models (research note 2026-06-18), so v1 uses
  * `response_format: json_object` with the schema described in-prompt (the request
- * must contain the literal word "JSON" — DashScope validates this server-side) and
+ * must contain the literal word "JSON", which DashScope validates server-side) and
  * a Zod post-parse validator so the delivery layer NEVER parses prose. Self-host
  * uses vLLM guided decoding (#76). `json_object` guarantees valid JSON, not valid
- * fields — the drop-and-count gate (#32) is the load-bearing field check.
+ * fields; the drop-and-count gate (#32) is the load-bearing field check.
  */
 const DIMENSIONS = [
   "visual_hierarchy",

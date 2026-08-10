@@ -2,7 +2,7 @@ import type { ResultMetadata } from "@engine/types";
 
 /**
  * Version stamping (#68). Every Findings result carries
- * `{engineVersion, model, promptVersion, captureVersion}` — the stable interface
+ * `{engineVersion, model, promptVersion, captureVersion}`, the stable interface
  * consumers depend on and the lineage key for the preference dataset. A
  * prompt/model change without a version bump must be impossible, so the four
  * fields are required and asserted non-empty. The values are sourced from the
@@ -48,7 +48,7 @@ export function assertVersionStamped(metadata: ResultMetadata): void {
 }
 
 /**
- * The `{engine.*}` OTel span attributes for the version stamp — the same fields
+ * The `{engine.*}` OTel span attributes for the version stamp: the same fields
  * `@engine/observability` `setVersionAttributes` puts on critique spans (#8), so
  * traces are filterable by model/prompt/capture revision.
  */

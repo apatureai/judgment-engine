@@ -18,7 +18,7 @@ describe("isPrivateOrReservedIp", () => {
   });
 
   it("denies cloud-metadata endpoints outside link-local (Alibaba / Oracle SSRF)", () => {
-    // Alibaba Cloud metadata (100.64.0.0/10 CGN) — reachable given the DashScope/Qwen dependency.
+    // Alibaba Cloud metadata (100.64.0.0/10 CGN), reachable given the DashScope/Qwen dependency.
     expect(isPrivateOrReservedIp("100.100.100.200")).toBe(true);
     expect(isPrivateOrReservedIp("100.64.0.0")).toBe(true);
     expect(isPrivateOrReservedIp("100.127.255.255")).toBe(true);
@@ -43,7 +43,7 @@ describe("isPrivateOrReservedIp", () => {
     expect(isPrivateOrReservedIp("fe80::1")).toBe(true);
     expect(isPrivateOrReservedIp("::ffff:169.254.169.254")).toBe(true);
     // Hex-form v4-mapped of the cloud-metadata IP (169.254.169.254 = a9fe:a9fe)
-    // must be denied too — the SSRF bypass if only dotted form is checked.
+    // must be denied too; it is the SSRF bypass if only the dotted form is checked.
     expect(isPrivateOrReservedIp("::ffff:a9fe:a9fe")).toBe(true);
     expect(isPrivateOrReservedIp("::ffff:0a00:0001")).toBe(true); // 10.0.0.1
     expect(isPrivateOrReservedIp("::169.254.169.254")).toBe(true); // IPv4-compat form

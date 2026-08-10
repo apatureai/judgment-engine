@@ -1,4 +1,4 @@
-"""apature-eval — offline batch-grader for the owned judge (#125).
+"""apature-eval: offline batch-grader for the owned judge (#125).
 
 Deterministic, fixture-driven scoring of a recorded judge-checkpoint run against
 the human-labeled golden set. Pure Python: no GPU, no network, no model call. It

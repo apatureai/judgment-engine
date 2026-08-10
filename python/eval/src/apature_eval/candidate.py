@@ -8,7 +8,7 @@ write a small adapter that maps its output to `CandidateRun` and feed the same
 `scorecard.grade(...)`.
 
 Only the fields the grader needs to MATCH and SCORE findings are modeled
-(`dimension`, `severity`, `route`, `elementRef` — the `finding_key` tuple — plus
+(`dimension`, `severity`, `route`, `elementRef`, the `finding_key` tuple, plus
 the per-case `grade`). The engine's wire `Finding` (packages/types/src/findings.ts)
 carries more (`confidence`, `viewport`, `title`, `description`, ...); a recorded
 run may include those verbatim, so `CandidateFinding` is lenient (`extra="ignore"`)
@@ -55,7 +55,7 @@ class CandidateRun(BaseModel):
     """A whole checkpoint's recorded outputs over the golden set.
 
     `checkpoint` is the model/checkpoint id under test (stamped onto the
-    scorecard). `predictions` need not cover every golden case — the scorecard
+    scorecard). `predictions` need not cover every golden case; the scorecard
     aligns on case id and reports any gap on either side.
     """
 

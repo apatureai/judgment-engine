@@ -1,23 +1,23 @@
 """Offline batch-grader: score a candidate run against the golden set (#125).
 
-Deterministic and pure — no GPU, no network, no time, no RNG. Given a
+Deterministic and pure: no GPU, no network, no time, no RNG. Given a
 `CandidateRun` (recorded checkpoint outputs) and a `GoldenSet` (human labels),
 it emits a `Scorecard` with:
 
-  * grade agreement  — model grade vs the human consensus grade per case:
-    exact/adjacent rates + a confusion matrix, AND the paired grade vectors.
-  * detection        — pooled precision/recall (overall + per rubric dimension),
+  * grade agreement: model grade vs the human consensus grade per case,
+    with exact/adjacent rates + a confusion matrix, AND the paired grade vectors.
+  * detection: pooled precision/recall (overall + per rubric dimension),
     headline blocker recall, trust-metric nit precision.
 
-BOUNDARY (see golden.py): the counting done here — set-intersection TP/FP/FN and
-`prFromCounts` — mirrors `packages/eval/src/metrics.ts` exactly so a fixture
+BOUNDARY (see golden.py): the counting done here (set-intersection TP/FP/FN and
+`prFromCounts`) mirrors `packages/eval/src/metrics.ts` exactly so a fixture
 grades identically on both sides. The chance-corrected statistics that package
 owns (quadratic-weighted kappa + bootstrap CIs, Krippendorff's alpha, Gwet's
 AC2, isotonic calibration, ECE/Brier, the SLO/quality/promotion gates) are NOT
 re-implemented; instead the grade agreement block ships the paired
 `human_grades`/`model_grades` vectors those estimators consume, so the owned-judge
 loop runs kappa/AC2 in one place. Add a real backend by mapping its outputs to a
-`CandidateRun` — the grading below does not change.
+`CandidateRun`; the grading below does not change.
 
 Pooling: detection counts are summed per case (finding keys are only unique
 within a case), never across the whole corpus, so two cases sharing a

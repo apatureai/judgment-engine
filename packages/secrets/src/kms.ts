@@ -6,7 +6,7 @@ import { createCipheriv, createDecipheriv, createHash, hkdfSync, randomBytes } f
  *
  *   shared CMK (free tier) / per-tenant CMK (paid) / per-repo DEK (always)
  *
- * `cmkId` identifies the CMK — shared or per-tenant — and is the ONLY key that
+ * `cmkId` identifies the CMK (shared or per-tenant) and is the ONLY key that
  * lives in the managed KMS. Per-repo data keys are generated app-side and
  * envelope-wrapped under the CMK, so we never create per-repo KMS keys (a cost
  * trap at thousands of repos). Production binds this to AWS KMS; `LocalKms` is
@@ -21,7 +21,7 @@ export interface KmsKeyProvider {
 
 /**
  * Local KMS for dev/tests. Derives a per-`cmkId` CMK from a root key via HKDF
- * and wraps DEKs with AES-256-GCM. Not for production — real deployments use a
+ * and wraps DEKs with AES-256-GCM. Not for production; real deployments use a
  * managed KMS (AWS KMS).
  */
 export class LocalKms implements KmsKeyProvider {

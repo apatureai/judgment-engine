@@ -69,7 +69,7 @@ describe("parseArgs", () => {
 describe("USAGE", () => {
   it("names an install command that exists as a root package script", () => {
     // The footer used to read `pnpm exec playwright-core install chromium`,
-    // which fails from the repository root — playwright-core is a dependency of
+    // which fails from the repository root, because playwright-core is a dependency of
     // @engine/capture, not of the workspace root. A reader who runs --help is
     // exactly the reader who has no browser yet, so the command has to work.
     const pkg = JSON.parse(

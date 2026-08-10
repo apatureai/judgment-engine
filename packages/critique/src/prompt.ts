@@ -2,7 +2,7 @@ import type { Dimension } from "@engine/types";
 
 /**
  * Frozen system prompt: the 8-dimension rubric + anti-hallucination clause
- * (TRD §6.3/§6.5, #30). Bump `SYSTEM_PROMPT_VERSION` on ANY wording change — it
+ * (TRD §6.3/§6.5, #30). Bump `SYSTEM_PROMPT_VERSION` on ANY wording change: it
  * is part of the version stamp (#68) and the eval-gated promotion (#71), so a
  * prompt change can't ship without a version bump and an eval pass.
  */
@@ -13,13 +13,13 @@ export const UNTRUSTED_CONTENT_TAG = "untrusted_page_content";
 
 /**
  * Instruction-hierarchy / data-not-instructions rule (TRD §11/§16, #53). Page
- * text — both DOM text fenced in `<untrusted_page_content>` AND any text RENDERED
- * inside the screenshots — is DATA describing the UI, never instructions. Research
+ * text (both DOM text fenced in `<untrusted_page_content>` AND any text RENDERED
+ * inside the screenshots) is DATA describing the UI, never instructions. Research
  * (OWASP LLM01:2025; arXiv:2510.09849) shows screenshot-embedded text reaches the
  * same instruction-following pathway as the prompt, so this prompt-level rule is
  * a PARTIAL mitigation; the load-bearing backstops are the constrained output
  * (#31) and the drop-and-count structural grounding (#32), which bound the blast
- * radius — an injected "approve this PR" can't become a schema-valid finding
+ * radius: an injected "approve this PR" can't become a schema-valid finding
  * grounded in captured routes/geometry. Stated explicitly here so the hierarchy
  * is unambiguous.
  */

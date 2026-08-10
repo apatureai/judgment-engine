@@ -8,8 +8,8 @@ import { DEFAULT_SLO_TARGETS, evaluateSlos, type SloCounts, type SloResult, type
  *
  * The single promote/block decision over a candidate (model, prompt, engine,
  * capture, rubric) triplet's frozen-set eval results. It composes the pieces
- * that already exist — the §10 quality gate, the gated SLOs, and the
- * CalibrationReportV1 contract — into ONE archived decision artifact that CI
+ * that already exist (the §10 quality gate, the gated SLOs, and the
+ * CalibrationReportV1 contract) into ONE archived decision artifact that CI
  * enforces: a candidate that regresses the golden-set bars, breaches an SLO,
  * or (for blocking mode) lacks a current, matching, sufficient-evidence
  * calibration report whose false-block risk clears the E11 bar CANNOT be
@@ -19,7 +19,7 @@ import { DEFAULT_SLO_TARGETS, evaluateSlos, type SloCounts, type SloResult, type
  *
  * This gate decides *eligibility*. The durable promotion record (and the
  * additional attestation checks for blocking mode) remain
- * `ModelPromptRegistry.promote` — run the gate first, then record.
+ * `ModelPromptRegistry.promote`: run the gate first, then record.
  */
 
 export interface ReleaseCandidateV1 {
@@ -28,7 +28,7 @@ export interface ReleaseCandidateV1 {
   stamp: RegistryStamp;
   /** Promotion target. Blocking mode adds the E11 calibration guard. */
   targetMode: "advisory" | "blocking";
-  /** Frozen-set eval results (§10 bars) — capture flakiness excluded by construction. */
+  /** Frozen-set eval results (§10 bars), with capture flakiness excluded by construction. */
   quality: QualityGateInput;
   /** Gated SLO counts from the same eval batch (#72). */
   sloCounts: SloCounts;

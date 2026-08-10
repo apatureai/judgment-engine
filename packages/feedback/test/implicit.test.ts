@@ -26,7 +26,7 @@ describe("suggestion string-match (#39)", () => {
 
   it("matches a token as a WHOLE unit, never as a substring of a different value", () => {
     // A dimension/hex/utility token must not match a DIFFERENT value that merely
-    // contains it — that would label a fix "applied" when it was not.
+    // contains it, which would label a fix "applied" when it was not.
     expect(suggestionMatchesDiff("set the gap to 16px", "+ padding: 116px;")).toBe(false); // 16px ⊄ 116px
     expect(suggestionMatchesDiff("set the gap to 16px", "+ gap: 16px;")).toBe(true); // exact value applied
     expect(suggestionMatchesDiff("use the gap-4 utility", '+ className="gap-40"')).toBe(false); // gap-4 ⊄ gap-40

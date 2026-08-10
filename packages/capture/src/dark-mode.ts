@@ -10,7 +10,7 @@ import type { CaptureContext, Viewport } from "@engine/types";
  * dark are never the same context re-emulated.
  *
  * Dark is captured ONLY when the repo declares dark-mode support
- * (`CaptureContext.darkMode`) — capturing a forced dark scheme on a light-only
+ * (`CaptureContext.darkMode`). Capturing a forced dark scheme on a light-only
  * site just renders the light theme under a dark OS hint and doubles the cost
  * for no signal.
  *
@@ -28,7 +28,7 @@ export interface ColorSchemeContext {
   colorScheme: ColorScheme;
   /**
    * Always true here as a contract reminder: the scheme is emulated on the fresh
-   * context BEFORE goto. The worker (#11) must honor this — a post-goto toggle
+   * context BEFORE goto. The worker (#11) must honor this: a post-goto toggle
    * misses mount-time CSS-in-JS.
    */
   emulateBeforeGoto: true;

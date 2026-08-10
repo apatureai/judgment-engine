@@ -1,11 +1,11 @@
 /**
- * `@engine/evidence` — the producer of the signed `DerivedEvidenceBundleV1`
+ * `@engine/evidence`: the producer of the signed `DerivedEvidenceBundleV1`
  * Entropy Engine's acceptance gate consumes (judgment-engine#156).
  *
  * Judgment Engine owns checkout/capture, adapter authorization, artifact
  * custody, bundle identity, and signing. This package is contract-only wire +
- * a pure builder + an injected signer port — no network, model, browser, store,
- * or private key. The RFC 8785 canonicalizer is byte-identical to Entropy's
+ * a pure builder + an injected signer port, with no network, model, browser,
+ * store, or private key. The RFC 8785 canonicalizer is byte-identical to Entropy's
  * verifier so one golden verifies in both repositories.
  */
 

@@ -9,8 +9,8 @@ import type { PreferenceExample } from "./preference-export.js";
  * on-disk model so the existing `dvc` tooling (and an R2 remote) can pull/push it
  * with no new infra:
  *
- *  - Every tuple is serialized to canonical JSON and addressed by `md5(content)`
- *    — DVC's default hash. Identical tuples dedup across versions.
+ *  - Every tuple is serialized to canonical JSON and addressed by `md5(content)`,
+ *    DVC's default hash. Identical tuples dedup across versions.
  *  - The dataset version is a DVC **`.dir` object**: a JSON listing of
  *    `{md5, relpath}` sorted by canonical UTF-8 bytes of `relpath`; the
  *    listing's own md5 (suffixed `.dir`) is the version id. Same tuples ⇒ same
@@ -90,7 +90,7 @@ export function canonicalJson(value: unknown): string {
   return `{${body}}`;
 }
 
-/** Logical path for a tuple's cache object — stable across runs (point-in-time). */
+/** Logical path for a tuple's cache object, stable across runs (point-in-time). */
 function relpathFor(example: PreferenceExample): string {
   return `${example.promptVersion}/${example.findingId}.json`;
 }

@@ -25,7 +25,7 @@ export function isTrainingGrade(permission: RaterPermission): boolean {
 
 /**
  * Signal polarity: +1 endorses the finding, -1 dismisses it, 0 neutral. Single
- * source of truth — consumed by `weightedConsensus` here and the memory digest
+ * source of truth, consumed by `weightedConsensus` here and the memory digest
  * (#41) so the two can't silently disagree on how a signal scores.
  */
 export const SIGNAL_POLARITY: Record<FeedbackSignal, number> = {

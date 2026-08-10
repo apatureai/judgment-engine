@@ -3,7 +3,7 @@ import { compositeOver, isOpaque, parseCssColor } from "./color.js";
 
 /**
  * Deterministic, code-computed UI checks (TRD §4.2/§6.3/§6.5). The model must
- * never read hex off pixels or guess element sizes — contrast, overflow, and
+ * never read hex off pixels or guess element sizes. Contrast, overflow, and
  * touch-target violations are computed here from the captured computed styles +
  * geometry and handed to the critique prompt as FACTS, not questions. This is a
  * primary anti-hallucination lever (#30/#32).
@@ -31,7 +31,7 @@ export interface TextNodeStyle {
   /** Foreground as a CSS color string; may be translucent (`rgba(…, .55)`). */
   color: string;
   /**
-   * The FLATTENED, fully opaque backdrop behind the text — the element's own
+   * The FLATTENED, fully opaque backdrop behind the text: the element's own
    * background composited over its ancestors and the page canvas
    * (`toTextNodeStyles` resolves it). `null` when it could not be determined,
    * e.g. nothing in the stack is opaque and the canvas color is unknown. A null
@@ -107,7 +107,7 @@ export function contrastViolations(nodes: TextNodeStyle[]): DeterministicFinding
   for (const node of nodes) {
     // Every `continue` below is the same decision: the true ratio is not
     // knowable from what was captured, so no fact is emitted. Silence, never a
-    // guess — a wrong number here is published as a measurement.
+    // guess; a wrong number here is published as a measurement.
     if (node.backgroundColor === null) continue;
     const bg = parseCssColor(node.backgroundColor);
     if (bg === null || !isOpaque(bg)) continue;

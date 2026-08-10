@@ -14,7 +14,7 @@
  *
  * This module is the PURE control loop: the real `window.scrollTo`, height
  * measurement, and waits are injected (the live Playwright worker, #11, binds
- * them). Fully unit-testable with a fake page model — no real browser. Runs
+ * them). Fully unit-testable with a fake page model and no real browser. Runs
  * AFTER readiness (#12) and BEFORE the post-scroll font re-check + clock re-pin
  * (#12/#102) and the motion-freeze re-inject (#13).
  */

@@ -9,7 +9,7 @@ import { resolveCssVarReferences } from "./css-var-resolve.js";
  * parses the CSS with PostCSS, collects the `@theme` custom properties as tokens,
  * and surfaces any `@config` path so the caller can also resolve it via #56.
  *
- * Pure (PostCSS only) — fully testable without a build step.
+ * Pure (PostCSS only), fully testable without a build step.
  */
 export interface TailwindV4Result {
   tokens: TokenMap;

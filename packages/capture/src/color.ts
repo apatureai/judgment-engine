@@ -11,7 +11,7 @@
  * opaque. Chromium serializes computed colors in the legacy `rgb()/rgba()` form
  * for sRGB colors; a color authored in a wide-gamut space (`oklch(...)`,
  * `color(display-p3 ...)`) serializes in that space and is deliberately NOT
- * parsed here — it yields `null`, and the check stays silent.
+ * parsed here: it yields `null`, and the check stays silent.
  */
 
 export interface Rgba {
@@ -66,7 +66,7 @@ function blend(top: number, bottom: number, alpha: number): number {
 
 /**
  * Source-over composite of `top` onto an OPAQUE `bottom`. Callers must resolve
- * an opaque backdrop first — compositing onto a translucent one would produce a
+ * an opaque backdrop first; compositing onto a translucent one would produce a
  * color no user ever saw.
  */
 export function compositeOver(top: Rgba, bottom: Rgba): Rgba {
@@ -81,8 +81,8 @@ export function compositeOver(top: Rgba, bottom: Rgba): Rgba {
 }
 
 /**
- * Flatten a background stack — the `background-color` of an element and each of
- * its ancestors, nearest first — onto the page canvas.
+ * Flatten a background stack (the `background-color` of an element and each of
+ * its ancestors, nearest first) onto the page canvas.
  *
  * Returns `null` when no opaque layer is reachable, which is exactly the case
  * the check must stay silent about: a page whose canvas color is unknown (the

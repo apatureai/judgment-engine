@@ -1,16 +1,16 @@
 """Readers for the three shapes the TS side can hand us.
 
-1. A flat JSON array — exactly what `exportPreferenceDataset()` returns when
+1. A flat JSON array, exactly what `exportPreferenceDataset()` returns when
    dumped with `JSON.stringify`.
-2. JSONL — one `PreferenceExample` per line (streaming-friendly for large sets).
-3. A DVC dataset directory — the content-addressed layout produced by
+2. JSONL, one `PreferenceExample` per line (streaming-friendly for large sets).
+3. A DVC dataset directory, the content-addressed layout produced by
    `buildDvcDataset()` / `pushDataset()` in `packages/feedback/src/dvc-export.ts`:
    a `.dir` manifest of `{md5, relpath}` plus cache objects at
    `files/md5/<aa>/<rest>`. We resolve the manifest, load each object, and
    verify its md5 (the same integrity check `pullDataset()` performs).
 
 `canonical_json` reproduces `dvc-export.ts`'s `canonicalJson`: keys sorted at
-every level, compact separators, UTF-8 (no ASCII escaping) — so md5s match
+every level, compact separators, UTF-8 (no ASCII escaping), so md5s match
 byte-for-byte across the boundary.
 """
 
@@ -41,13 +41,13 @@ def dvc_content(ex: PreferenceExample) -> dict[str, Any]:
     """The exact field set `dvc-export.ts` serializes for one tuple.
 
     Mirrors `buildDvcDataset`'s `canonicalJson(ex)`: every field is kept with its
-    value — the nullable refs (`imageRef`/`contextHash`/`elementRef`) stay present
-    as `null` — EXCEPT `source`. The TS `PreferenceExample` always carries
+    value: the nullable refs (`imageRef`/`contextHash`/`elementRef`) stay present
+    as `null`, EXCEPT `source`. The TS `PreferenceExample` always carries
     `source`, but the DVC-export test factory omits it, and schema.py relaxes it
     to Optional so *both* shapes parse. To reproduce the TS content address, a
     tuple whose `source` was omitted must hash *without* a `source` key (#127);
     a tuple that carried one hashes *with* it. A blanket `exclude_none` would be
-    wrong here — it would also drop the null refs the TS side keeps, diverging the
+    wrong here; it would also drop the null refs the TS side keeps, diverging the
     md5 for any source-omitted tuple that also has a null ref.
     """
     data = ex.model_dump()
@@ -67,7 +67,7 @@ def dvc_object_md5(ex: PreferenceExample) -> str:
 
 
 def dvc_cache_path(md5: str) -> str:
-    """Remote/cache path DVC stores an object at — mirrors `dvcCachePath`."""
+    """Remote/cache path DVC stores an object at; mirrors `dvcCachePath`."""
     if md5.endswith(".dir"):
         hex_, suffix = md5[:-4], ".dir"
     else:

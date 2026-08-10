@@ -1,7 +1,7 @@
 /**
  * Capture stability gate (TRD §4.1/§5; architecture review E4). Two shots taken
  * a short interval apart are compared by BOTH a perceptual hash (phash) and an
- * orthogonal structural-diff hash — the structural hash catches layout
+ * orthogonal structural-diff hash, since the structural hash catches layout
  * instability the phash misses. Up to `maxAttempts` shots are taken; the page is
  * declared stable as soon as a consecutive pair matches within threshold.
  *
@@ -10,7 +10,7 @@
  * spuriously cap confidence. On persistent instability the page is captured
  * anyway and a confidence ceiling is emitted for the critique (#70).
  *
- * Pure logic with an injected sampler — the hashing + pixel masking are the
+ * Pure logic with an injected sampler: the hashing + pixel masking are the
  * worker seam; this is fully testable without a browser or image library. The
  * gate emits only the instability fact; `CalibrationReportV1` owns the numeric
  * ceiling applied later in the critique runtime.

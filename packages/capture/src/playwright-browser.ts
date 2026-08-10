@@ -5,7 +5,7 @@ import { fontStabilityLaunchFlags } from "./font-policy.js";
 /**
  * Binds a real Chromium (via `playwright-core`) to the `CaptureBrowser` port.
  * This is the ONLY module in the package that knows a browser library exists;
- * everything else — the lifecycle, the extraction, the checks — is driven
+ * everything else (the lifecycle, the extraction, the checks) is driven
  * through the port and tested against a fake.
  *
  * `playwright-core` is imported dynamically so that merely importing
@@ -27,7 +27,7 @@ export interface LaunchCaptureBrowserOptions {
   timeoutMs?: number;
 }
 
-/** Wait `ms` on the Node side — unaffected by the page's pinned clock. */
+/** Wait `ms` on the Node side, unaffected by the page's pinned clock. */
 function delay(ms: number): Promise<void> {
   return new Promise((resolve) => {
     setTimeout(resolve, ms);
@@ -106,7 +106,7 @@ function adaptPage(page: Page, context: BrowserContext): CapturePage {
         await session.send("Animation.setPlaybackRate", { playbackRate: 0 });
         await session.detach();
       } catch {
-        // Non-chromium or CDP unavailable — the Web Animations pause below still applies.
+        // Non-chromium or CDP unavailable; the Web Animations pause below still applies.
       }
       await page
         .evaluate("(document.getAnimations ? document.getAnimations().forEach((a) => a.pause()) : null, null)")
@@ -159,8 +159,8 @@ export function adaptPlaywrightBrowser(browser: Browser): CaptureBrowser {
 
 /**
  * Launch headless Chromium for capture. Throws a message naming the install
- * command when the browser binary has not been downloaded — that is the single
- * most common first failure.
+ * command when the browser binary has not been downloaded, the single most
+ * common first failure.
  */
 export async function launchChromiumCaptureBrowser(
   options: LaunchCaptureBrowserOptions = {},

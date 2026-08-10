@@ -13,7 +13,7 @@ import type { RawGeometryElement } from "./geometry.js";
  *
  * The script is a plain expression string so the browser port stays a single
  * `evaluate(expression)` method; the normalizers below are pure and unit-tested
- * against recorded extractor payloads — no browser needed.
+ * against recorded extractor payloads, with no browser needed.
  */
 
 /** Elements whose rects are worth recording; anything else is noise in the map. */
@@ -113,7 +113,7 @@ export const DOM_EXTRACT_EXPRESSION = `(() => {
   const bodyText = document.body ? String(document.body.innerText || "").slice(0, 4000) : "";
   // What the root element itself composites over. The UA canvas is white unless
   // the page opted into a dark color-scheme, in which case the exact shade is a
-  // UA implementation detail — report it unknown and let the contrast check stay
+  // UA implementation detail, so report it unknown and let the contrast check stay
   // silent rather than publish a guessed measurement as a fact.
   const rootScheme = String(getComputedStyle(document.documentElement).colorScheme || "normal").toLowerCase();
   const prefersDark = typeof matchMedia === "function" && matchMedia("(prefers-color-scheme: dark)").matches;
@@ -159,7 +159,7 @@ export function toRawGeometryElements(
   }));
 }
 
-/** Stable selector for the deterministic checks — same precedence as the geometry map. */
+/** Stable selector for the deterministic checks; same precedence as the geometry map. */
 function selectorFor(el: ExtractedElement): string {
   if (el.id) return `#${el.id}`;
   if (el.testId) return `[data-testid="${el.testId}"]`;
@@ -168,8 +168,8 @@ function selectorFor(el: ExtractedElement): string {
 
 /**
  * Flatten one element's background stack onto the page canvas, as the CSS
- * string the contrast check consumes. `null` means "not determinable" — the
- * element sits on a chain that never reaches an opaque, parseable color — and
+ * string the contrast check consumes. `null` means "not determinable" (the
+ * element sits on a chain that never reaches an opaque, parseable color), and
  * the check is required to stay silent about it.
  */
 export function resolvedBackground(stack: readonly string[], canvas: string | null): string | null {

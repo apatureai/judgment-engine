@@ -3,7 +3,7 @@ import type { Finding, Grade, Severity } from "@engine/types";
 /**
  * Grade helpers (#106). The grade is the model's holistic judgment, but the
  * validation tail DROPS findings after it (hallucination gate #32, post-filter
- * #33). A grade justified only by a dropped finding must not survive — e.g. a
+ * #33). A grade justified only by a dropped finding must not survive. E.g. a
  * "blocked" grade with zero surviving blocker findings would block a PR on
  * nothing. So the grade is FLOORED to what the surviving findings support
  * (lowered only, never raised: the model may grade conservatively above its

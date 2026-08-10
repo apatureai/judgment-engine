@@ -5,11 +5,11 @@
  * `setTimeout`/`setInterval`, and `requestAnimationFrame` keep advancing, so
  * JS-driven time-dependent UI (relative timestamps "2 min ago", interval/rAF
  * carousels, countdowns, date-defaulting widgets) renders differently on every
- * capture — churning the stability gate (#15 → false "unstable" → #70 ceiling)
+ * capture, churning the stability gate (#15 → false "unstable" → #70 ceiling)
  * and breaking the frozen, content-addressed capture set the eval relies on
  * (#48/#47/#89).
  *
- * Fix: pin time with Playwright's `page.clock` using the documented ordering —
+ * Fix: pin time with Playwright's `page.clock` using the documented ordering:
  * `install` BEFORE navigation (so load timers still fire and the page doesn't
  * hang), then `pauseAt` AFTER readiness, and re-pinned after the lazy-load scroll
  * (late JS can schedule new timers; mirrors the #13 re-injection discipline).
@@ -20,11 +20,11 @@
  *
  * Limitations (Playwright): `page.clock` is per-BrowserContext (we use one
  * context per capture, so this is clean) and does NOT cover Service Worker time
- * (microsoft/playwright#31772) — a documented gap, not handled here.
+ * (microsoft/playwright#31772), a documented gap that is not handled here.
  */
 
 /**
- * The capture epoch every capture pins to — a deterministic CONSTANT instant,
+ * The capture epoch every capture pins to: a deterministic CONSTANT instant,
  * never wall-clock `now()`, and identical for baseline + head so diffs don't
  * churn. 2025-01-01T00:00:00Z.
  */
@@ -41,7 +41,7 @@ export const PRELOAD_SKEW_MS = 60_000;
 export interface PageClock {
   /** Install fake `Date`/timers/rAF initialized to `time` (ms since epoch). */
   install(options: { time: number }): Promise<void>;
-  /** Jump to `time` (ms since epoch) and pause — no timers fire until resumed. */
+  /** Jump to `time` (ms since epoch) and pause; no timers fire until resumed. */
   pauseAt(time: number): Promise<void>;
 }
 

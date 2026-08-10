@@ -6,10 +6,10 @@ import { injectionResistance, type InjectionCase } from "./injection-canary.js";
 /**
  * Regression gate (TRD §10, #47). On every prompt/model/capture change the
  * candidate runs over two frozen sets via an offline batch path (vLLM batch /
- * DashScope batch — the live execution seam, not run in CI):
+ * DashScope batch, the live execution seam, not run in CI):
  *   - **canaries** (#44): ground truth known by construction → a HARD gate on
  *     recall (~100%); any regression blocks the change.
- *   - **human golden set** (#45/#46): monitored within its bootstrap CI — only a
+ *   - **human golden set** (#45/#46): monitored within its bootstrap CI, where only a
  *     move BEYOND the CI is actionable (a sub-CI wobble is noise).
  *
  * This module is the pure gate decision over already-computed batch results.

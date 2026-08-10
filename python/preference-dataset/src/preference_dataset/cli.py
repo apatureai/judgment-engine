@@ -1,4 +1,4 @@
-"""`python -m preference_dataset build|resolve ...` — offline dataset prep.
+"""`python -m preference_dataset build|resolve ...`: offline dataset prep.
 
 `build` reads the TS-produced preference tuples (flat JSON, JSONL, or a DVC
 dataset dir) and writes KTO/SFT/DPO JSONL + a dataset card. `resolve` hydrates

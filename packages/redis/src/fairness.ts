@@ -6,7 +6,7 @@ import type { TokenBucketLimiter } from "./token-bucket.js";
  * a **per-tenant quota** (so one tenant's burst can't starve others) checked
  * first, then the **global model-endpoint token-bucket** (#36, the outer
  * envelope). A denied admission returns `retryAfterMs` (the 429 + Retry-After
- * backpressure signal); the orchestrator leaves the job queued — work is
+ * backpressure signal); the orchestrator leaves the job queued, so work is
  * deferred, never dropped, and priority ordering (the `priority` column) decides
  * who runs first.
  */
@@ -28,7 +28,7 @@ export class FairnessGate {
    * Decide whether to dispatch a job for `installationId` against `endpoint`.
    * Tenant quota is checked first (fairness), then the shared endpoint cap. Note:
    * if the endpoint denies after a tenant token was taken, that token is not
-   * refunded — a small, self-correcting over-count under heavy contention.
+   * refunded, a small, self-correcting over-count under heavy contention.
    */
   async admit(installationId: string, endpoint: string): Promise<FairnessDecision> {
     const tenant = await this.tenantQuota.tryConsume(tenantQuotaKey(installationId));

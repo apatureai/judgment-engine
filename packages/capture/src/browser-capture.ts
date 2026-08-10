@@ -20,7 +20,7 @@ import { buildPageHealth } from "./page-health.js";
 import { pngDimensions } from "./png.js";
 
 /**
- * The live capture worker (TRD §4, #11) — the implementation of the
+ * The live capture worker (TRD §4, #11), the implementation of the
  * `captureInSandbox(url, ctx)` seam.
  *
  * It is deliberately thin, because every hard part of capture was already built
@@ -38,7 +38,7 @@ import { pngDimensions } from "./png.js";
  *     silently substituted web fonts into the footnote.
  *
  * What this module adds is the binding, one fresh browser context per
- * (route, viewport) — required, since Playwright's clock is per-context — plus
+ * (route, viewport), required since Playwright's clock is per-context, plus
  * the screenshot write and the optional repeat-capture determinism check.
  *
  * The browser is INJECTED through the `CaptureBrowser` port, so the whole worker
@@ -65,7 +65,7 @@ export interface BrowserCaptureOptions {
    * Capture each page twice and compare the PNG bytes. Time is pinned and motion
    * frozen, so a deterministic page renders byte-identically; a difference means
    * something is still moving and the review must be treated as unstable (#15 →
-   * the #70 confidence ceiling). Off by default — every page is screenshotted
+   * the #70 confidence ceiling). Off by default: every page is screenshotted
    * twice, and the result is reported as `stability` so a clean check is
    * visible rather than merely implied by the absence of a complaint.
    */
@@ -81,14 +81,14 @@ export interface BrowserCaptureResult extends Capture {
   /** Object keys written to the sink, in capture order. */
   objectKeys: string[];
   /**
-   * Visible page text per route (#53). UNTRUSTED — the caller passes it as
+   * Visible page text per route (#53). UNTRUSTED: the caller passes it as
    * `pageText` so the deep pass fences it inside `<untrusted_page_content>`.
    */
   pageText: Record<string, string>;
   /**
    * Result of the repeat-capture determinism check, or `null` when
    * `verifyStability` was off. A check that ran and found nothing is a real
-   * result — callers report it, so "I verified this" is distinguishable from
+   * result, so callers report it and "I verified this" is distinguishable from
    * "I never looked".
    */
   stability: StabilityCheck | null;

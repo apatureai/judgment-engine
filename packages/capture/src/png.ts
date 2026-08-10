@@ -1,7 +1,7 @@
 /**
  * Minimal PNG header reader. A capture must report the true pixel dimensions of
  * the bytes it stored (they drive the pixel-budget fit and the coordinate
- * rescale), and the only authority on that is the file itself — not the viewport
+ * rescale), and the only authority on that is the file itself, not the viewport
  * we asked for, which ignores the device scale factor and full-page height.
  *
  * Only the 8-byte signature and the IHDR width/height are read; no decoding, no

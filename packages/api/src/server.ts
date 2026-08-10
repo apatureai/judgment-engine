@@ -188,7 +188,7 @@ export function createJobApi(options: JobApiOptions) {
 
   async function handleGet(id: string, installationId: string): Promise<ApiResponse> {
     const job = await options.store.get(id);
-    // 404 (not 403) when the job is missing or owned by another tenant — no
+    // 404 (not 403) when the job is missing or owned by another tenant. No
     // existence disclosure across tenants.
     if (!job || job.installationId !== installationId) return json(404, { error: "not_found" });
 
@@ -197,7 +197,7 @@ export function createJobApi(options: JobApiOptions) {
     if (job.status === "succeeded" && job.resultPointer) {
       const bytes = await options.objectStore.get(job.resultPointer);
       // A succeeded job whose result artifact is missing/expired (retention) must
-      // NOT report `completed` with a null result — a poller would deref it and
+      // NOT report `completed` with a null result: a poller would deref it and
       // crash. Report a terminal failure with a reason instead.
       if (!bytes) return json(200, { jobId: id, state: "failed", error: "result_unavailable" }, headers);
       const result = JSON.parse(new TextDecoder().decode(bytes)) as EngineReviewResult;

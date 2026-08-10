@@ -4,7 +4,7 @@
  * work (live); this is the engine-owned DECISION that gates a candidate
  * checkpoint: a candidate may be promoted behind the model adapter (#26) ONLY if
  *   (1) it passed the quality gate on the frozen golden+canary set (#48), AND
- *   (2) it BEATS the current production judge — improves the headline metric
+ *   (2) it BEATS the current production judge: improves the headline metric
  *       without regressing the trust metrics beyond tolerance.
  *
  * Pairing this with `ModelPromptRegistry.promote` (#71) means nothing reaches

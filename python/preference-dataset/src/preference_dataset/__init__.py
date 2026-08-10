@@ -1,4 +1,4 @@
-"""apature-preference-dataset — verdicts -> owned-judge training data.
+"""apature-preference-dataset: verdicts -> owned-judge training data.
 
 Offline, deterministic prep tool: reads the revealed-preference tuples the TS
 `judgment-engine` produces and shapes them into KTO/SFT datasets for the owned

@@ -5,7 +5,7 @@
  * fall back to tofu (□) or wildly different metrics, and headless Chromium
  * renders glyph spacing differently from headful unless hinting is pinned. Both
  * make the VLM critique rendering artifacts that don't exist for real users
- * (hallucinated "broken text/overflow" findings — the exact failure §4.1 guards
+ * (hallucinated "broken text/overflow" findings, the exact failure §4.1 guards
  * against). This module is the PURE contract the guest-image build + browser
  * launch apply; the bake (`apt-get`/`fc-cache`) and the actual Chromium launch
  * are the live worker/ops seam (#11/#22), marked [~].

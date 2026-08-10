@@ -2,12 +2,12 @@
 /**
  * The DOM extractor against a REAL Chromium.
  *
- * `packages/capture/test/*` drives a fake browser, which is the right default —
- * no test may launch a browser. But that leaves one seam untested: what Chromium
+ * `packages/capture/test/*` drives a fake browser, which is the right default,
+ * because no test may launch a browser. But that leaves one seam untested: what Chromium
  * actually returns from `getComputedStyle`, and therefore whether the
  * deterministic contrast fact published for a page is true. A page that never
  * declares a background reports `rgba(0, 0, 0, 0)` for every ancestor, and
- * reading that as opaque black once made black-on-white text measure 1.00:1 —
+ * reading that as opaque black once made black-on-white text measure 1.00:1,
  * a fabricated "measurement" fed straight into the model prompt.
  *
  * So this runs the real extractor expression against real pages and asserts the

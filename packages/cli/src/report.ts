@@ -50,7 +50,7 @@ export function countByKind(findings: DeterministicFinding[]): Array<[string, nu
 
 /**
  * The determinism check's own line. A check that ran and found nothing still
- * says so — otherwise `--verify-stability` is indistinguishable from a run that
+ * says so; otherwise `--verify-stability` is indistinguishable from a run that
  * never made the comparison.
  */
 export function renderStability(stability: StabilityCheck | null): string[] {

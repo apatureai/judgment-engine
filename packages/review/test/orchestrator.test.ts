@@ -26,7 +26,7 @@ import {
 } from "../src/index.js";
 
 // ---------------------------------------------------------------------------
-// Stubs — NO real model / sandbox / browser / GPU. All live I/O is injected.
+// Stubs: NO real model / sandbox / browser / GPU. All live I/O is injected.
 // ---------------------------------------------------------------------------
 
 /** A model whose deep-pass json_object coercion returns a per-route critique. */
@@ -129,7 +129,7 @@ function geometryFor(routes: string[], selectors: string[]): GeometryRect[] {
   );
 }
 
-/** Stub capture seam — deterministic, no browser. */
+/** Stub capture seam: deterministic, no browser. */
 function stubCapture(
   routes: string[],
   selectors: string[],
@@ -147,7 +147,7 @@ function stubCapture(
   });
 }
 
-/** Deterministic bag-of-tokens embedder — no model. */
+/** Deterministic bag-of-tokens embedder, no model. */
 function embedVectors(texts: readonly string[]): number[][] {
   return texts.map((t) => {
     const lower = t.toLowerCase();
@@ -267,7 +267,7 @@ describe("runReview — end-to-end orchestrator", () => {
 
   it("short-circuits on the triage 'no design changes' path — no deep pass", async () => {
     const routes = ["/pricing"];
-    // A model that, if the deep pass ran, would emit findings — so a clean result
+    // A model that, if the deep pass ran, would emit findings, so a clean result
     // proves the deep pass never ran.
     const { factory, calls } = scriptedModel(() => critiqueFor("/pricing", "major", "blocked"));
 
@@ -370,7 +370,7 @@ describe("runReview — end-to-end orchestrator", () => {
     const routes = ["/pricing"];
     // Finding confidence 0.9; an unstable capture (no explicit ceiling) caps it to
     // the default UNSTABLE_CONFIDENCE_CEILING (0.6), which is ABOVE the post-filter
-    // floor (0.55) — so a REAL finding still SURFACES with lowered trust. It must
+    // floor (0.55), so a REAL finding still SURFACES with lowered trust. It must
     // NOT be silently dropped (a flaky page with a real blocker would otherwise
     // return ship/[]).
     const { factory } = scriptedModel(() => critiqueFor("/pricing", "major", "needs_work"));
@@ -457,7 +457,7 @@ describe("runReview — end-to-end orchestrator", () => {
     const routes = ["/pricing"];
     const { factory } = scriptedModel(() => critiqueFor("/pricing", "major", "blocked"));
 
-    // depth: "triage" — the OLD emptyResult stamped resolvePassModel("triage") and
+    // depth: "triage". The OLD emptyResult stamped resolvePassModel("triage") and
     // would have reported the triage model here. It must report the deep-pass model
     // (the model the rest of the pipeline reports), regardless of depth.
     const result = await runReview(baseInput(routes, { depth: "triage" }), {
@@ -547,7 +547,7 @@ describe("runReview — end-to-end orchestrator", () => {
 
     // Both routes reviewed (the batched retrieval did not change results).
     expect(result.findings.map((f) => f.route).sort()).toEqual(["/home", "/pricing"]);
-    // Exactly ONE embedder call for the two routes' queries — not N serial calls.
+    // Exactly ONE embedder call for the two routes' queries, not N serial calls.
     const reviewBatches = batches.slice(buildCalls);
     expect(reviewBatches).toHaveLength(1);
     expect(reviewBatches[0]).toEqual(["/pricing", "/home"]);

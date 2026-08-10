@@ -5,8 +5,8 @@ import { autoScrollForLazyLoad, type LazyLoadOps, type LazyLoadResult } from "./
 
 /**
  * Canonical capture lifecycle (TRD §4.1/§4.2). The individual determinism seams
- * — clock pin (#102), motion freeze (#13), readiness protocol (#12), lazy-load
- * scroll (#14) — are each pure + independently tested, but until now their ORDER
+ * are each pure + independently tested: clock pin (#102), motion freeze (#13),
+ * readiness protocol (#12), lazy-load scroll (#14). But until now their ORDER
  * lived only in scattered prose ("re-inject after scroll", "pin after readiness").
  * The live worker (#11) would have to reconstruct that interleave from comments,
  * and a wrong order silently breaks determinism (e.g. scrolling before the freeze
@@ -27,7 +27,7 @@ import { autoScrollForLazyLoad, type LazyLoadOps, type LazyLoadResult } from "./
  * the worker runs this whole lifecycle on a fresh context.
  *
  * PURE composition: every browser op is injected (the live worker #11 binds
- * goto/wait/scroll/clock/style to Playwright). Fully unit-testable with fakes —
+ * goto/wait/scroll/clock/style to Playwright). Fully unit-testable with fakes;
  * no real browser.
  */
 
@@ -83,7 +83,7 @@ export async function runCaptureLifecycle(
   });
 
   // --- post-scroll re-application: late lazy content can pull a new font, apply
-  //     its own animation, or schedule new timers — so re-check fonts (#12),
+  //     its own animation, or schedule new timers, so re-check fonts (#12),
   //     re-apply the secondary CSS freeze + pause the animation timeline so even
   //     a late high-specificity `!important` animation is frozen (#13), and
   //     re-pin the clock (#102), in that order, immediately before capture. ---

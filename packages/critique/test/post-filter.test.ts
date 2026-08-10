@@ -37,7 +37,7 @@ describe("postFilter (#33)", () => {
 
   it("dedup never downgrades severity: a blocker is kept over a same-key higher-confidence minor", () => {
     // Same element+dimension across viewports, different severities: a mobile
-    // blocker (0.7) and a desktop minor (0.95). Dedup must keep the blocker — a
+    // blocker (0.7) and a desktop minor (0.95). Dedup must keep the blocker; a
     // raw-confidence swap would silently drop it and let a should-block PR pass.
     const out = postFilter(
       [

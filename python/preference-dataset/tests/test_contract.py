@@ -3,7 +3,7 @@
 The contract artifact (`contracts/preference-example.contract.json`) is generated
 from the TypeScript source of truth (`preference-export.ts` + `findings.ts`) and
 committed. This test makes `python/preference-dataset/schema.py` fail loudly if it
-drifts from that artifact — field-for-field, enum-for-enum — and checks that this
+drifts from that artifact, field-for-field and enum-for-enum, and checks that this
 module's `canonical_json` is byte-identical to the samples the real `dvc-export.ts`
 serializer produced. A deliberate TS enum/field change therefore breaks BOTH the
 TS regen check and this pytest, which is the point.
