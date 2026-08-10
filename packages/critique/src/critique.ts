@@ -15,7 +15,7 @@ import { buildResultMetadata } from "./version-stamp.js";
 import { buildSystemPrompt, SYSTEM_PROMPT_VERSION } from "./prompt.js";
 import { runValidationTail } from "./validation-tail.js";
 
-export const ENGINE_VERSION = "0.0.0";
+export const ENGINE_VERSION = "0.1.0";
 export const PROMPT_VERSION = `system-prompt@${SYSTEM_PROMPT_VERSION}`;
 export const RUBRIC_VERSION = "design-rubric@1";
 const DEFAULT_CAPTURE_VERSION = "stub@0";

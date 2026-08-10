@@ -7,10 +7,20 @@
   "description": "Engine async job API: POST/GET/DELETE /jobs with HMAC verification, installationId scoping, x-schema-version, and depth routing.",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
-  "exports": { ".": { "types": "./dist/index.d.ts", "default": "./dist/index.js" } },
-  "files": ["dist"],
-  "scripts": { "test": "vitest run" },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "test": "vitest run"
+  },
   "dependencies": {
+    "@engine/critique": "workspace:*",
     "@engine/jobs": "workspace:*",
     "@engine/review": "workspace:*",
     "@engine/storage": "workspace:*",

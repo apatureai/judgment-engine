@@ -6,6 +6,7 @@ import {
   type ReviewDepth,
 } from "@engine/jobs";
 import { objectKey, type ObjectStore } from "@engine/storage";
+import { ENGINE_VERSION } from "@engine/critique";
 import { SCHEMA_VERSION, type EngineReviewResult } from "@engine/types";
 import {
   INSTALLATION_HEADER,
@@ -87,7 +88,7 @@ function defaultProcessor(job: JobRecord): Promise<EngineReviewResult> {
     artifacts: { annotatedScreenshots: [] },
     screenshotRetentionSeconds: 0,
     metadata: {
-      engineVersion: "0.0.0",
+      engineVersion: ENGINE_VERSION,
       model: modelForDepth(job.depth),
       promptVersion: "stub@0",
       captureVersion: "stub@0",

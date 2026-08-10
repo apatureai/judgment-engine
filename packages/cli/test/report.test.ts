@@ -42,7 +42,7 @@ const RESULT: EngineReviewResult = {
   artifacts: { annotatedScreenshots: [] },
   screenshotRetentionSeconds: 0,
   metadata: {
-    engineVersion: "0.0.0",
+    engineVersion: "0.1.0",
     model: "canned",
     promptVersion: "system-prompt@v3",
     captureVersion: "chromium-playwright@1",

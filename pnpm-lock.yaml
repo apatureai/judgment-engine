@@ -33,6 +33,9 @@ importers:
 
   packages/api:
     dependencies:
+      '@engine/critique':
+        specifier: workspace:*
+        version: link:../critique
       '@engine/jobs':
         specifier: workspace:*
         version: link:../jobs
