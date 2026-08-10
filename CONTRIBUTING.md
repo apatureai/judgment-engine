@@ -36,13 +36,16 @@ pnpm install --frozen-lockfile
 
 pnpm lint       # eslint; --max-warnings=0, so warnings fail
 pnpm typecheck  # tsc -b across the project references
+pnpm build      # tsc -b (emits dist/ — run this before the full test suite)
 pnpm test       # vitest run
-pnpm build      # tsc -b (emits dist/ — same graph as typecheck)
 ```
 
 The TypeScript workspace is `packages/*` (`@engine/*`). `vitest.config.ts`
-aliases every package to its `src/index.ts`, so tests run against sources with
-no build step; `pnpm test` alone is enough for the TS side.
+aliases every package to its `src/index.ts`, so most tests run against sources
+rather than build output. One exception: `packages/runtime/test/runtime.test.ts`
+loads the emitted `dist/` graph under native Node ESM resolution, so run
+`pnpm build` before `pnpm test` or that single test fails with
+`ERR_MODULE_NOT_FOUND`.
 
 Rust — `rust/capture-dedup`, perceptual near-duplicate detection, std-only with
 no dependencies:
