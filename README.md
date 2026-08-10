@@ -2,25 +2,48 @@
 
 [![CI](https://img.shields.io/github/actions/workflow/status/apatureai/verdict/ci.yml?branch=main&label=CI)](https://github.com/apatureai/verdict/actions/workflows/ci.yml) [![license](https://img.shields.io/github/license/apatureai/verdict)](LICENSE) [![node](https://img.shields.io/badge/node-%3E%3D24-brightgreen)](.node-version)
 
-**A grounded vision-language design reviewer: it screenshots your running web UI, critiques it against your repository's own design system, and deletes every finding the model cannot point at.**
-
-Give it a URL. It drives a headless Chromium at three viewports, captures deterministic screenshots
-plus a DOM geometry map, measures real contrast / overflow / touch-target facts from the page, asks a
-vision-language model to review the rendered UI, and then throws away any finding that cites a route
-or an element the capture never produced. What survives is a critique with a physical address: this
-issue, on this route, at this viewport, on this element.
-
-It also ships the machinery around that call that usually gets skipped: calibration (so numeric
-confidence is earned rather than verbalized by the model), agreement metrics against human raters, a
-release gate CLI, and a Rust crate for perceptual near-duplicate detection.
+**Give it a URL and it measures your rendered page with a real headless Chromium: WCAG contrast
+ratios, horizontal overflow and touch-target sizes, computed from the captured DOM. That half needs
+no API key. Point it at a vision-language model as well and it critiques the screenshots too, then
+deletes every finding the model cannot point at.**
 
 ![The judgment-engine terminal report: measured contrast, overflow and touch-target facts in a numbered list, then a review section reading "grade n/a (canned client, no model saw this page)" above replayed fixture text.](docs/report.png)
 
-That is a real run: the command line, then its unedited stdout, captured to
-[`docs/report.txt`](docs/report.txt) and typeset by
-[`scripts/render-report-image.mjs`](scripts/render-report-image.mjs). It is the offline run against
-the bundled demo site, so it prints no grade, because nothing looked at that page. What it does print
-is 18 measurements taken from the captured DOM.
+That is a real run, unedited stdout, captured to [`docs/report.txt`](docs/report.txt) and typeset by
+[`scripts/render-report-image.mjs`](scripts/render-report-image.mjs). It shows both halves at once.
+**18 measurements** taken from the captured DOM, which is what you get with no credentials at all,
+and **no grade**, because no model was configured and the report will not invent one.
+
+### The split, precisely
+
+| | What it needs | What you get |
+| --- | --- | --- |
+| **Capture and measure** | Node 24 and a Chromium download (`pnpm browser:install`). No key, no account. | Deterministic screenshots at three viewports, a DOM geometry map, and measured contrast / overflow / touch-target facts about the page you pointed it at. |
+| **Critique** | Any OpenAI-compatible chat endpoint that accepts images, self-hosted or not. | Model findings, each pinned to a route and element the capture actually produced, plus a grade. |
+
+Measure a page you did not write, right now, with nothing configured:
+
+```sh
+corepack enable && pnpm install --frozen-lockfile && pnpm build && pnpm browser:install
+node packages/cli/dist/main.js --url https://example.com --routes / --viewports mobile --model mock
+```
+
+```console
+Measured facts  (computed from the captured DOM, no model involved)
+  1 measurement(s) (touch_target 1) over 1 distinct element(s)
+
+   1. [touch_target] / body > div > p:nth-of-type(2) > a (mobile)
+      touch target 82x18px is below 44x44px
+```
+
+Those are real numbers off a real page, and `out/screenshots/index/mobile.png` is the photograph
+they came from. `--model mock` states the absence of a model rather than hiding it: no network call,
+no critique, no grade. Swap in a live endpoint ([step 3](#3-add-a-model-and-the-critique-half-turns-on))
+and the same run adds the critique.
+
+Around that call the repository also ships the parts that usually get skipped: calibration (so
+numeric confidence is earned rather than verbalized by the model), agreement metrics against human
+raters, a release gate CLI, and a Rust crate for perceptual near-duplicate detection.
 
 ## Who this is for
 
@@ -134,42 +157,7 @@ Chromium was already installed — 151.0.7922.34 launches (playwright-core 1.62.
   cached in /Users/you/Library/Caches/ms-playwright
 ```
 
-### 2. Point it at a model. This is the step that matters.
-
-**Out of the box the critique is a canned fixture, not a model.** With no endpoint configured, the
-capture, the deterministic facts, the grounding gate and everything downstream are real, but the
-findings themselves are replayed from `packages/cli/fixtures/canned-critique.json`. That fixture was
-authored against the bundled demo site; it does not look at your screenshots. The report knows this
-and refuses to print a grade under the canned or mock client, because a grade nothing looked at is
-worse than no grade at all. Configure a real endpoint before you judge the tool's judgment.
-
-Any OpenAI-compatible chat-completions endpoint that accepts images works: DashScope
-compatible-mode, a self-hosted vLLM or SGLang server, or anything else that speaks the same wire
-format. The base URL is never guessed; if `MODEL_API_KEY` is set without `MODEL_BASE_URL` the run
-stops and tells you so.
-
-```sh
-export MODEL_BASE_URL=https://your-openai-compatible-endpoint/v1
-export MODEL_API_KEY=<your-key>
-node packages/cli/dist/main.js --model live --routes / --viewports desktop
-```
-
-The banner states which client is live before a single page is captured:
-
-```console
-  model       LIVE model client — streaming against https://your-openai-compatible-endpoint/v1. Calls are billed to the owner of MODEL_API_KEY.
-```
-
-Screenshots are inlined as `data:` URIs, so your endpoint needs no access to your machine. One route
-at one viewport is one triage call plus two deep-pass calls carrying roughly 220 KB of image data.
-Cost depends entirely on your endpoint's pricing; this repository has no default vendor and no
-default model beyond the `TRIAGE_MODEL` / `DEEP_MODEL` ids you can override.
-
-Model selection is explicit: `--model auto | mock | canned | live`. `mock` is a deterministic empty
-critique with no network call, useful for exercising the pipeline's shape in your own tests. Only
-`live` means a model saw the page, and only `live` prints a grade.
-
-### 3. Run it
+### 2. Run it, with no model configured
 
 No endpoint yet? One command runs the whole pipeline against a bundled demo site, so you can see the
 shape of the thing before you spend a token:
@@ -252,11 +240,46 @@ grounding gate, six real PNGs under `out/screenshots/`, and **no grade**. Open
 
 The missing grade is the point. This run replays a fixture, so there is nothing for a grade to mean,
 and the report says so instead of printing the fixture's own `grade` field as if a model had chosen
-it. Configure a live endpoint (step 2) and the same run prints `grade`, a finding count and the
+it. Configure a live endpoint (step 3) and the same run prints `grade`, a finding count and the
 numbered findings a model actually produced.
 
 `out/` is gitignored and disposable: each run overwrites the last, and `rm -rf out` is the whole
 cleanup. Pass `--out <dir>` to keep two runs side by side.
+
+### 3. Add a model, and the critique half turns on
+
+**Out of the box the critique is a canned fixture, not a model.** With no endpoint configured, the
+capture, the deterministic facts, the grounding gate and everything downstream are real, but the
+findings themselves are replayed from `packages/cli/fixtures/canned-critique.json`. That fixture was
+authored against the bundled demo site; it does not look at your screenshots. The report knows this
+and refuses to print a grade under the canned or mock client, because a grade nothing looked at is
+worse than no grade at all. Configure a real endpoint before you judge the tool's judgment.
+
+Any OpenAI-compatible chat-completions endpoint that accepts images works: DashScope
+compatible-mode, a self-hosted vLLM or SGLang server, or anything else that speaks the same wire
+format. The base URL is never guessed; if `MODEL_API_KEY` is set without `MODEL_BASE_URL` the run
+stops and tells you so.
+
+```sh
+export MODEL_BASE_URL=https://your-openai-compatible-endpoint/v1
+export MODEL_API_KEY=<your-key>
+node packages/cli/dist/main.js --model live --routes / --viewports desktop
+```
+
+The banner states which client is live before a single page is captured:
+
+```console
+  model       LIVE model client — streaming against https://your-openai-compatible-endpoint/v1. Calls are billed to the owner of MODEL_API_KEY.
+```
+
+Screenshots are inlined as `data:` URIs, so your endpoint needs no access to your machine. One route
+at one viewport is one triage call plus two deep-pass calls carrying roughly 220 KB of image data.
+Cost depends entirely on your endpoint's pricing; this repository has no default vendor and no
+default model beyond the `TRIAGE_MODEL` / `DEEP_MODEL` ids you can override.
+
+Model selection is explicit: `--model auto | mock | canned | live`. `mock` is a deterministic empty
+critique with no network call, useful for exercising the pipeline's shape in your own tests. Only
+`live` means a model saw the page, and only `live` prints a grade.
 
 ### 4. Read the numbers
 

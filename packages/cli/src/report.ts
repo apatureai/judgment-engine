@@ -257,8 +257,14 @@ export function renderSummary(summary: RunSummary): string {
     "",
     "Wrote",
     ...summary.files.map((file) => `  ${file}`),
+    // Both offline clients emit a grade into review.json; neither one earned it. Name the client
+    // that produced it, because "the fixture's" is only true of the canned replay.
     ...(synthetic
-      ? ["  note: review.json carries the fixture's own grade field. It is not a grade for this page."]
+      ? [
+          `  note: review.json carries the ${
+            summary.modelKind === "mock" ? "mock client's" : "fixture's"
+          } own grade field. It is not a grade for this page.`,
+        ]
       : []),
     "",
     `Done in ${(summary.elapsedMs / 1000).toFixed(1)}s.`,

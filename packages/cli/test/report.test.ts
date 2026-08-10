@@ -200,6 +200,14 @@ describe("renderSummary", () => {
     expect(renderSummary(summary())).not.toContain("note: review.json");
   });
 
+  it("blames the mock client, not a fixture, for the grade a mock run writes", () => {
+    // There is no fixture on the mock path, so calling that stray grade "the fixture's" would
+    // point the reader at a file that had nothing to do with it.
+    const text = renderSummary(summary({ modelKind: "mock" }));
+    expect(text).toContain("note: review.json carries the mock client's own grade field.");
+    expect(text).not.toContain("the fixture's own grade field");
+  });
+
   it("gives the numbered list to the measurements, not to replayed fixture text", () => {
     const text = renderSummary(summary({ modelKind: "canned" }));
     expect(text).toContain("   1. [touch_target] / #icon-close (mobile)");
