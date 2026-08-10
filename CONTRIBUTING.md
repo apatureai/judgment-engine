@@ -25,7 +25,7 @@ whatever you like. You do not need to ask, and there is no CLA.
 
 Accurate as of the archive; every command below was run against this tree.
 
-**Toolchain.** Node 24 (`.node-version`; `engines` pins `>=24 <25`) and pnpm
+**Toolchain.** Node 24 (`.node-version`; `engines` pins `>=24`) and pnpm
 9.15.0 (declared in `packageManager`, so `corepack enable` gets you the right
 one). Add a stable Rust toolchain and [uv](https://docs.astral.sh/uv/) only if
 you touch `rust/` or `python/`.

@@ -42,7 +42,7 @@ model's visual verdict trustworthy enough to post in front of a team.
 
 | Tool | Floor | Check | Needed for |
 | --- | --- | --- | --- |
-| Node | v24 (`>=24 <25`) | `node -v` | everything |
+| Node | v24 (`>=24`) | `node -v` | everything |
 | pnpm | 9.15.0 | `corepack enable && pnpm -v` | everything |
 | Chromium | installed by `pnpm browser:install` (~275 MB download) | `pnpm browser:install` | the quickstart, and any real capture |
 | Rust | stable | `cargo --version` | only `rust/capture-dedup` |
