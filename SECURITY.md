@@ -5,10 +5,12 @@
 | Version | Supported |
 | --- | --- |
 | `main` | Yes |
+| `0.1.x` | Yes |
 | Anything else | No |
 
-There are no tagged releases yet, so `main` is the supported version and security fixes land there.
-When releases start, this table will list the supported line.
+`v0.1.0` is the first tagged release. Fixes land on `main` first; while the project is pre-1.0 there
+is no backport branch, so a fix reaches you through the next tag rather than through a patch to an
+older line.
 
 ## Reporting a vulnerability
 

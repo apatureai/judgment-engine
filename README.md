@@ -1,5 +1,7 @@
 # verdict
 
+[![CI](https://img.shields.io/github/actions/workflow/status/apatureai/verdict/ci.yml?branch=main&label=CI)](https://github.com/apatureai/verdict/actions/workflows/ci.yml) [![license](https://img.shields.io/github/license/apatureai/verdict)](LICENSE) [![node](https://img.shields.io/badge/node-%3E%3D24-brightgreen)](.node-version)
+
 **A grounded vision-language design reviewer: it screenshots your running web UI, critiques it against your repository's own design system, and deletes every finding the model cannot point at.**
 
 Give it a URL. It drives a headless Chromium at three viewports, captures deterministic screenshots
@@ -403,10 +405,9 @@ const result = await runReview(
 `sink` is anything with `put(key, bytes)`; `InMemoryObjectStore` and `S3ObjectStore` from
 `@engine/storage` both satisfy it.
 
-Every `@engine/*` package is currently `"private": true` at version `0.0.0` and none is published to
-npm, so the import path today is vendoring the tree and adding `"@engine/capture": "workspace:*"` to
-the package that imports it. Publishing them is a roadmap item; see
-[Status and roadmap](#status-and-roadmap).
+Every `@engine/*` package is currently `"private": true` and none is published to npm, so the import
+path today is vendoring the tree and adding `"@engine/capture": "workspace:*"` to the package that
+imports it. Publishing them is a roadmap item; see [Status and roadmap](#status-and-roadmap).
 
 ### The release gate
 
@@ -631,9 +632,9 @@ welcome on any of them.
   (`packages/cli/fixtures/canned-critique.json`) is authored by hand, not recorded from a model. A
   captured real transcript, replayable offline, would make the default run representative instead of
   illustrative. Start at `packages/critique/src/model-runtime.ts`.
-- **Published `@engine/*` packages.** Everything is `"private": true` at `0.0.0`, so consuming this
-  as a library means vendoring. Deciding a public surface (`@engine/capture` and `@engine/critique`
-  are the obvious first two), adding build/publish config and versioning is self-contained work.
+- **Published `@engine/*` packages.** Everything is `"private": true`, so consuming this as a library
+  means vendoring. Deciding a public surface (`@engine/capture` and `@engine/critique` are the
+  obvious first two) and adding build and publish config is self-contained work.
 - **Enforce the egress policy at the network layer.** `packages/capture/src/egress.ts` holds the
   egress/SSRF rules, including cloud-metadata blocking, as pure functions. Nothing calls them on the
   live capture path, and capture runs Chromium in your own process. Wiring the policy into
