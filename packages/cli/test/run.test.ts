@@ -154,7 +154,24 @@ describe("runCli", () => {
 
     expect(out).toContain("CANNED replay client");
     expect(out).toContain("6 screenshot(s) written");
-    expect(out).toContain("5 model finding(s) parsed, 2 dropped");
+    expect(out).toContain("5 replayed finding(s) parsed, 2 dropped");
+  });
+
+  it("prints no grade for a run no model looked at, and lists the real measurements", async () => {
+    const { out } = await run([]);
+    expect(out).toContain("grade       n/a (canned client, no model saw this page)");
+    expect(out).not.toContain("grade       needs_work");
+    // The measurements, not the replayed text, get the numbered list.
+    expect(out).toContain("   1. [contrast] / #hero-subtitle");
+    expect(out).toContain("text contrast 3.23:1 is below WCAG AA 4.5:1");
+    expect(out).toContain("FIXTURE TEXT: replayed from the canned client");
+  });
+
+  it("prints no grade under --model mock either", async () => {
+    const { out } = await run(["--model", "mock"]);
+    expect(out).toContain("grade       n/a (mock client, no model saw this page)");
+    expect(out).not.toContain("grade       ship");
+    expect(out).toContain("Nothing above judged this page");
   });
 
   it("keeps only the grounded findings from the bundled script", async () => {

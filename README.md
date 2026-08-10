@@ -12,15 +12,13 @@ It also ships the machinery around that call that usually gets skipped: calibrat
 confidence is earned rather than verbalized by the model), agreement metrics against human raters, a
 release gate CLI, and a Rust crate for perceptual near-duplicate detection.
 
-```console
-Grounding gate
-  5 model finding(s) parsed, 2 dropped for citing a route or element that was never captured
+![The judgment-engine terminal report: measured contrast, overflow and touch-target facts in a numbered list, then a review section reading "grade n/a (canned client, no model saw this page)" above replayed fixture text.](docs/report.png)
 
-Review
-  grade       needs_work
-  findings    3
-  confidence  withheld (missing_calibration_report)
-```
+That is a real run: the command line, then its unedited stdout, captured to
+[`docs/report.txt`](docs/report.txt) and typeset by
+[`scripts/render-report-image.mjs`](scripts/render-report-image.mjs). It is the offline run against
+the bundled demo site, so it prints no grade, because nothing looked at that page. What it does print
+is 18 measurements taken from the captured DOM.
 
 ## Who this is for
 
@@ -139,8 +137,9 @@ Chromium was already installed — 151.0.7922.34 launches (playwright-core 1.62.
 **Out of the box the critique is a canned fixture, not a model.** With no endpoint configured, the
 capture, the deterministic facts, the grounding gate and everything downstream are real, but the
 findings themselves are replayed from `packages/cli/fixtures/canned-critique.json`. That fixture was
-authored against the bundled demo site; it does not look at your screenshots. Configure a real
-endpoint before you judge the tool's judgment.
+authored against the bundled demo site; it does not look at your screenshots. The report knows this
+and refuses to print a grade under the canned or mock client, because a grade nothing looked at is
+worse than no grade at all. Configure a real endpoint before you judge the tool's judgment.
 
 Any OpenAI-compatible chat-completions endpoint that accepts images works: DashScope
 compatible-mode, a self-hosted vLLM or SGLang server, or anything else that speaks the same wire
@@ -165,7 +164,8 @@ Cost depends entirely on your endpoint's pricing; this repository has no default
 default model beyond the `TRIAGE_MODEL` / `DEEP_MODEL` ids you can override.
 
 Model selection is explicit: `--model auto | mock | canned | live`. `mock` is a deterministic empty
-critique with no network call, useful for exercising the pipeline's shape in your own tests.
+critique with no network call, useful for exercising the pipeline's shape in your own tests. Only
+`live` means a model saw the page, and only `live` prints a grade.
 
 ### 3. Run it
 
@@ -179,14 +179,14 @@ pnpm review
 ```console
 $ pnpm review
 
-judgment-engine — reviewing http://127.0.0.1:63910 (bundled demo site)
+judgment-engine — reviewing http://127.0.0.1:56441 (bundled demo site)
   CANNED replay client — authored responses, not a live model (packages/cli/fixtures/canned-critique.json)
   launching Chromium…
   capturing 2 route(s) × 3 viewport(s)…
   running triage + deep pass…
 
 Target
-  url         http://127.0.0.1:63910  (bundled demo site)
+  url         http://127.0.0.1:56441  (bundled demo site)
   routes      /, /pricing
   viewports   mobile, tablet, desktop
   model       CANNED replay client — authored responses, not a live model (packages/cli/fixtures/canned-critique.json)
@@ -195,23 +195,43 @@ Target
 Capture
   6 screenshot(s) written to out/screenshots
   57 DOM element(s) recorded in the geometry map
-  18 deterministic fact(s) (contrast 6, overflow 3, touch_target 9)
   page health: clean
 
+Measured facts  (computed from the captured DOM, no model involved)
+  18 measurement(s) (contrast 6, overflow 3, touch_target 9) over 6 distinct element(s)
+
+   1. [contrast] / #hero-subtitle (mobile, tablet, desktop)
+      text contrast 3.23:1 is below WCAG AA 4.5:1
+   2. [overflow] / #promo-code (mobile, tablet, desktop)
+      content width 345px exceeds container 140px (horizontal overflow)
+   3. [touch_target] / #icon-close (mobile, tablet, desktop)
+      touch target 28x28px is below 44x44px
+   4. [contrast] /pricing #pricing-fineprint (mobile, tablet, desktop)
+      text contrast 2.61:1 is below WCAG AA 4.5:1
+   5. [touch_target] /pricing #plan-team-cta (mobile, tablet, desktop)
+      touch target 98x18px is below 44x44px
+   6. [touch_target] /pricing #plan-scale-cta (mobile, tablet, desktop)
+      touch target 30x30px is below 44x44px
+  every measurement: out/deterministic-facts.txt
+
 Grounding gate
-  5 model finding(s) parsed, 2 dropped for citing a route or element that was never captured
+  5 replayed finding(s) parsed, 2 dropped for citing a route or element that was never captured
 
 Review
-  grade       needs_work
-  findings    3
-  confidence  withheld (missing_calibration_report)
+  grade       n/a (canned client, no model saw this page)
+  findings    n/a (no model ran; see the measured facts above)
+  confidence  n/a (no model ran)
   blocking    advisory only
 
-   1. [major/accessibility] Dismiss control is a 28x28 touch target
+  FIXTURE TEXT: replayed from the canned client, not a judgment about this page.
+  It was authored before this page was captured; it survived the grounding gate
+  only because this page happens to contain the elements it names.
+
+    - [major/accessibility] Dismiss control is a 28x28 touch target
       / mobile → #icon-close
-   2. [major/accessibility] Scale plan action is a 30x30 arrow glyph
+    - [major/accessibility] Scale plan action is a 30x30 arrow glyph
       /pricing mobile → #plan-scale-cta
-   3. [minor/visual_hierarchy] Headline and primary action carry similar weight
+    - [minor/visual_hierarchy] Headline and primary action carry similar weight
       / desktop → #hero-title
 
 Wrote
@@ -219,13 +239,19 @@ Wrote
   out/system-prompt.txt
   out/geometry.json
   out/deterministic-facts.txt
+  note: review.json carries the fixture's own grade field. It is not a grade for this page.
 
-Done in 7.9s.
+Done in 8.0s.
 ```
 
-**Success looks like this:** grade `needs_work`, **3 findings**, **2 dropped** by the grounding gate,
-and six real PNGs under `out/screenshots/`. Open `out/screenshots/index/desktop.png`, which is a
-photograph of the page the review is about.
+**Success looks like this:** **18 measurements** over 6 distinct elements, **2 dropped** by the
+grounding gate, six real PNGs under `out/screenshots/`, and **no grade**. Open
+`out/screenshots/index/desktop.png`, which is a photograph of the page those measurements came from.
+
+The missing grade is the point. This run replays a fixture, so there is nothing for a grade to mean,
+and the report says so instead of printing the fixture's own `grade` field as if a model had chosen
+it. Configure a live endpoint (step 2) and the same run prints `grade`, a finding count and the
+numbered findings a model actually produced.
 
 `out/` is gitignored and disposable: each run overwrites the last, and `rm -rf out` is the whole
 cleanup. Pass `--out <dir>` to keep two runs side by side.
@@ -244,7 +270,10 @@ cleanup. Pass `--out <dir>` to keep two runs side by side.
   It re-screenshots each already-prepared page rather than re-running the whole lifecycle, so it is
   cheap (7.6s to 8.0s on the demo site). If any page differs the line says `FAILED` and `page health`
   reports the capture as unstable.
-- **18 deterministic facts.** Measured, not asserted. From `out/deterministic-facts.txt`:
+- **18 measurements.** Measured, not asserted, and the reason an offline run is worth anything at
+  all. The report prints one line per distinct defect with the viewports it was measured at, which
+  is why 18 measurements read as 6 entries: the same contrast ratio at mobile, tablet and desktop is
+  one thing to fix. Every measurement, one per line, is in `out/deterministic-facts.txt`:
 
   ```
   [contrast] / mobile #hero-subtitle: text contrast 3.23:1 is below WCAG AA 4.5:1
@@ -257,8 +286,16 @@ cleanup. Pass `--out <dir>` to keep two runs side by side.
   produced: `#pricing-table`, absent from the geometry map, and route `/checkout`, never captured.
   The gate deletes both and counts the drops. That is the trust mechanism running for real against a
   real geometry map.
-- **Confidence withheld.** No promoted calibration report is bound, so no number is emitted and the
-  result is advisory. Deliberate; see [Why it is interesting](#why-it-is-interesting).
+- **The three replayed lines that survived.** They are printed under a `FIXTURE TEXT:` label, without
+  numbering, because they are authored text from
+  `packages/cli/fixtures/canned-critique.json` and not a judgment about anything. They survive only
+  because the demo page happens to contain the elements the fixture names; against your own site
+  they would almost certainly all be dropped. `out/review.json` still carries the fixture's `grade`
+  and `findings` fields, since it is the engine's wire result verbatim, and the report's last line
+  says so.
+- **Confidence n/a.** Offline there is no model confidence to report at all. On a live run the line
+  reads `withheld (missing_calibration_report)` until a promoted calibration report is bound, and the
+  result stays advisory. Deliberate; see [Why it is interesting](#why-it-is-interesting).
 - **`out/system-prompt.txt`** is the rubric that was actually sent: eight scored dimensions, the
   grounding rules, and the instruction-hierarchy defense. The demo repo ships a `.designreview.yml`
   brand block and a `package.json` with Radix, so the brand dimension is scored and the
@@ -309,11 +346,35 @@ node packages/cli/dist/main.js \
 `brand:` block) and `package.json` (component-library detection). All three are optional; each one
 missing makes the review less grounded, not broken.
 
-Without a live endpoint this run produces `grade ship`, `findings 0` against your site, because every
-canned finding cites an element your page does not have and the gate drops all of them. That is the
-gate working as designed, and it is not a judgment about your UI. What is genuinely yours in that
-run: the screenshots, `out/deterministic-facts.txt`, `out/geometry.json`, and `out/system-prompt.txt`
-built from your `--context-dir`. For an actual critique, configure a model.
+Without a live endpoint this run prints no grade and no findings, because every canned finding cites
+an element your page does not have and the gate drops all of them. Against a two-element page of my
+own, with no `MODEL_API_KEY` set:
+
+```console
+Measured facts  (computed from the captured DOM, no model involved)
+  2 measurement(s) (contrast 1, touch_target 1) over 2 distinct element(s)
+
+   1. [contrast] / #note (desktop)
+      text contrast 2.32:1 is below WCAG AA 4.5:1
+   2. [touch_target] / #close (desktop)
+      touch target 30x30px is below 44x44px
+
+Grounding gate
+  3 replayed finding(s) parsed, 3 dropped for citing a route or element that was never captured
+
+Review
+  grade       n/a (canned client, no model saw this page)
+  findings    n/a (no model ran; see the measured facts above)
+  confidence  n/a (no model ran)
+  blocking    advisory only
+
+  The canned client produced no critique text. Nothing above judged this page;
+  the measured facts are this run's only real output.
+```
+
+Those two measurements are genuinely about your page, and so are the screenshots,
+`out/deterministic-facts.txt`, `out/geometry.json`, and `out/system-prompt.txt` built from your
+`--context-dir`. Nothing else in that run is. For an actual critique, configure a model.
 
 ### Using it as a library
 

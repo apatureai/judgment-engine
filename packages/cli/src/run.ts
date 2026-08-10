@@ -20,7 +20,7 @@ import type { Critique, EngineReviewResult, Viewport } from "@engine/types";
 import type { CliOptions } from "./args.js";
 import { FileScreenshotSink } from "./file-sink.js";
 import { loadRepoContext } from "./repo-context.js";
-import { displayPath, renderSummary, type RunSummary } from "./report.js";
+import { displayPath, renderSummary, type ReportModelKind, type RunSummary } from "./report.js";
 import { serveDirectory, type StaticSite } from "./static-server.js";
 
 /**
@@ -53,6 +53,8 @@ export interface RunIo {
 interface ResolvedModel {
   factory: ModelClientFactory;
   description: string;
+  /** Reported so the terminal report can refuse to print a grade nothing earned. */
+  kind: ReportModelKind;
 }
 
 async function resolveModel(
@@ -69,12 +71,13 @@ async function resolveModel(
     const runtime = resolveModelRuntime(io.env, {
       resolveImageUrl: (image) => sink.dataUriFor(image.objectKey),
     });
-    return { factory: runtime.factory, description: runtime.description };
+    return { factory: runtime.factory, description: runtime.description, kind: "live" };
   }
   if (choice === "mock") {
     return {
       factory: defaultModelFactory,
       description: "MOCK model client — deterministic, empty critique. No network call.",
+      kind: "mock",
     };
   }
   const scriptPath = options.script ?? join(fixturesDir(), "canned-critique.json");
@@ -83,6 +86,7 @@ async function resolveModel(
   return {
     factory: cannedModelFactory(parsed.script),
     description: `CANNED replay client — authored responses, not a live model (${show(scriptPath)})`,
+    kind: "canned",
   };
 }
 
@@ -179,11 +183,12 @@ export async function runCli(options: CliOptions, io: RunIo): Promise<number> {
     );
 
     const drops = (critique as Critique | null)?.validation.hallucinationDrops ?? 0;
-    const files = await writeArtifacts(outDir, {
+    const written = await writeArtifacts(outDir, {
       result,
       systemPrompt,
       capture: captured,
     });
+    const files = written.paths.map(show);
 
     io.log(
       renderSummary({
@@ -191,18 +196,20 @@ export async function runCli(options: CliOptions, io: RunIo): Promise<number> {
         targetNote,
         routes: options.routes,
         viewports: options.viewports,
+        modelKind: model.kind,
         modelDescription: model.description,
         captureVersion: captured.captureVersion,
         screenshotCount: captured.images.length,
         screenshotDir: show(join(outDir, "screenshots")),
         geometryCount: captured.geometry.length,
         deterministicFindings: captured.deterministicFindings,
+        factsFile: show(written.factsPath),
         pageHealthFootnote: pageHealthFootnote(captured.pageHealth),
         stability: captured.stability,
         hallucinationDrops: drops,
         modelFindingsSeen: findingsSeen(critique as Critique | null, drops),
         result,
-        files: files.map(show),
+        files,
         elapsedMs: Date.now() - started,
       } satisfies RunSummary),
     );
@@ -219,8 +226,15 @@ interface Artifacts {
   capture: BrowserCaptureResult;
 }
 
-/** Write the run's artifacts and return their absolute paths, in report order. */
-async function writeArtifacts(outDir: string, artifacts: Artifacts): Promise<string[]> {
+interface WrittenArtifacts {
+  /** Absolute paths, in report order. */
+  paths: string[];
+  /** The measured-fact file, which the report points at by name. */
+  factsPath: string;
+}
+
+/** Write the run's artifacts and return where they landed. */
+async function writeArtifacts(outDir: string, artifacts: Artifacts): Promise<WrittenArtifacts> {
   const reviewPath = join(outDir, "review.json");
   const promptPath = join(outDir, "system-prompt.txt");
   const geometryPath = join(outDir, "geometry.json");
@@ -236,5 +250,5 @@ async function writeArtifacts(outDir: string, artifacts: Artifacts): Promise<str
       .join("\n")}\n`,
   );
 
-  return [reviewPath, promptPath, geometryPath, factsPath];
+  return { paths: [reviewPath, promptPath, geometryPath, factsPath], factsPath };
 }

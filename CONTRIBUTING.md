@@ -78,6 +78,19 @@ locally with `docker build`.
   through injected dependencies. Add a seam rather than reaching for a module mock.
 - **The wire contract has a golden fixture.** `packages/types` owns the consumer contract; changing
   its shape means changing the golden fixture, and that is a deliberate speed bump.
+- **A run no model saw never prints a grade.** `packages/cli/src/report.ts` is keyed on
+  `ReportModelKind`, and under the canned or mock client it prints `grade n/a`, labels the replayed
+  critique as fixture text, and gives the numbered list to the measured facts instead. A reader who
+  sees a grade must be able to conclude a model produced it. The `quickstart` job in
+  `.github/workflows/ci.yml` fails the build if a canned run prints one.
+- **The README image is generated, never drawn.** `docs/report.png` is typeset from `docs/report.txt`,
+  which is captured stdout. If you change what the CLI prints, regenerate both and update the
+  README's console blocks in the same pull request:
+
+  ```sh
+  { echo '$ node packages/cli/dist/main.js'; node packages/cli/dist/main.js; } > docs/report.txt
+  node scripts/render-report-image.mjs docs/report.txt docs/report.png
+  ```
 - **No em dashes in prose,** and no AI attribution in commits or documentation.
 
 ## The one rule that is absolute

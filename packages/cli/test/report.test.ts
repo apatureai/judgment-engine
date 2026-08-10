@@ -4,7 +4,10 @@ import { describe, expect, it } from "vitest";
 import {
   countByKind,
   displayPath,
+  groupFacts,
+  renderFacts,
   renderFindings,
+  renderFixtureCritique,
   renderStability,
   renderSummary,
   type RunSummary,
@@ -53,12 +56,14 @@ function summary(overrides: Partial<RunSummary> = {}): RunSummary {
     targetNote: "(bundled demo site)",
     routes: ["/", "/pricing"],
     viewports: ["mobile", "desktop"],
-    modelDescription: "CANNED replay client",
+    modelKind: "live",
+    modelDescription: "LIVE model client",
     captureVersion: "chromium-playwright@1",
     screenshotCount: 4,
     screenshotDir: "out/screenshots",
     geometryCount: 57,
     deterministicFindings: FACTS,
+    factsFile: "out/deterministic-facts.txt",
     pageHealthFootnote: null,
     stability: null,
     hallucinationDrops: 2,
@@ -98,17 +103,107 @@ describe("renderFindings", () => {
   });
 });
 
+describe("groupFacts", () => {
+  it("collapses one defect measured at several viewports into one entry", () => {
+    expect(groupFacts(FACTS)).toEqual([
+      { kind: "touch_target", route: "/", selector: "#icon-close", detail: "28x28", viewports: ["mobile"] },
+      {
+        kind: "contrast",
+        route: "/",
+        selector: "#hero-subtitle",
+        detail: "3.23:1",
+        viewports: ["mobile", "desktop"],
+      },
+    ]);
+  });
+
+  it("keeps two different measurements on the same element apart", () => {
+    const grouped = groupFacts([
+      { kind: "contrast", route: "/", viewport: "mobile", selector: "#a", detail: "3.2:1" },
+      { kind: "contrast", route: "/", viewport: "desktop", selector: "#a", detail: "4.1:1" },
+    ]);
+    expect(grouped).toHaveLength(2);
+  });
+});
+
+describe("renderFacts", () => {
+  it("prints the measurement itself, not just a count", () => {
+    const lines = renderFacts(summary());
+    expect(lines[1]).toBe("  3 measurement(s) (contrast 2, touch_target 1) over 2 distinct element(s)");
+    expect(lines.join("\n")).toContain("[contrast] / #hero-subtitle (mobile, desktop)\n      3.23:1");
+    expect(lines.at(-1)).toBe("  every measurement: out/deterministic-facts.txt");
+  });
+
+  it("truncates a long list and says how many are left", () => {
+    const many: DeterministicFinding[] = Array.from({ length: 15 }, (_, i) => ({
+      kind: "contrast" as const,
+      route: "/",
+      viewport: "mobile" as const,
+      selector: `#e${i}`,
+      detail: "3.0:1",
+    }));
+    const lines = renderFacts(summary({ deterministicFindings: many }));
+    expect(lines.join("\n")).toContain("…and 3 more");
+  });
+
+  it("says nothing was measured rather than staying silent", () => {
+    expect(renderFacts(summary({ deterministicFindings: [] }))[1]).toContain(
+      "no contrast, overflow or touch-target violation was measured",
+    );
+  });
+});
+
+describe("renderFixtureCritique", () => {
+  it("labels replayed text as fixture text and does not number it", () => {
+    const lines = renderFixtureCritique(summary({ modelKind: "canned" }));
+    expect(lines[0]).toContain("FIXTURE TEXT: replayed from the canned client, not a judgment about this page");
+    expect(lines.at(-1)).toContain("  - [major/accessibility] Dismiss control is a 28x28 touch target");
+  });
+
+  it("says the mock client judged nothing at all", () => {
+    const lines = renderFixtureCritique(
+      summary({ modelKind: "mock", result: { ...RESULT, findings: [] } }),
+    );
+    expect(lines.join("\n")).toContain("Nothing above judged this page");
+  });
+});
+
 describe("renderSummary", () => {
   it("reports the capture, the gate and the review together", () => {
     const text = renderSummary(summary());
     expect(text).toContain("4 screenshot(s) written to out/screenshots");
     expect(text).toContain("57 DOM element(s) recorded in the geometry map");
-    expect(text).toContain("3 deterministic fact(s) (contrast 2, touch_target 1)");
+    expect(text).toContain("3 measurement(s) (contrast 2, touch_target 1) over 2 distinct element(s)");
     expect(text).toContain("page health: clean");
     expect(text).toContain("3 model finding(s) parsed, 2 dropped");
     expect(text).toContain("grade       needs_work");
     expect(text).toContain("withheld (missing_calibration_report)");
     expect(text).toContain("Done in 8.4s.");
+  });
+
+  it("refuses to print a grade when no model saw the page", () => {
+    for (const kind of ["canned", "mock"] as const) {
+      const text = renderSummary(summary({ modelKind: kind }));
+      expect(text).toContain(`grade       n/a (${kind} client, no model saw this page)`);
+      expect(text).toContain("findings    n/a (no model ran; see the measured facts above)");
+      expect(text).toContain("confidence  n/a (no model ran)");
+      // The fixture's own grade must not leak into the report in any form.
+      expect(text).not.toContain("needs_work");
+      expect(text).not.toContain("3 model finding(s) parsed");
+      expect(text).toContain("3 replayed finding(s) parsed, 2 dropped");
+    }
+  });
+
+  it("warns that review.json's grade is the fixture's, not the page's", () => {
+    const text = renderSummary(summary({ modelKind: "canned" }));
+    expect(text).toContain("note: review.json carries the fixture's own grade field.");
+    expect(renderSummary(summary())).not.toContain("note: review.json");
+  });
+
+  it("gives the numbered list to the measurements, not to replayed fixture text", () => {
+    const text = renderSummary(summary({ modelKind: "canned" }));
+    expect(text).toContain("   1. [touch_target] / #icon-close (mobile)");
+    expect(text).not.toContain("   1. [major/accessibility]");
   });
 
   it("shows a numeric confidence when a calibration report was bound", () => {

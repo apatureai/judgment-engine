@@ -85,7 +85,22 @@ jobs:
         run: node scripts/ci/extractor-smoke.mjs
 
       - name: Run the quickstart
-        run: pnpm review
+        run: |
+          set -euo pipefail
+          pnpm review | tee quickstart.txt
+
+      # The offline run replays a fixture, so the report must not present a
+      # grade for a page nothing looked at. This is the assertion that keeps
+      # that promise from regressing.
+      - name: Assert the offline run reports no grade
+        run: |
+          set -euo pipefail
+          grep -q "grade       n/a (canned client, no model saw this page)" quickstart.txt
+          grep -q "FIXTURE TEXT: replayed from the canned client" quickstart.txt
+          if grep -qE "^  grade *(ship|needs_work|block)" quickstart.txt; then
+            echo "a canned run printed a grade"
+            exit 1
+          fi
 
       - name: Assert the artifacts the README promises
         run: |

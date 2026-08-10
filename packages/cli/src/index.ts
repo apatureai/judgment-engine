@@ -7,5 +7,14 @@ export type { StaticSite } from "./static-server.js";
 export { FileScreenshotSink, displayPath } from "./file-sink.js";
 export { loadRepoContext } from "./repo-context.js";
 export type { LoadedRepoContext } from "./repo-context.js";
-export { renderSummary, renderFindings, countByKind } from "./report.js";
-export type { RunSummary } from "./report.js";
+export {
+  renderSummary,
+  renderFindings,
+  renderFacts,
+  renderFixtureCritique,
+  renderReview,
+  countByKind,
+  groupFacts,
+  isSynthetic,
+} from "./report.js";
+export type { RunSummary, ReportModelKind, FactGroup } from "./report.js";
