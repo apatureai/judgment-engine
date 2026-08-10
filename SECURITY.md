@@ -19,10 +19,9 @@ vulnerability**. That opens a private draft advisory rather than a public issue.
 Please do not file a vulnerability as a normal public issue.
 
 Be realistic about what happens next. A report here may go unread, and if it is
-read, the most likely outcome is that it stays open. GitHub may also refuse new
-advisory reports on an archived repository; if the Security tab offers no
-reporting option, there is no private channel at all. In either case, treat the
-issue as permanently unfixed and act accordingly — fork and fix.
+read, the most likely outcome is that it stays open. If the Security tab offers
+no reporting option, there is no private channel at all. In either case, treat
+the issue as permanently unfixed and act accordingly — fork and fix.
 
 ## Before you run this code
 

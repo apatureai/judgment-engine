@@ -18,7 +18,7 @@ whatever you like. You do not need to ask, and there is no CLA.
 - Anything needing product judgment (new features, changed boundaries, changed
   wire contracts) will not get an answer. The person who would make that call
   has moved on.
-- Please skip feature requests and roadmap issues. An archived repo cannot
+- Please skip feature requests and roadmap issues. There is no one left to
   honor them.
 
 ## Building it
