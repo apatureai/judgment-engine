@@ -50,8 +50,10 @@ make a model's visual verdict trustworthy enough to post in front of a team.
 
 Tested on macOS 15 (Apple silicon). Linux is exercised by CI; Windows is untested.
 
-**No credentials are required.** The quickstart needs no API key, no account and no network access
-beyond the one-time Chromium download. A key is only needed for `--model live`; see
+**No credentials are required.** The quickstart needs no API key and no account. Two setup steps do
+reach the network, each of them once: `pnpm install` fetches from the npm registry, and
+`pnpm browser:install` fetches Chromium. After those, `pnpm review` serves the demo site on a local
+port and makes no outbound call. A key is only needed for `--model live`; see
 [Reviewing with a real model](#reviewing-with-a-real-model).
 
 Dependencies are pinned and `pnpm-lock.yaml` is committed, so install with `--frozen-lockfile` to
@@ -338,9 +340,9 @@ The CLI reads two variables. Everything else in this table belongs to the long-r
 | `WORKER_MAX_ATTEMPTS` | no | `3` | Attempts before a job is failed. |
 | `WORKER_LEASE_MS` | no | `60000` | Lease per claimed attempt; heartbeats at a third of it. |
 | `JOB_MAX_ATTEMPT_MS` | no | `720000` | Hard per-attempt deadline. |
-| `REDIS_URL` | no | none | Token bucket, per-tenant quota and priority fairness. Never the job store. |
+| `REDIS_URL` | no | none | Token bucket, per-tenant quota and priority fairness. Never the job store. **Nothing reads it**: `packages/redis` has no caller here; see [Limitations](#limitations). |
 
-`.env.example` carries the same list with placeholder values.
+`.env.example` carries the variables the service actually reads, with placeholder values.
 
 ## How it works
 
@@ -463,6 +465,10 @@ is published here: no candidate was ever promoted.
 
 ### Directory map
 
+This is what each package owns, not proof that each one is on a live path. Three of them
+(`packages/redis`, `packages/evidence`, `packages/feedback`) are implemented and unit-tested but have
+no caller in this tree.
+
 | Package | What it owns |
 | --- | --- |
 | `packages/types` | The `critique()` / `captureInSandbox()` interfaces, `Finding` / `Critique`, and the consumer wire contract + golden fixture. |
@@ -496,9 +502,10 @@ The long-running service is a different shape from the CLI. Consumers do not cal
 function: they `POST /jobs` with an HMAC signature, an idempotency key and a depth, then poll
 `GET /jobs/:id`. `DELETE /jobs/:id` marks the job `cancelling` immediately and cooperatively tears
 down the in-flight work. Jobs live in Postgres (`pg_notify` wakeups,
-`SELECT ... FOR UPDATE SKIP LOCKED` claims); results live in object storage; Redis is used only for
-rate limiting and fairness, never as the job store. Every result carries an `x-schema-version` header
-and a `{engineVersion, model, promptVersion, captureVersion}` stamp.
+`SELECT ... FOR UPDATE SKIP LOCKED` claims) and results live in object storage. Redis was to carry
+rate limiting and fairness only, never the job store; `packages/redis` implements that and nothing in
+`packages/runtime` calls it. Every result carries an `x-schema-version` header and a
+`{engineVersion, model, promptVersion, captureVersion}` stamp.
 
 Idempotency is exact: `INSERT ... ON CONFLICT DO NOTHING` is the linearization point, and an existing
 job is returned only when its persisted request digest matches. A reused key with a different request
@@ -517,7 +524,7 @@ reports database, capture fleet and worker capacity separately. Migrations run v
 pnpm lint       # eslint, --max-warnings=0
 pnpm typecheck  # tsc -b across the project references
 pnpm build      # tsc -b, emits dist/
-pnpm test       # tsc -b && vitest run  → 739 passed (112 files), ~35s
+pnpm test       # tsc -b && vitest run  → 739 passed (112 files), 1 to 1.5 min
 ```
 
 One test file:
@@ -564,6 +571,7 @@ true ones.
 | Self-hosted GPU serving | Partial | The single-call guided-decoding path is code-complete behind the adapter and unit-tested; it was never run against a GPU. |
 | Fine-tuned judge | Not implemented | The preference-dataset export, consent/PII gating and shadow-promotion logic all exist. No fine-tune was trained; there is no checkpoint. |
 | Deployment | Partial | `Dockerfile` and `fly.toml` are real and the image is smoke-tested in CI. No Fly app, database, bucket or KMS key was ever provisioned. Nothing here ran in production and there were no users. |
+| Rate limiting and fairness (`REDIS_URL`) | Not wired | `packages/redis` implements the global token bucket, per-tenant quota and fairness gate, and is unit-tested, but no package imports it and `packages/runtime` never reads `REDIS_URL`. The service runs unthrottled. |
 | Perceptual stability gate on live capture | Partial | `--verify-stability` compares repeat PNG bytes and reports how many pages matched, which is stricter than the designed pHash + tile-diff gate. The pHash path exists in `rust/capture-dedup` and `packages/capture/src/stability.ts` but is not wired to the live capture. |
 
 ### Some caveats
