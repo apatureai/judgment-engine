@@ -40,9 +40,9 @@ export const EVIDENCE_METRICS: readonly EvidenceMetricDef[] = Object.freeze([
 const CATALOG_NAMES: ReadonlySet<string> = new Set(EVIDENCE_METRICS.map((m) => m.name));
 
 /**
- * Rejection reasons, mirroring Entropy's gate `RejectionCode` vocabulary
- * (cross-repo), so producer rejection metrics use the SAME reason names the
- * consumer emits. Kept in sync with `apatureai/entropy-engine` gate result.ts.
+ * Rejection reasons, mirroring the downstream consumer's gate `RejectionCode`
+ * vocabulary, so producer rejection metrics use the SAME reason names the
+ * consumer emits.
  */
 export type EvidenceRejectionReason =
   | "schema_invalid"
