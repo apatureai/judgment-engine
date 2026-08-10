@@ -12,7 +12,7 @@ export const TRUNCATED_MAX_DEPTH = "[Truncated: max depth]";
 
 /**
  * Hard bounds on a single `redact()` traversal. `redact()` sits in the log/trace
- * hot path and this product logs graph structures (ui-graph, diffs), so an
+ * hot path and this product logs graph structures (lattice, diffs), so an
  * adversarial or accidentally shared-/deep-heavy payload must not turn a log
  * line into a CPU/memory bomb. Because `seen` only tracks the *ancestor path*
  * (so genuine DAGs are preserved, not mis-flagged as "[Circular]"), a shared

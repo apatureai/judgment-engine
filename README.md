@@ -1,4 +1,4 @@
-# judgment-engine
+# verdict
 
 **A grounded vision-language design reviewer: it screenshots your running web UI, critiques it against your repository's own design system, and deletes every finding the model cannot point at.**
 
@@ -330,6 +330,11 @@ judgment-engine [options]
 `pnpm review` runs the CLI; pass flags after `--`. Or run it directly:
 `node packages/cli/dist/main.js --help`.
 
+This repository was renamed from `judgment-engine` to `verdict`. The CLI binary, the Docker image
+tag and the cross-repo wire contracts still carry the `judgment-engine` name, so the strings printed
+above are current rather than stale. Renaming them is a separate, coordinated change, because two
+sibling repositories parse those contract strings.
+
 ### Reviewing your own site
 
 Point it at anything you can reach and give it the directory holding that project's design system:
@@ -571,7 +576,7 @@ reports database, capture fleet and worker capacity separately. Migrations run v
 pnpm lint       # eslint, --max-warnings=0
 pnpm typecheck  # tsc -b across the project references
 pnpm build      # tsc -b, emits dist/
-pnpm test       # tsc -b && vitest run  ->  739 passed (112 files), 48s to 70s
+pnpm test       # tsc -b && vitest run  ->  751 passed (112 files), 32s to 70s
 ```
 
 One test file:

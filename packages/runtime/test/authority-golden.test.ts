@@ -1,6 +1,8 @@
 /**
- * Judgment Engine consumer replay for UI-DNA's canonical #72 authority vectors.
- * The JSON bytes are copied unchanged from ui-dna and never generated here.
+ * Consumer replay for the canonical #72 authority vectors owned by canon (the
+ * repository formerly named ui-dna). The JSON bytes are copied unchanged from
+ * that repository and never generated here, which is why the mirrored fixture
+ * still carries the old repository name inside it.
  */
 import { authorizeGrounding, enforceGroundingAuthority } from "@engine/critique";
 import type { EngineReviewResult } from "@engine/types";

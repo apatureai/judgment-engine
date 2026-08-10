@@ -7,7 +7,7 @@ import type { Critique, EngineReviewResult, Finding, WireFinding } from "@engine
  * with `fixtures/gate-review-result.golden.json`. The internal `Finding` is the
  * rich form (dimension/confidence/introducedByThisPr). `introducedByThisPr` is
  * DROPPED here (internal-only), while `confidence` (since #150) and `dimension`
- * (since #159) pass through per finding: consumers like MCP Review group outcomes
+ * (since #159) pass through per finding: consumers like Bastion group outcomes
  * by the calibrated confidence + rubric dimension and must not fabricate either.
  * The wire form stays the projected, stable subset Gate renders.
  *

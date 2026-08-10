@@ -6,7 +6,7 @@
   "author": "Aditya Prathapa",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/apatureai/judgment-engine.git"
+    "url": "git+https://github.com/apatureai/verdict.git"
   },
   "type": "module",
   "description": "A grounded vision-language design reviewer: screenshots a running web UI, critiques it against the repository's own design system, and deletes every finding the model cannot point at.",
