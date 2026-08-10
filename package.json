@@ -24,7 +24,7 @@
     "build": "tsc -b",
     "typecheck": "tsc -b",
     "clean": "tsc -b --clean",
-    "test": "vitest run",
+    "test": "tsc -b && vitest run",
     "lint": "eslint . --max-warnings=0",
     "browser:install": "node scripts/browser-install.mjs",
     "review": "node packages/cli/dist/main.js"

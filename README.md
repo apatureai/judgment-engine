@@ -515,8 +515,8 @@ reports database, capture fleet and worker capacity separately. Migrations run v
 ```sh
 pnpm lint       # eslint, --max-warnings=0
 pnpm typecheck  # tsc -b across the project references
-pnpm build      # tsc -b, emits dist/ (run before the test suite)
-pnpm test       # vitest run  → 739 passed (112 files), ~35s
+pnpm build      # tsc -b, emits dist/
+pnpm test       # tsc -b && vitest run  → 739 passed (112 files), ~35s
 ```
 
 One test file:
