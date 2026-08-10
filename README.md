@@ -1,7 +1,5 @@
 # judgment-engine
 
-**Archived. Provided as-is, no updates expected.** Issues and pull requests are not monitored. Last verified working 2026-08-09 on macOS 15.6 with Node 24.14.0, pnpm 9.15.0 and Chromium 151 (playwright-core 1.62.1).
-
 Captures a rendered web UI with a headless browser and asks a vision-language model to critique it as a design reviewer, then deletes every finding the model cannot point at.
 
 ## Why this exists
