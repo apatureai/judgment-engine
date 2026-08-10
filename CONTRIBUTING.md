@@ -1,34 +1,17 @@
 # Contributing
 
-Short version: **this project is archived. Fork it.**
+Contributions are welcome. Small ones especially: a typo, a dead link, a failing case you can
+reproduce. The [roadmap in README.md](README.md#status-and-roadmap) is the list of gaps most worth
+picking up, each written so you can tell what you would be signing up for before you start.
 
-Apature has been wound down and this repository is published as a historical
-archive. There is no roadmap, no maintainer on call, and no release process
-still running. Issues and pull requests may sit unread indefinitely, and most
-will not be merged. That is not a judgment on your patch; there is simply nobody
-shipping from here anymore.
+If you are planning something larger (a new package, a changed wire contract, a new capture stage),
+open an issue first so we can agree on the shape. That is a conversation, not a gate.
 
-Forking is the encouraged path. The license is MIT, so take it, rename it,
-change whatever you like. You do not need to ask, and there is no CLA.
+## Setting up
 
-## If you open a pull request anyway
-
-- Small and obviously correct has the best odds: a typo, a dead link, a clear
-  bug with a test that fails before your change and passes after.
-- Anything needing product judgment (new features, changed boundaries, changed
-  wire contracts) will not get an answer. The person who would make that call
-  has moved on.
-- Please skip feature requests and roadmap issues. There is no one left to
-  honor them.
-
-## Building it
-
-Accurate as of the archive; every command below was run against this tree.
-
-**Toolchain.** Node 24 (`.node-version`; `engines` pins `>=24`) and pnpm
-9.15.0 (declared in `packageManager`, so `corepack enable` gets you the right
-one). Add a stable Rust toolchain and [uv](https://docs.astral.sh/uv/) only if
-you touch `rust/` or `python/`.
+**Toolchain.** Node 24 (`.node-version`; `engines` pins `>=24`) and pnpm 9.15.0 (declared in
+`packageManager`, so `corepack enable` gets you the right one). Add a stable Rust toolchain and
+[uv](https://docs.astral.sh/uv/) only if you touch `rust/` or `python/`.
 
 ```sh
 corepack enable
@@ -40,30 +23,10 @@ pnpm build      # tsc -b, emits dist/
 pnpm test       # tsc -b && vitest run
 ```
 
-The TypeScript workspace is `packages/*` (`@engine/*`). `vitest.config.ts`
-aliases every package to its `src/index.ts`, so most tests run against sources
-rather than build output. One exception: `packages/runtime/test/runtime.test.ts`
-loads the emitted `dist/` graph under native Node ESM resolution, which is why
-`pnpm test` runs `tsc -b` first. It works on a clean checkout with no other
-steps.
-
-Rust, in `rust/capture-dedup`: perceptual near-duplicate detection, std-only
-with no dependencies.
+One test file at a time:
 
 ```sh
-cargo test  --manifest-path rust/capture-dedup/Cargo.toml
-cargo clippy --manifest-path rust/capture-dedup/Cargo.toml --all-targets -- -D warnings
-cargo fmt   --manifest-path rust/capture-dedup/Cargo.toml --check
-```
-
-Python: `python/eval` and `python/preference-dataset` are two independent uv
-projects, and neither is part of the pnpm workspace.
-
-```sh
-cd python/eval            # then repeat for python/preference-dataset
-uv venv
-uv pip install -e '.[dev]'
-uv run pytest
+npx vitest run packages/capture/test/browser-capture.test.ts
 ```
 
 The CLI needs a Chromium binary as well:
@@ -73,38 +36,95 @@ pnpm browser:install   # playwright-core install chromium, ~275 MB downloaded
 pnpm review            # captures the bundled demo site, writes out/
 ```
 
-Verified on 2026-08-09 on macOS 15.6 with Node 24.14.0 and pnpm 9.15.0: lint
-clean, typecheck clean, 739 vitest tests across 112 files passing, 20 Rust tests
-passing, 26 + 53 pytest tests passing, and `pnpm review` producing 3 findings
-with 2 gate drops. The `container` job in `.github/workflows/ci.yml` needs a live
-Postgres service; the image itself was built locally with `docker build`.
+Rust, in `rust/capture-dedup`: perceptual near-duplicate detection, std-only with no dependencies.
 
-## The one rule that still matters
+```sh
+cargo test   --manifest-path rust/capture-dedup/Cargo.toml
+cargo clippy --manifest-path rust/capture-dedup/Cargo.toml --all-targets -- -D warnings
+cargo fmt    --manifest-path rust/capture-dedup/Cargo.toml --check
+```
 
-**No test may call a live model, sandbox, browser, GPU, or network.** Every live
-I/O in this codebase sits behind an injected seam: the capture worker is driven
-through the `CaptureBrowser` port and tested against a fake page, the model
-adapter is tested against a fake `fetch`, and the orchestrator is tested against
-stubs. That is what keeps the pipeline deterministic and CI-runnable. A change
-that reaches the network from a test is broken by construction, whatever else it
-does.
+Python: `python/eval` and `python/preference-dataset` are two independent uv projects, and neither is
+part of the pnpm workspace.
+
+```sh
+cd python/eval            # then repeat for python/preference-dataset
+uv venv
+uv pip install -e '.[dev]'
+uv run pytest
+```
+
+Last full run on 2026-08-09, macOS 15.6, Node 24.14.0, pnpm 9.15.0: lint clean, typecheck clean, 739
+vitest tests across 112 files passing in 48s to 70s, 20 Rust tests passing, clippy and `cargo fmt --check`
+clean, 26 + 53 pytest tests passing, and `pnpm review` producing 3 findings with 2 gate drops. The
+`container` job in `.github/workflows/ci.yml` needs a live Postgres service; the image itself builds
+locally with `docker build`.
+
+## Conventions that will trip you up
+
+- **TypeScript project references.** `packages/*` are `@engine/*` workspace packages wired together
+  with `tsc -b` project references. A new cross-package dependency needs three things: the
+  `dependencies` entry (`"@engine/foo": "workspace:*"`), the `references` entry in the importing
+  package's `tsconfig.json`, and the alias already handled generically by `vitest.config.ts`. If
+  `tsc -b` complains about a missing reference, that is why.
+- **ESM with explicit extensions.** The workspace is `"type": "module"`. Relative imports inside a
+  package must carry the `.js` extension even though the source is `.ts`, because
+  `packages/runtime/test/runtime.test.ts` loads the emitted `dist/` graph under native Node ESM
+  resolution. That is also why `pnpm test` runs `tsc -b` first.
+- **Tests run against sources.** `vitest.config.ts` aliases every package to its `src/index.ts`, so
+  most tests need no build step. The runtime test above is the exception.
+- **Injected seams, not module mocks.** Every live I/O has a port: the capture worker is driven
+  through the `CaptureBrowser` interface, the model adapter through a client factory, the orchestrator
+  through injected dependencies. Add a seam rather than reaching for a module mock.
+- **The wire contract has a golden fixture.** `packages/types` owns the consumer contract; changing
+  its shape means changing the golden fixture, and that is a deliberate speed bump.
+- **No em dashes in prose,** and no AI attribution in commits or documentation.
+
+## The one rule that is absolute
+
+**No test may call a live model, sandbox, browser, GPU, or network.** Every live I/O in this codebase
+sits behind an injected seam: the capture worker is tested against a fake page, the model adapter
+against a fake `fetch`, the orchestrator against stubs. That is what keeps the suite deterministic
+and CI-runnable in about a minute. A change that reaches the network from a test is broken by
+construction, whatever else it does.
 
 The real browser is exercised outside the test suite, by the `quickstart` job in
-`.github/workflows/ci.yml`, which runs `pnpm review` against headless Chromium,
-asserts the artifacts the README promises, and runs
-`scripts/ci/extractor-smoke.mjs`, which runs the in-page DOM extractor against
-real pages and checks that the deterministic contrast facts a real Chromium
-yields are the true ones. Add a case there when you touch
-`DOM_EXTRACT_EXPRESSION`: a fake page
-cannot tell you what `getComputedStyle` actually returns.
+`.github/workflows/ci.yml`, which runs `pnpm review` against headless Chromium, asserts the artifacts
+the README promises, and runs `scripts/ci/extractor-smoke.mjs`, which drives the in-page DOM extractor
+against real pages and checks that the deterministic contrast facts a real Chromium yields are the
+true ones. Add a case there when you touch `DOM_EXTRACT_EXPRESSION`: a fake page cannot tell you what
+`getComputedStyle` actually returns.
+
+## What makes a good pull request
+
+- One concern per pull request. A refactor bundled with a behaviour change is hard to review and
+  harder to revert.
+- A test that fails before your change and passes after. For a bug fix, write that test first.
+- `pnpm lint && pnpm typecheck && pnpm test` green locally before you push. CI runs the same
+  commands plus the quickstart, release-gate, python, rust and container jobs.
+- Documentation that stays true. If a change closes a roadmap item in `README.md`, move it out of the
+  roadmap in the same pull request. If it adds a limitation, say so; understated capability is fine,
+  overstated capability is not.
+- Commit messages in the imperative mood, explaining why rather than restating the diff.
+
+Especially wanted right now: the roadmap items in `README.md`, real-world reports from running the
+CLI against sites that are not the demo (the DOM extractor meets a lot of CSS in the wild), and
+anything that makes the first five minutes with this repository shorter.
+
+## How review works
+
+Pull requests are read and answered. Expect a first response within about a week; expect questions
+about the boundaries rather than about style, since lint owns style. Changes to the wire contract,
+the capture lifecycle ordering, and the grounding gate get the most scrutiny, because everything else
+depends on them being right.
+
+If a pull request goes quiet, a nudge on the thread is welcome and not an imposition.
 
 ## Getting oriented
 
-`README.md` is the documentation: what the engine is, how a review flows, the
-`packages/*` map, the configuration table, how review quality was measured, and
-an audited status table of what is implemented and what is not. The
-architecture, technical-requirements, benchmark and release documents were
-folded into it when this was archived.
+`README.md` is the documentation: what the engine is, how a review flows, the `packages/*` map, the
+configuration table, how review quality is measured, and the status and roadmap table. Read
+`packages/review/src/orchestrator.ts` next; it is the only place the pipeline stages are sequenced,
+so it is the fastest map of the whole system.
 
-Before you run any of this against real infrastructure, read `SECURITY.md`. It
-is blunt about what is missing.
+Before you point any of this at real infrastructure, read `SECURITY.md`.

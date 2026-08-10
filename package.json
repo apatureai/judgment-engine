@@ -9,7 +9,7 @@
     "url": "git+https://github.com/apatureai/judgment-engine.git"
   },
   "type": "module",
-  "description": "Apature Judgment Engine - capture, critique, eval, and feedback substrate for the Apature surfaces.",
+  "description": "A grounded vision-language design reviewer: screenshots a running web UI, critiques it against the repository's own design system, and deletes every finding the model cannot point at.",
   "packageManager": "pnpm@9.15.0",
   "engines": {
     "node": ">=24"

@@ -111,7 +111,8 @@ concrete local artifact via a pluggable **`ArtifactResolver`**. A record reuses
   `NotImplementedError`. The production backend pulls artifacts from the DVC
   remote / Cloudflare-R2 bucket `dvc-export.ts` pushes to, with object-store
   credentials and a content-addressed cache. It is deliberately unbuilt here so
-  this package stays network- and secret-free, and it was never wired up.
+  this package stays network- and secret-free. Implementing it behind the same
+  interface is a roadmap item and contributions are welcome.
 
 ### DPO/ORPO pairing (#124)
 
@@ -163,8 +164,9 @@ uv run pytest        # or: .venv/bin/pytest
 
 ## Status / scope
 
-Spike scaffold. **Additive and standalone**: it is not part of the TS build or
-the `pnpm` workspace (CI does run its pytest suite); it consumes exported
-artifacts only. Downstream work is deliberately **not** in this package:
-`python/eval` is the offline batch grader, and the TRL fine-tune it prepares
-data for was never run.
+**Additive and standalone**: it is not part of the TS build or the `pnpm`
+workspace (CI does run its pytest suite); it consumes exported artifacts only.
+Downstream work is deliberately **not** in this package: `python/eval` is the
+offline batch grader, and the TRL fine-tune it prepares data for has not been
+run yet, so there is no checkpoint. Running one and reporting what the dataset
+shaping gets wrong is a useful contribution.

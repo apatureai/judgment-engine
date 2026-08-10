@@ -1,73 +1,89 @@
 # Security Policy
 
-## This project is archived and unmaintained
+## Supported versions
 
-Apature has been wound down. This repository is published as a historical
-archive of the Judgment Engine. There is **no active security support**:
+| Version | Supported |
+| --- | --- |
+| `main` | Yes |
+| Anything else | No |
 
-- No supported versions. Nothing here is patched, on any branch or tag.
-- No security releases and no advisories will be published.
-- No bug bounty. No reward of any kind is offered for a report.
-- No response time commitment.
+There are no tagged releases yet, so `main` is the supported version and security fixes land there.
+When releases start, this table will list the supported line.
 
-## Reporting a vulnerability anyway
+## Reporting a vulnerability
 
-If you find something and want to report it, use GitHub's private vulnerability
-reporting: the **Security** tab of this repository, then **Report a
-vulnerability**. That opens a private draft advisory rather than a public issue.
+Use GitHub's private vulnerability reporting: the **Security** tab of this repository, then **Report
+a vulnerability**. That opens a private draft advisory rather than a public issue. Please do not file
+a vulnerability as a normal public issue.
 
-Please do not file a vulnerability as a normal public issue.
+Include what you need to make it reproducible: affected file or package, the version or commit, the
+steps, and what an attacker gets out of it.
 
-Be realistic about what happens next. A report here may go unread, and if it is
-read, the most likely outcome is that it stays open. If the Security tab offers
-no reporting option, there is no private channel at all. In either case, treat
-the issue as permanently unfixed and act accordingly: fork and fix.
+What to expect:
 
-## Before you run this code
+- **Acknowledgement within 3 business days.** If you have not heard anything by then, a public issue
+  saying only "I sent a private report, please check" is a fine nudge and leaks nothing.
+- **An initial assessment within 10 business days**, saying whether it is accepted, and if so the
+  rough severity and the planned fix.
+- **A fix on `main`** for accepted reports, with a GitHub Security Advisory published once the fix is
+  out.
+- **Credit** in the advisory unless you would rather stay anonymous.
+- No bug bounty. This is not a funded program, and there is no monetary reward.
 
-This was production-shaped infrastructure, not a toy, and that cuts both ways.
-Read this before pointing it at anything you care about.
+Coordinated disclosure: please give the fix a chance to land before publishing. 90 days is the
+default window, and if a fix is going to take longer than that we will tell you rather than let the
+clock run out silently.
 
-**Dependencies are frozen at their mid-2026 versions.** Automated dependency
-updates have been turned off and nothing will be merged again. Assume the
-lockfiles accumulate known CVEs from the archive date onward. Re-resolve
-`pnpm-lock.yaml`, `rust/capture-dedup/Cargo.lock`, and the `python/*`
-environments, and run your own scan, before running any of this.
+## Threat model, and what is not defended yet
 
-**It expects real secrets.** The production composition root refuses to start
-without `DATABASE_URL`, `ENGINE_HMAC_SECRET`, `MODEL_API_KEY`,
-`OBJECT_STORE_ACCESS_KEY_ID`, `OBJECT_STORE_SECRET_ACCESS_KEY`, and
-`CAPTURE_API_TOKEN`. `packages/secrets` implements a KMS envelope scheme and
-log/trace redaction, but none of it has had an external security audit. Do not
-give an unmaintained service your production credentials, your object store, or
-customer data.
+This is production-shaped infrastructure, so be deliberate about where you point it. These are known
+and stated up front rather than discovered later. Several are roadmap items in
+[README.md](README.md#status-and-roadmap).
 
-**Capture runs a real browser, and the isolation this design depends on is not
-in this repository.** `captureWithBrowser` drives headless Chromium in your own
-process. Capture is meant to render third-party preview deploys, meaning
-attacker-influenced URLs and pages, and the design called for one Firecracker
-microVM per job with `nftables` egress enforcement. That sandbox was never
-implemented here. `packages/capture/src/egress.ts` holds the egress/SSRF policy,
-including cloud-metadata endpoint blocking, but it is policy logic that nothing
-enforces at the network layer, and the live capture path does not call it. Point
-the CLI at pages you trust, or provide the isolation yourself.
+**Capture runs a real browser and the isolating sandbox is not implemented.**
+`captureWithBrowser` drives headless Chromium in your own process. Capture is meant to render
+preview deploys, which means attacker-influenced URLs and pages. The design calls for one microVM per
+job with `nftables` egress enforcement, and that sandbox is not in this repository.
+`packages/capture/src/egress.ts` holds the egress/SSRF policy including cloud-metadata endpoint
+blocking, but it is policy logic that nothing enforces at the network layer, and the live capture
+path does not call it. Until that is wired, point the CLI at pages you trust or provide the isolation
+yourself (a container with a locked-down egress policy is the practical answer today).
 
-**The API's only caller authentication is a shared HMAC secret.** There is no
-user authentication; tenancy is caller-asserted and scoped by the HMAC over the
-job contract. It was designed to sit behind Apature's own trust boundary, not on
-the open internet.
+**Model output is untrusted input.** Findings are schema-validated and passed through the
+drop-and-count hallucination gate, but the surviving text is still model-authored. Escape it wherever
+you render it. The instruction-hierarchy defense against injection embedded in a screenshot lives in
+`packages/critique/src/prompt.ts` and is sent on every deep pass; treat it as a partial mitigation.
+The load-bearing defenses are the schema-constrained output and the grounding gate, which bound what
+a compliant model could actually emit.
 
-**Model output is untrusted input.** Findings are schema-validated and passed
-through the drop-and-count hallucination gate, but the resulting text is still
-model-authored. Escape it wherever you render it. The instruction-hierarchy
-defense against injection embedded in a screenshot lives in
-`packages/critique/src/prompt.ts` and is sent on every deep pass, but treat it as
-a partial mitigation: the load-bearing defenses are the schema-constrained output
-and the grounding gate.
+**The service's only caller authentication is a shared HMAC secret.** There is no user
+authentication; tenancy is caller-asserted and scoped by the HMAC over the job contract. It is
+designed to sit behind your own trust boundary, not on the open internet. Do not expose
+`packages/runtime` directly.
 
-**`Dockerfile` and `fly.toml` are the old staging configuration.** They reflect
-Apature's deployment, not a hardened general-purpose one. Review them rather
-than reusing them as-is.
+**Secrets handling has not had an external audit.** The production composition root refuses to start
+without `DATABASE_URL`, `ENGINE_HMAC_SECRET`, `MODEL_API_KEY`, `OBJECT_STORE_ACCESS_KEY_ID`,
+`OBJECT_STORE_SECRET_ACCESS_KEY` and `CAPTURE_API_TOKEN`. `packages/secrets` implements a KMS
+envelope scheme plus log and trace redaction, and it is unit-tested, but no third party has reviewed
+it.
 
-The MIT license's "AS IS, WITHOUT WARRANTY OF ANY KIND" applies in full, and
-security is exactly where it applies.
+**No rate limiting is wired.** `packages/redis` implements the token bucket, per-tenant quota and
+fairness gate, but nothing imports it, so the service runs unthrottled. Put your own limits in front
+of it.
+
+**`Dockerfile` and `fly.toml` are a starting point.** They build and smoke-test in CI. They are not a
+hardened production configuration; review them before deploying rather than reusing them unchanged.
+
+**Dependencies.** `pnpm-lock.yaml`, `rust/capture-dedup/Cargo.lock` and the `python/*` environments
+are pinned so builds are reproducible. Run your own scan against your own policy before deploying,
+and open an issue or a pull request if you find a lockfile entry that needs bumping.
+
+## Scope
+
+In scope: anything in this repository, including the capture lifecycle, the API's authentication and
+idempotency handling, the job store, secret handling, and the grounding and injection defenses.
+
+Out of scope: vulnerabilities in third-party dependencies with no exploitable path through this code
+(report those upstream), and the known gaps listed above, which are tracked in the roadmap rather
+than as vulnerabilities. If you can show one of those gaps is exploitable in a way the roadmap does
+not describe, that is in scope and worth reporting.
