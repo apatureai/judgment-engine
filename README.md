@@ -73,9 +73,10 @@ pnpm browser:install
 `pnpm build` is part of install, not an optional extra: the CLI runs from `dist/`.
 `pnpm browser:install` downloads the Chromium build playwright-core drives, then launches it once and
 prints the version it got. It is a separate step because it is the only thing here that touches the
-network. It fetches Chromium, the headless shell playwright uses for `headless: true`, and ffmpeg,
-about 275 MB downloaded and 565 MB on disk on macOS arm64; exact sizes vary by platform. It is safe
-to re-run; when the browser is already cached it downloads nothing and says so:
+network. It fetches three things: Chromium, the headless shell playwright uses for
+`headless: true`, and ffmpeg. Together that is about 275 MB downloaded and 565 MB on disk on
+macOS arm64, and exact sizes vary by platform. It is safe to re-run; when the browser is already
+cached it downloads nothing and says so:
 
 ```console
 $ pnpm browser:install
@@ -549,7 +550,7 @@ build step.
 Every live I/O sits behind an injected seam; the browser tests drive a fake `CaptureBrowser`, and the
 model tests drive a fake `fetch`. The real browser is exercised by the `quickstart` job in
 `.github/workflows/ci.yml`, which runs `pnpm review` against a headless Chromium, asserts the
-artifacts this README promises, and runs `scripts/ci/extractor-smoke.mjs`, which puts the DOM
+artifacts this README promises, and runs `scripts/ci/extractor-smoke.mjs`, which runs the in-page DOM
 extractor against real pages and checks that the contrast facts a real Chromium produces are the
 true ones.
 
