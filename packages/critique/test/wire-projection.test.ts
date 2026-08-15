@@ -46,7 +46,13 @@ describe("toEngineReviewResult (wire projection — cross-repo contract)", () =>
     const golden = loadGoldenResult();
     const result = toEngineReviewResult(critique(), { screenshotRetentionSeconds: 2592000 });
 
-    expect(Object.keys(result).sort()).toEqual(Object.keys(golden).sort());
+    // `provenance` is stamped by the surface that ran the review
+    // (`stampJudgmentProvenance` in @engine/cli), not by the projector, because
+    // only the surface knows whether a model was actually called. The golden
+    // fixture carries the stamp because it is a PUBLISHED result; a projection is
+    // one stage earlier.
+    const goldenKeys = Object.keys(golden).filter((key) => key !== "provenance");
+    expect(Object.keys(result).sort()).toEqual(goldenKeys.sort());
     expect(Object.keys(result.findings[0]!).sort()).toEqual(Object.keys(golden.findings[0]!).sort());
     expect(Object.keys(result.artifacts).sort()).toEqual(["annotatedScreenshots"]); // engineDebugUrl omitted when absent
     expect(Object.keys(result.metadata).sort()).toEqual(Object.keys(golden.metadata).sort());

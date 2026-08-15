@@ -252,9 +252,12 @@ describe("runReview — end-to-end orchestrator", () => {
     expect(result.metadata.uiDnaVersion).toBe("ui-dna@2026.06.12");
     expect(result.metadata.model).toBe("qwen3-vl-plus");
 
-    // Golden SHAPE: same top-level keys + finding keys as the cross-repo anchor.
+    // Golden SHAPE: same top-level keys + finding keys as the cross-repo anchor,
+    // minus `provenance`, which the surface stamps after the orchestrator returns
+    // (only the surface knows whether a model was actually called).
     const golden = loadGoldenResult();
-    expect(Object.keys(result).sort()).toEqual(Object.keys(golden).sort());
+    const goldenKeys = Object.keys(golden).filter((key) => key !== "provenance");
+    expect(Object.keys(result).sort()).toEqual(goldenKeys.sort());
     expect(Object.keys(result.findings[0]!).sort()).toEqual(Object.keys(golden.findings[0]!).sort());
     expect(Object.keys(result.metadata).sort()).toEqual(Object.keys(golden.metadata).sort());
 
@@ -512,9 +515,14 @@ describe("runReview — end-to-end orchestrator", () => {
     expect(result.overall).toMatch(/no design changes/i);
     // Same top-level + metadata keys as the cross-repo golden anchor, except a
     // clean short-circuit has no raw finding score and therefore no synthetic
-    // numeric confidence (#160).
+    // numeric confidence (#160), and `provenance` is stamped by the surface after
+    // the orchestrator returns.
     const golden = loadGoldenResult();
-    expect(Object.keys(result).sort()).toEqual(Object.keys(golden).filter((key) => key !== "confidence").sort());
+    expect(Object.keys(result).sort()).toEqual(
+      Object.keys(golden)
+        .filter((key) => key !== "confidence" && key !== "provenance")
+        .sort(),
+    );
     expect(result).not.toHaveProperty("confidence");
     expect(Object.keys(result.metadata).sort()).toEqual(Object.keys(golden.metadata).sort());
     // Routed through buildResultMetadata: the #68 version stamp is present + valid.

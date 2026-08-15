@@ -306,6 +306,16 @@ critique with no network call, useful for exercising the pipeline's shape in you
   [touch_target] / mobile #icon-close: touch target 28x28px is below 44x44px
   ```
 
+  A clean page writes a line too, rather than an empty file:
+
+  ```
+  0 issues found (contrast, overflow and touch-target checks ran and measured no violation)
+  ```
+
+  An empty file was correct and unreadable: indistinguishable from a run where
+  the checks never happened, in the one artifact that is true with no model
+  involved.
+
   The demo site carries those three defects on purpose.
 - **2 dropped.** The canned script contains five findings. Two cite things the capture never
   produced: `#pricing-table`, absent from the geometry map, and route `/checkout`, never captured.

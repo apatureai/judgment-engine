@@ -5,6 +5,7 @@ import {
   factsForRoute,
   type BrowserCaptureResult,
   type CaptureBrowser,
+  type DeterministicFinding,
   type ScreenshotSink,
 } from "@engine/capture";
 import type { ModelClientFactory } from "@engine/critique";
@@ -180,6 +181,27 @@ export interface WrittenArtifacts {
 }
 
 /**
+ * The measured-fact file's body.
+ *
+ * An empty file is the correct output for a clean page and an indistinguishable
+ * output from "the checks never ran", which is the wrong thing for the one
+ * artifact the honesty story rests on: these facts are the part of a review that
+ * is true with no model involved, and a reader has to be able to see that they
+ * were computed. So a clean page says so in words instead of saying nothing.
+ */
+export function renderDeterministicFacts(findings: DeterministicFinding[]): string {
+  if (findings.length === 0) {
+    return "0 issues found (contrast, overflow and touch-target checks ran and measured no violation)\n";
+  }
+  return `${findings
+    .map(
+      (finding) =>
+        `[${finding.kind}] ${finding.route} ${finding.viewport} ${finding.selector}: ${finding.detail}`,
+    )
+    .join("\n")}\n`;
+}
+
+/**
  * Write a review's artifacts into a directory. The same four files, in the same
  * format, whichever front door ran the review, so an HTTP job leaves behind
  * exactly what `pnpm review` leaves behind.
@@ -197,15 +219,7 @@ export async function writeReviewArtifacts(
   await writeFile(reviewPath, `${JSON.stringify(outcome.result, null, 2)}\n`);
   await writeFile(promptPath, `${outcome.systemPrompt}\n`);
   await writeFile(geometryPath, `${JSON.stringify(outcome.capture.geometry, null, 2)}\n`);
-  await writeFile(
-    factsPath,
-    `${outcome.capture.deterministicFindings
-      .map(
-        (finding) =>
-          `[${finding.kind}] ${finding.route} ${finding.viewport} ${finding.selector}: ${finding.detail}`,
-      )
-      .join("\n")}\n`,
-  );
+  await writeFile(factsPath, renderDeterministicFacts(outcome.capture.deterministicFindings));
 
   return {
     paths: [reviewPath, promptPath, geometryPath, factsPath],

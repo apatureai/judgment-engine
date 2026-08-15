@@ -2,7 +2,7 @@ export { parseArgs, ArgError, DEFAULT_OPTIONS, USAGE } from "./args.js";
 export type { CliOptions, ModelChoice } from "./args.js";
 export { runCli } from "./run.js";
 export type { RunIo } from "./run.js";
-export { runLocalReview, writeReviewArtifacts } from "./local-review.js";
+export { renderDeterministicFacts, runLocalReview, writeReviewArtifacts } from "./local-review.js";
 export type {
   LocalReviewRequest,
   LocalReviewDeps,

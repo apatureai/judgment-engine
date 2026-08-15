@@ -4,7 +4,7 @@ import { join } from "node:path";
 import type { CaptureBrowser, CapturePage, ExtractedPage } from "@engine/capture";
 import { NO_MODEL_DISCLOSURE_PREFIX, type EngineReviewResult } from "@engine/types";
 import { describe, expect, it } from "vitest";
-import { parseArgs, runCli, type RunIo } from "../src/index.js";
+import { parseArgs, renderDeterministicFacts, runCli, type RunIo } from "../src/index.js";
 
 /**
  * The CLI end to end against a FAKE browser: the demo site is really served, the
@@ -205,6 +205,28 @@ describe("runCli", () => {
     const facts = await readFile(join(dir, "deterministic-facts.txt"), "utf8");
     expect(facts).toContain("[contrast] / mobile #hero-subtitle");
     expect(facts).toContain("[touch_target] / mobile #icon-close");
+  });
+
+  it("says so in words when a clean page measured nothing", () => {
+    // The empty file this replaces was correct and unreadable: it looked exactly
+    // like a run where the checks never happened, and these facts are the part of
+    // a review that is true with no model involved.
+    const clean = renderDeterministicFacts([]);
+    expect(clean.trim()).not.toBe("");
+    expect(clean).toContain("0 issues found");
+    expect(clean).toContain("contrast, overflow and touch-target checks ran");
+  });
+
+  it("still writes one line per measurement when there are any", () => {
+    const facts = renderDeterministicFacts([
+      { kind: "contrast", route: "/", viewport: "mobile", selector: "#a", detail: "2.1:1 (needs 4.5:1)" },
+      { kind: "overflow", route: "/x", viewport: "desktop", selector: "#b", detail: "345px over 140px" },
+    ]);
+    expect(facts.trimEnd().split("\n")).toEqual([
+      "[contrast] / mobile #a: 2.1:1 (needs 4.5:1)",
+      "[overflow] /x desktop #b: 345px over 140px",
+    ]);
+    expect(facts).not.toContain("0 issues found");
   });
 
   it("produces no model findings under --model mock, and says which client ran", async () => {
