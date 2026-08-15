@@ -249,6 +249,33 @@ describe("GET /jobs/:id", () => {
     const res = await api.handle(signed("GET", `/jobs/${jobId}`, "2"));
     expect(res.status).toBe(404);
   });
+
+  it("answers 404, not 500, for an id that is not a job handle", async () => {
+    // A job id is a uuid this engine minted. Anything else never named a job,
+    // and handing it to `jobs.id = $1` made Postgres raise a type error that
+    // surfaced as `500 internal_error`: the engine reporting ITSELF as broken
+    // because a caller asked for a handle that cannot exist. A consumer that
+    // mishandles a conflict envelope and polls `/jobs/undefined` is the case
+    // that found this.
+    for (const id of ["undefined", "null", "1", "not-a-uuid"]) {
+      const res = await api.handle(signed("GET", `/jobs/${id}`, "1"));
+      expect(res.status, `GET /jobs/${id}`).toBe(404);
+      expect(res.body).toEqual({ error: "not_found" });
+    }
+  });
+
+  it("gives the same non-enumerating answer on DELETE", async () => {
+    const res = await api.handle(signed("DELETE", "/jobs/undefined", "1"));
+    expect(res.status).toBe(404);
+    expect(res.body).toEqual({ error: "not_found" });
+  });
+
+  it("still accepts a real job handle whatever its case", async () => {
+    const post = await api.handle(signed("POST", "/jobs", "1", submission("k-case")));
+    const jobId = (post.body as { jobId: string }).jobId;
+    const res = await api.handle(signed("GET", `/jobs/${jobId.toUpperCase()}`, "1"));
+    expect(res.status).toBe(200);
+  });
 });
 
 describe("DELETE /jobs/:id (cooperative cancel)", () => {

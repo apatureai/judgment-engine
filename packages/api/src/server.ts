@@ -77,6 +77,13 @@ interface SubmitBody {
   request?: unknown;
 }
 
+/** Job ids are `gen_random_uuid()` values (see `0002_jobs.up.sql`). */
+const JOB_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function isJobId(value: string): boolean {
+  return JOB_ID.test(value);
+}
+
 const json = (status: number, body: unknown, headers: Record<string, string> = {}): ApiResponse => ({
   status,
   headers: { "content-type": "application/json", ...headers },
@@ -214,6 +221,14 @@ export function createJobApi(options: JobApiOptions) {
     const segments = req.path.split("/").filter(Boolean); // ["jobs"] or ["jobs", "<id>"]
     if (segments[0] !== "jobs") return json(404, { error: "not_found" });
     const id = segments[1];
+
+    // A job id is a uuid the engine minted. Anything else never named a job here,
+    // and handing it to `jobs.id = $1` made Postgres raise a type error that
+    // surfaced as `500 internal_error`: the engine reporting itself as broken
+    // because a client asked for a handle that cannot exist. It is the same
+    // answer as a handle belonging to another tenant, for the same reason:
+    // 404, disclosing nothing.
+    if (id !== undefined && !isJobId(id)) return json(404, { error: "not_found" });
 
     if (req.method === "POST" && !id) return handlePost(req, installationId);
     if (req.method === "GET" && id) return handleGet(id, installationId);
