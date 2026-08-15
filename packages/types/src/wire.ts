@@ -5,6 +5,7 @@ import type {
   ConfidenceUnavailableReason,
   ResultMetadata,
 } from "./findings.js";
+import type { JudgmentProvenance } from "./provenance.js";
 
 /**
  * Consumer-facing wire result returned over the async job API: the projection of
@@ -87,6 +88,19 @@ export interface EngineReviewResult {
   };
   screenshotRetentionSeconds: number;
   metadata: ResultMetadata;
+  /**
+   * Whether anything judged this page, stated in the payload itself. Additive +
+   * optional (schema v1, x-schema-version), like `dimension` and
+   * `pageHealthFootnote`.
+   *
+   * A wire result always carries a `grade`, including on the paths where the
+   * critique came from the mock or canned client rather than from a model. The
+   * CLI's terminal report refuses to print a grade in that state; a caller of
+   * the job API never sees that report, so the fact travels here instead.
+   * Absent means the producer did not attest, which a consumer must read as
+   * "unknown", never as "a model judged it".
+   */
+  provenance?: JudgmentProvenance;
 }
 
 /** Path to the shared golden wire result (the cross-repo contract anchor). */

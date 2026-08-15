@@ -8,10 +8,45 @@ export interface ReadinessChecks {
   worker(): boolean;
 }
 
+/** A response whose body is bytes, not JSON (screenshots and other artifacts). */
+export interface RawResponse {
+  status: number;
+  headers: Record<string, string>;
+  body: Uint8Array;
+}
+
+/**
+ * What a byte-serving route is handed.
+ *
+ * `query` is separate from `path` on purpose, and is the reason this is not
+ * just `Omit<ApiRequest, "body">`. `ApiRequest.path` is the pathname alone:
+ * the JSON job API routes by splitting it on "/", so a query string reaching
+ * it would be read as part of the job id. A signed artifact URL carries its
+ * token in the query string, so a raw route that only ever saw the pathname
+ * could never find the token and would reject every URL the signer minted.
+ * Giving the query its own field means neither side can silently drop it.
+ */
+export interface RawRequest {
+  method: string;
+  /** Pathname only, with no query string, like `ApiRequest.path`. */
+  path: string;
+  /** Parsed query string of the request target. */
+  query: URLSearchParams;
+  headers: Record<string, string | undefined>;
+}
+
 export interface EngineHttpServerOptions {
   handle(request: ApiRequest): Promise<ApiResponse>;
   readiness: ReadinessChecks;
   maxBodyBytes?: number;
+  /**
+   * Optional byte-serving route, consulted before the JSON handler and only for
+   * requests with no body. Returning `null` falls through to `handle`. This is
+   * how a deployment that stores artifacts locally serves the screenshot a
+   * finding points at; deployments backed by object storage hand out signed URLs
+   * instead and leave this unset.
+   */
+  serveRaw?(request: RawRequest): Promise<RawResponse | null>;
 }
 
 function writeJson(response: ServerResponse, status: number, body: unknown, headers: Record<string, string> = {}): void {
@@ -69,7 +104,8 @@ export class EngineHttpServer {
   }
 
   private async route(request: IncomingMessage, response: ServerResponse): Promise<void> {
-    const path = new URL(request.url ?? "/", "http://engine.local").pathname;
+    const target = new URL(request.url ?? "/", "http://engine.local");
+    const path = target.pathname;
     if (request.method === "GET" && path === "/livez") {
       writeJson(response, 200, { status: "live" });
       return;
@@ -85,6 +121,19 @@ export class EngineHttpServer {
       return;
     }
     try {
+      if (this.options.serveRaw && request.method === "GET") {
+        const raw = await this.options.serveRaw({
+          method: "GET",
+          path,
+          query: target.searchParams,
+          headers: headersOf(request),
+        });
+        if (raw) {
+          response.writeHead(raw.status, raw.headers);
+          response.end(Buffer.from(raw.body));
+          return;
+        }
+      }
       const body = await readBody(request, this.maxBodyBytes);
       const result = await this.options.handle({
         method: request.method ?? "GET",

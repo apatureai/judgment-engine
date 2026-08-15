@@ -7,7 +7,12 @@
   "description": "Production API and worker composition roots for the Judgment Engine.",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
-  "exports": { ".": { "types": "./dist/index.d.ts", "default": "./dist/index.js" } },
+  "exports": {
+    ".": { "types": "./dist/index.d.ts", "default": "./dist/index.js" },
+    "./http": { "types": "./dist/http.d.ts", "default": "./dist/http.js" },
+    "./worker": { "types": "./dist/worker.d.ts", "default": "./dist/worker.js" },
+    "./input": { "types": "./dist/input.d.ts", "default": "./dist/input.js" }
+  },
   "files": ["dist"],
   "scripts": { "test": "vitest run" },
   "dependencies": {

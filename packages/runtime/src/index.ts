@@ -21,7 +21,7 @@ export type { RuntimeConfig } from "./config.js";
 export { createEngineRuntime, buildProductionRuntime } from "./composition.js";
 export type { EngineRuntime, EngineRuntimeOptions, ProductionRuntime } from "./composition.js";
 export { EngineHttpServer } from "./http.js";
-export type { EngineHttpServerOptions, ReadinessChecks } from "./http.js";
+export type { EngineHttpServerOptions, ReadinessChecks, RawRequest, RawResponse } from "./http.js";
 export { runtimeReviewRequestSchema, toReviewInput } from "./input.js";
 export type { RuntimeReviewRequest } from "./input.js";
 export { EngineWorker, PgNotificationSource } from "./worker.js";

@@ -226,7 +226,6 @@ export function createEngineRuntime(options: EngineRuntimeOptions): EngineRuntim
     processor,
     beforePublish,
     coordinator,
-    production: true,
   });
   const worker = new EngineWorker({
     store: options.store,

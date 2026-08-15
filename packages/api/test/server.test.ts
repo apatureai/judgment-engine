@@ -2,8 +2,15 @@ import { pgliteExecutor, runMigrations } from "@engine/db";
 import { CancellationCoordinator, JobStore } from "@engine/jobs";
 import { InMemoryObjectStore } from "@engine/storage";
 import { PGlite } from "@electric-sql/pglite";
+import type { EngineReviewResult } from "@engine/types";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { createJobApi, signEngineRequest, type ApiRequest } from "../src/index.js";
+import {
+  createJobApi,
+  modelForDepth,
+  signEngineRequest,
+  type ApiRequest,
+  type JobApiOptions,
+} from "../src/index.js";
 
 const SECRET = "engine-hmac-secret";
 let db: PGlite;
@@ -11,22 +18,57 @@ let store: JobStore;
 let objectStore: InMemoryObjectStore;
 let api: ReturnType<typeof createJobApi>;
 
+/**
+ * The transport tests care about routing, auth, idempotency and fencing, not
+ * about what a review says, so they bind a processor that says so out loud. It
+ * lives HERE, in the test, rather than as a library default: a canned result
+ * that ships inside `createJobApi` is indistinguishable from a clean review at
+ * a deployment that was never wired up.
+ */
+const testProcessor = async (job: { depth: "triage" | "deep" }): Promise<EngineReviewResult> => ({
+  grade: "ship",
+  overall: "transport test double: nothing captured or judged anything",
+  blockingEnabled: false,
+  confidenceUnavailableReason: "missing_calibration_report",
+  findings: [],
+  notReviewed: ["transport test double: no capture and no critique ran"],
+  artifacts: { annotatedScreenshots: [] },
+  screenshotRetentionSeconds: 0,
+  provenance: {
+    model_backed: false,
+    source: "fixture",
+    engine: "api-transport-test",
+    model: null,
+    detail: "a transport test double produced this result; nothing captured or judged a page",
+  },
+  metadata: {
+    engineVersion: "test",
+    // The depth-to-model table is the API's, so the double applies it: what these
+    // tests pin is that the submitted depth reaches the processor and selects the
+    // model reported on the wire.
+    model: modelForDepth(job.depth),
+    promptVersion: "test",
+    captureVersion: "test",
+    rubricVersion: "design-rubric@1",
+    uiDnaVersion: null,
+  },
+});
+
 beforeEach(async () => {
   db = new PGlite();
   await runMigrations(pgliteExecutor(db));
   store = new JobStore(pgliteExecutor(db));
   objectStore = new InMemoryObjectStore();
-  api = createJobApi({ store, objectStore, secret: SECRET });
+  api = createJobApi({ store, objectStore, secret: SECRET, processor: testProcessor });
 });
 
 afterEach(async () => {
   await db.close();
 });
 
-it("refuses to start a production API with the EM0 stub processor", () => {
-  expect(() => createJobApi({ store, objectStore, secret: SECRET, production: true })).toThrow(
-    /requires an explicit review processor/,
-  );
+it("refuses to build a Job API with no review processor bound", () => {
+  const unbound = { store, objectStore, secret: SECRET } as unknown as JobApiOptions;
+  expect(() => createJobApi(unbound)).toThrow(/requires an explicit review processor/);
 });
 
 it("applies the final beforePublish policy before storing or returning any processor result", async () => {
@@ -34,6 +76,7 @@ it("applies the final beforePublish policy before storing or returning any proce
     store,
     objectStore,
     secret: SECRET,
+    processor: testProcessor,
     beforePublish: async (_job, result) => ({
       ...result,
       grade: "needs_work",
@@ -49,7 +92,10 @@ it("applies the final beforePublish policy before storing or returning any proce
   expect(published).toMatchObject({
     grade: "needs_work",
     blockingEnabled: false,
-    notReviewed: ["publication policy applied"],
+    notReviewed: [
+      "transport test double: no capture and no critique ran",
+      "publication policy applied",
+    ],
   });
   const stored = await objectStore.get(`jobs/${jobId}/critique/result.json`);
   expect(JSON.parse(new TextDecoder().decode(stored ?? new Uint8Array()))).toEqual(published);
@@ -211,7 +257,7 @@ describe("DELETE /jobs/:id (cooperative cancel)", () => {
     const coordinator = new CancellationCoordinator(async (id) => {
       killed.push(id);
     });
-    api = createJobApi({ store, objectStore, secret: SECRET, coordinator });
+    api = createJobApi({ store, objectStore, secret: SECRET, processor: testProcessor, coordinator });
 
     const post = await api.handle(signed("POST", "/jobs", "1", submission("k4")));
     const jobId = (post.body as { jobId: string }).jobId;

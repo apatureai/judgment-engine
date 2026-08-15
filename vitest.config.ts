@@ -22,9 +22,13 @@ export default defineConfig({
       "@engine/eval": fromRoot("./packages/eval/src/index.ts"),
       "@engine/feedback": fromRoot("./packages/feedback/src/index.ts"),
       "@engine/review": fromRoot("./packages/review/src/index.ts"),
+      "@engine/runtime/http": fromRoot("./packages/runtime/src/http.ts"),
+      "@engine/runtime/worker": fromRoot("./packages/runtime/src/worker.ts"),
+      "@engine/runtime/input": fromRoot("./packages/runtime/src/input.ts"),
       "@engine/runtime": fromRoot("./packages/runtime/src/index.ts"),
       "@engine/evidence": fromRoot("./packages/evidence/src/index.ts"),
       "@engine/cli": fromRoot("./packages/cli/src/index.ts"),
+      "@engine/serve": fromRoot("./packages/serve/src/index.ts"),
     },
   },
   test: {

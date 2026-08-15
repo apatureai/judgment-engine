@@ -41,3 +41,10 @@ export {
   hasDisplayableConfidence,
 } from "./wire.js";
 export type { WireGrade, WireFinding, EngineReviewResult } from "./wire.js";
+export {
+  NO_MODEL_DISCLOSURE_PREFIX,
+  noModelDisclosure,
+  isModelBacked,
+  isUnjudged,
+} from "./provenance.js";
+export type { JudgmentSource, JudgmentProvenance } from "./provenance.js";

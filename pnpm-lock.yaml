@@ -280,6 +280,45 @@ importers:
 
   packages/secrets: {}
 
+  packages/serve:
+    dependencies:
+      '@electric-sql/pglite':
+        specifier: ^0.5.4
+        version: 0.5.4
+      '@engine/api':
+        specifier: workspace:*
+        version: link:../api
+      '@engine/capture':
+        specifier: workspace:*
+        version: link:../capture
+      '@engine/cli':
+        specifier: workspace:*
+        version: link:../cli
+      '@engine/context':
+        specifier: workspace:*
+        version: link:../context
+      '@engine/critique':
+        specifier: workspace:*
+        version: link:../critique
+      '@engine/db':
+        specifier: workspace:*
+        version: link:../db
+      '@engine/jobs':
+        specifier: workspace:*
+        version: link:../jobs
+      '@engine/review':
+        specifier: workspace:*
+        version: link:../review
+      '@engine/runtime':
+        specifier: workspace:*
+        version: link:../runtime
+      '@engine/storage':
+        specifier: workspace:*
+        version: link:../storage
+      '@engine/types':
+        specifier: workspace:*
+        version: link:../types
+
   packages/storage:
     dependencies:
       '@aws-sdk/client-s3':

@@ -1,7 +1,21 @@
 export { parseArgs, ArgError, DEFAULT_OPTIONS, USAGE } from "./args.js";
 export type { CliOptions, ModelChoice } from "./args.js";
-export { runCli, fixturesDir } from "./run.js";
+export { runCli } from "./run.js";
 export type { RunIo } from "./run.js";
+export { runLocalReview, writeReviewArtifacts } from "./local-review.js";
+export type {
+  LocalReviewRequest,
+  LocalReviewDeps,
+  LocalReviewOutcome,
+  WrittenArtifacts,
+} from "./local-review.js";
+export { resolveLocalModel, fixturesDir } from "./model-choice.js";
+export type { ResolvedLocalModel, ResolveLocalModelOptions } from "./model-choice.js";
+export {
+  CLI_ENGINE_NAME,
+  localJudgmentProvenance,
+  stampJudgmentProvenance,
+} from "./provenance.js";
 export { serveDirectory, resolveRequestPath, candidateFiles } from "./static-server.js";
 export type { StaticSite } from "./static-server.js";
 export { FileScreenshotSink, displayPath } from "./file-sink.js";

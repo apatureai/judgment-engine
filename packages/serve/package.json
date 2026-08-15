@@ -1,0 +1,39 @@
+{
+  "name": "@engine/serve",
+  "version": "0.1.0",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "description": "Local HTTP deployment of the job API: submit and poll real critiques with no database, object store or capture fleet.",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "bin": {
+    "judgment-engine-serve": "./dist/main.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@electric-sql/pglite": "^0.5.4",
+    "@engine/api": "workspace:*",
+    "@engine/capture": "workspace:*",
+    "@engine/cli": "workspace:*",
+    "@engine/context": "workspace:*",
+    "@engine/critique": "workspace:*",
+    "@engine/db": "workspace:*",
+    "@engine/jobs": "workspace:*",
+    "@engine/review": "workspace:*",
+    "@engine/runtime": "workspace:*",
+    "@engine/storage": "workspace:*",
+    "@engine/types": "workspace:*"
+  }
+}

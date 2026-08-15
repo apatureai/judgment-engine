@@ -264,6 +264,8 @@ export function renderSummary(summary: RunSummary): string {
           `  note: review.json carries the ${
             summary.modelKind === "mock" ? "mock client's" : "fixture's"
           } own grade field. It is not a grade for this page.`,
+          // The file outlives this terminal, so the file says it too.
+          "        its provenance block says the same in band: model_backed is false.",
         ]
       : []),
     "",

@@ -1,0 +1,18 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": { "rootDir": "src", "outDir": "dist" },
+  "include": ["src/**/*.ts"],
+  "references": [
+    { "path": "../api" },
+    { "path": "../capture" },
+    { "path": "../cli" },
+    { "path": "../context" },
+    { "path": "../critique" },
+    { "path": "../db" },
+    { "path": "../jobs" },
+    { "path": "../review" },
+    { "path": "../runtime" },
+    { "path": "../storage" },
+    { "path": "../types" }
+  ]
+}

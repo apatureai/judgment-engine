@@ -6,7 +6,6 @@ import {
   type ReviewDepth,
 } from "@engine/jobs";
 import { objectKey, type ObjectStore } from "@engine/storage";
-import { ENGINE_VERSION } from "@engine/critique";
 import { SCHEMA_VERSION, type EngineReviewResult } from "@engine/types";
 import {
   INSTALLATION_HEADER,
@@ -14,7 +13,6 @@ import {
   TIMESTAMP_HEADER,
   verifyEngineRequest,
 } from "./hmac.js";
-import { modelForDepth } from "./routing.js";
 
 /** Produces the wire result for a job (the worker step). */
 export type JobProcessor = (job: JobRecord) => Promise<EngineReviewResult>;
@@ -37,12 +35,22 @@ export interface JobApiOptions {
   /** Anti-replay window; omit to disable skew checking. */
   maxSkewMs?: number;
   now?: () => number;
-  /** Worker step; defaults to a version-stamped stub result. */
-  processor?: JobProcessor;
+  /**
+   * Worker step. REQUIRED, with no default.
+   *
+   * This option used to be optional, falling back to an "EM0 stub" that
+   * returned a version-stamped result with `findings: []`, `notReviewed: []`
+   * and `promptVersion: "stub@0"`. An empty result is indistinguishable from a
+   * clean review, so a deployment that had never been wired to the real
+   * pipeline reported every page as having nothing wrong with it. There is no
+   * safe default here: the only honest answer to "nothing is bound" is to
+   * refuse to build the API, which is what the constructor does now. A caller
+   * that wants a canned result passes one explicitly, at its own call site,
+   * where a reader can see it.
+   */
+  processor: JobProcessor;
   /** Final fail-closed policy hook, after every processor path and before persistence. */
   beforePublish?: BeforePublish;
-  /** Production roots must provide the real processor; the EM0 stub is test/dev only. */
-  production?: boolean;
   /** Cooperative-cancellation coordinator (#66); when set, DELETE aborts inference + microVM. */
   coordinator?: CancellationCoordinator;
 }
@@ -75,29 +83,6 @@ const json = (status: number, body: unknown, headers: Record<string, string> = {
   body,
 });
 
-function defaultProcessor(job: JobRecord): Promise<EngineReviewResult> {
-  // EM0 stub: version-stamped result with the depth-routed model. EM2 replaces
-  // this with the real capture + critique pipeline.
-  return Promise.resolve({
-    grade: "ship",
-    overall: "stub result (EM0 scaffold)",
-    blockingEnabled: false,
-    confidenceUnavailableReason: "missing_calibration_report",
-    findings: [],
-    notReviewed: [],
-    artifacts: { annotatedScreenshots: [] },
-    screenshotRetentionSeconds: 0,
-    metadata: {
-      engineVersion: ENGINE_VERSION,
-      model: modelForDepth(job.depth),
-      promptVersion: "stub@0",
-      captureVersion: "stub@0",
-      rubricVersion: "design-rubric@1",
-      uiDnaVersion: null,
-    },
-  });
-}
-
 /**
  * Async job API: `POST /jobs` -> 202 {jobId} (409 on duplicate idempotency key),
  * `GET /jobs/:id` polls, `DELETE /jobs/:id` cancels. Every request is HMAC-
@@ -105,12 +90,16 @@ function defaultProcessor(job: JobRecord): Promise<EngineReviewResult> {
  * `x-schema-version` header + version metadata.
  */
 export function createJobApi(options: JobApiOptions) {
-  if (options.production && !options.processor) {
-    throw new Error("production Job API requires an explicit review processor");
+  // Defensive at runtime as well as in the type: this constructor is reachable
+  // from JavaScript and from JSON-shaped configuration, and the failure mode it
+  // guards (an unbound API answering "no findings") is the one this repository
+  // exists to make impossible.
+  if (typeof options.processor !== "function") {
+    throw new Error("Job API requires an explicit review processor");
   }
   const consumer = options.consumer ?? "gate";
   const intentType = options.intentType ?? "pr_review";
-  const processor = options.processor ?? defaultProcessor;
+  const { processor } = options;
   // Replay protection is on by default (signers send Date.now()); a caller can
   // widen/narrow the window but not silently ship with it off.
   const maxSkewMs = options.maxSkewMs ?? 300_000;

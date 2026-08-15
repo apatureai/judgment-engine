@@ -2,7 +2,7 @@ import { mkdtemp, readFile, readdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { CaptureBrowser, CapturePage, ExtractedPage } from "@engine/capture";
-import type { EngineReviewResult } from "@engine/types";
+import { NO_MODEL_DISCLOSURE_PREFIX, type EngineReviewResult } from "@engine/types";
 import { describe, expect, it } from "vitest";
 import { parseArgs, runCli, type RunIo } from "../src/index.js";
 
@@ -214,6 +214,34 @@ describe("runCli", () => {
     const result = JSON.parse(await readFile(join(dir, "review.json"), "utf8")) as EngineReviewResult;
     expect(result.findings).toEqual([]);
     expect(result.grade).toBe("ship");
+  });
+
+  it("stamps review.json with provenance saying nothing judged the page", async () => {
+    const { dir, out } = await run([]);
+    const result = JSON.parse(await readFile(join(dir, "review.json"), "utf8")) as EngineReviewResult;
+
+    // The terminal refuses to print the grade; the file has to say the same
+    // thing on its own, because the file is what gets read later.
+    expect(result.provenance).toEqual({
+      model_backed: false,
+      source: "canned",
+      engine: "verdict-cli",
+      model: null,
+      detail: expect.stringContaining("canned client") as unknown as string,
+    });
+    expect(result.notReviewed[0]).toContain(NO_MODEL_DISCLOSURE_PREFIX);
+    expect(result.overall).toContain(NO_MODEL_DISCLOSURE_PREFIX);
+    // The grade is still in the payload, so the disclosure names it.
+    expect(result.grade).toBe("needs_work");
+    expect(result.notReviewed[0]).toContain("the grade");
+    expect(out).toContain("its provenance block says the same in band: model_backed is false.");
+  });
+
+  it("stamps the mock client's run too, where there is not even replayed text", async () => {
+    const { dir } = await run(["--model", "mock"]);
+    const result = JSON.parse(await readFile(join(dir, "review.json"), "utf8")) as EngineReviewResult;
+    expect(result.provenance?.model_backed).toBe(false);
+    expect(result.provenance?.detail).toContain("mock client");
   });
 
   it("honours --routes and --viewports", async () => {
