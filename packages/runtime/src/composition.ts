@@ -35,9 +35,21 @@ import {
   type GroundingAuthorityReceipt,
 } from "./authority.js";
 import { loadRuntimeConfig, type RuntimeConfig } from "./config.js";
+import {
+  applyCaptureEvidence,
+  assertEvidenceResolvable,
+  signEvidenceUrls,
+} from "./evidence.js";
 import { EngineHttpServer } from "./http.js";
 import { repositoryForJob, toReviewInput } from "./input.js";
 import { applyMeasuredRoutes, measurementGap } from "./measurement.js";
+import {
+  assertAttested,
+  stampJudgmentProvenance,
+  UnattestedResultError,
+  witnessModelCalls,
+  type JudgmentWitness,
+} from "./provenance.js";
 import { EngineWorker, PgNotificationSource, type NotificationSource } from "./worker.js";
 
 export interface EngineRuntimeOptions {
@@ -59,6 +71,15 @@ export interface EngineRuntimeOptions {
     "recordAuthorityLookupLatency" | "recordAuthorityLookupFailure"
   >;
   embedder?: Embedder;
+  /**
+   * How long a published review's evidence links stay openable, in seconds
+   * (default one hour). This is the TTL on the signed object-store URLs the
+   * publication step mints for every finding's screenshot: after it elapses the
+   * links are dead and the durable object key in `screenshotId` is all that is
+   * left. Longer means a leaked result document grants access for longer;
+   * shorter means a reviewer who opens the PR comment tomorrow finds nothing.
+   */
+  evidenceUrlTtlSeconds?: number;
   notificationSource?: NotificationSource;
   databaseReady(): Promise<boolean>;
   workerPollMs?: number;
@@ -98,11 +119,18 @@ export function createEngineRuntime(options: EngineRuntimeOptions): EngineRuntim
     initial: GroundingAuthorityReceipt | null;
     initialFailure: GroundingAuthorityUnknownReason | null;
   }>();
+  const evidenceUrlTtlSeconds = options.evidenceUrlTtlSeconds ?? 3_600;
+  // What each in-flight job's model calls actually did, keyed the same way and
+  // torn down at the same moment as the grounding evidence above: the answer is
+  // observed while the review runs and read at publication.
+  const witnessByJob = new Map<string, JudgmentWitness>();
   const coordinator = new CancellationCoordinator((jobId) => options.capture.cancel(jobId));
   const coreProcessor = createJobReviewProcessor(
     toReviewInput,
     async (job: JobRecord, input) => {
       const signal = coordinator.register(job.id);
+      const witness = witnessModelCalls(options.modelFactory);
+      witnessByJob.set(job.id, witness);
       const promotedCalibration = options.calibrationResolver
         ? await options.calibrationResolver.currentCalibration()
         : null;
@@ -169,6 +197,10 @@ export function createEngineRuntime(options: EngineRuntimeOptions): EngineRuntim
       // CLI and the local server and false of the thing behind the HTTP API.
       const captured = await options.capture.forJob(job.id, signal)(input.url, input.captureContext);
       applyMeasuredRoutes(input, captured);
+      // Same ordering problem, same answer: a finding's evidence is the shot of
+      // its own route and viewport, and which shots exist is a fact about the
+      // capture that has just come back.
+      applyCaptureEvidence(input, captured);
       const gap = measurementGap(captured);
       if (gap) options.logger?.info(`engine job ${job.id}: ${gap}`);
 
@@ -176,7 +208,10 @@ export function createEngineRuntime(options: EngineRuntimeOptions): EngineRuntim
         // The capture already ran, so the seam hands the orchestrator the result
         // it produced rather than capturing the same pages a second time.
         captureInSandbox: async () => captured,
-        modelFactory: options.modelFactory,
+        // The witness is a pass-through around the configured factory; the
+        // orchestrator gets the same clients and the result gets to say whether
+        // any of them was ever asked to look at a page.
+        modelFactory: witness.factory,
         ...(options.passModels ? { passModels: options.passModels } : {}),
         ...(calibration.ok
           ? { calibration: calibration.binding }
@@ -188,7 +223,10 @@ export function createEngineRuntime(options: EngineRuntimeOptions): EngineRuntim
     },
   );
   const processor = async (job: JobRecord) => coreProcessor(job);
-  const beforePublish = async (job: JobRecord, assembled: EngineReviewResult): Promise<EngineReviewResult> => {
+  const applyGroundingAuthority = async (
+    job: JobRecord,
+    assembled: EngineReviewResult,
+  ): Promise<EngineReviewResult> => {
     const grounding = groundingByJob.get(job.id);
     if (!grounding || !authority) return assembled;
 
@@ -244,6 +282,36 @@ export function createEngineRuntime(options: EngineRuntimeOptions): EngineRuntim
       return enforceGroundingAuthority(stamped, { status: "unknown" });
     }
   };
+  /**
+   * Everything that has to be true of the bytes before they become the
+   * published result, in the order the facts become knowable.
+   *
+   * Grounding authority first, because it can still suppress the grade and add
+   * to `notReviewed`, and the provenance stamp has to describe the result that
+   * is actually published. Evidence next: the projection wrote durable object
+   * keys and this is where they become links, at publication time so the TTL is
+   * spent by a reader rather than by the deep pass. The stamp last, then both
+   * guards, so a path that ever skips a step fails the attempt instead of
+   * publishing a grade of unknown origin or evidence that opens nothing.
+   */
+  const beforePublish = async (job: JobRecord, assembled: EngineReviewResult): Promise<EngineReviewResult> => {
+    const grounded = await applyGroundingAuthority(job, assembled);
+    const evidenced = await signEvidenceUrls(grounded, (objectKey) =>
+      options.objectStore.signedGetUrl(objectKey, evidenceUrlTtlSeconds),
+    );
+    const witness = witnessByJob.get(job.id);
+    if (!witness) {
+      // Unreachable by construction: the deps provider records the witness
+      // before the orchestrator runs, and nothing reaches publication without
+      // it. Fail closed anyway, because the alternative to knowing is guessing.
+      throw new UnattestedResultError(
+        `job ${job.id} reached publication with no record of what its model calls did; refusing to attest`,
+      );
+    }
+    return assertEvidenceResolvable(
+      assertAttested(stampJudgmentProvenance(evidenced, witness.provenance())),
+    );
+  };
   const api = createJobApi({
     store: options.store,
     objectStore: options.objectStore,
@@ -275,6 +343,7 @@ export function createEngineRuntime(options: EngineRuntimeOptions): EngineRuntim
     onJobSettled: (jobId) => {
       coordinator.release(jobId);
       groundingByJob.delete(jobId);
+      witnessByJob.delete(jobId);
     },
     ...(options.logger ? { logger: options.logger } : {}),
   });
@@ -354,6 +423,7 @@ export async function buildProductionRuntime(env: NodeJS.ProcessEnv = process.en
     authorityMaxAgeMs: config.authorityMaxAgeMs,
     authorityMetrics,
     ...(openai.embedder ? { embedder: openai.embedder } : {}),
+    evidenceUrlTtlSeconds: config.evidenceUrlTtlSeconds,
     notificationSource: new PgNotificationSource(config.databaseUrl),
     databaseReady: async () => {
       await pool.query("SELECT 1");

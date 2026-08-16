@@ -29,8 +29,24 @@ export {
   truncatedRouteReason,
 } from "./input.js";
 export type { CappedRoutes, RuntimeReviewRequest } from "./input.js";
+export {
+  applyCaptureEvidence,
+  assertEvidenceResolvable,
+  screenshotIdForCapture,
+  signEvidenceUrls,
+  UnresolvedEvidenceError,
+} from "./evidence.js";
+export type { EvidenceUrlSigner } from "./evidence.js";
 export { applyMeasuredRoutes, measuredRoutes, measurementGap } from "./measurement.js";
 export type { MeasuredCapture, MeasuredCaptureInSandbox } from "./measurement.js";
+export {
+  assertAttested,
+  RUNTIME_ENGINE_NAME,
+  stampJudgmentProvenance,
+  UnattestedResultError,
+  witnessModelCalls,
+} from "./provenance.js";
+export type { JudgmentWitness } from "./provenance.js";
 export { EngineWorker, PgNotificationSource } from "./worker.js";
 export type { EngineWorkerOptions, NotificationSource, WorkerStore } from "./worker.js";
 

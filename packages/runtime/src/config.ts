@@ -22,6 +22,12 @@ export interface RuntimeConfig {
   objectStoreEndpoint?: string;
   objectStoreAccessKeyId: string;
   objectStoreSecretAccessKey: string;
+  /**
+   * How long the evidence links in a published review stay openable. Default
+   * one hour: long enough for a reviewer to click the link in a PR comment,
+   * short enough that a leaked result document stops granting access.
+   */
+  evidenceUrlTtlSeconds: number;
   workerPollMs: number;
   workerMaxAttempts: number;
   /** Lease TTL per claimed attempt (#166); the worker heartbeats at a third of it. */
@@ -97,6 +103,7 @@ export async function loadRuntimeConfig(
     ...(env.OBJECT_STORE_ENDPOINT ? { objectStoreEndpoint: env.OBJECT_STORE_ENDPOINT } : {}),
     objectStoreAccessKeyId,
     objectStoreSecretAccessKey,
+    evidenceUrlTtlSeconds: positiveInt(env, "EVIDENCE_URL_TTL_SECONDS", 3_600),
     workerPollMs: positiveInt(env, "WORKER_POLL_MS", 5_000),
     workerMaxAttempts: positiveInt(env, "WORKER_MAX_ATTEMPTS", 3),
     workerLeaseMs: positiveInt(env, "WORKER_LEASE_MS", 60_000),
