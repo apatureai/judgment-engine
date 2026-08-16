@@ -39,8 +39,15 @@ export {
   loadGoldenResult,
   loadPreCalibrationResult,
   hasDisplayableConfidence,
+  nothingReviewed,
 } from "./wire.js";
-export type { WireGrade, WireFinding, EngineReviewResult } from "./wire.js";
+export type {
+  WireGrade,
+  WireFinding,
+  WireViewport,
+  ReviewCoverage,
+  EngineReviewResult,
+} from "./wire.js";
 export {
   NO_MODEL_DISCLOSURE_PREFIX,
   noModelDisclosure,

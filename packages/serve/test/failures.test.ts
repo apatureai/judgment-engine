@@ -138,6 +138,12 @@ describe("the publication guard", () => {
       rubricVersion: "design-rubric@1",
       uiDnaVersion: null,
     },
+    coverage: {
+      routesRequested: ["/"],
+      routesReviewed: ["/"],
+      viewportsRequested: ["mobile"],
+      viewportsReviewed: ["mobile"],
+    },
   };
 
   it("refuses a result carrying no judgment provenance at all", () => {
@@ -185,5 +191,21 @@ describe("the publication guard", () => {
       },
     };
     expect(assertAttested(judged)).toBe(judged);
+  });
+
+  it("refuses a result that states no coverage, however well attested (#165)", () => {
+    const { coverage: _dropped, ...withoutCoverage } = base;
+    expect(() =>
+      assertAttested({
+        ...(withoutCoverage as EngineReviewResult),
+        provenance: {
+          model_backed: true,
+          source: "model",
+          engine: "verdict-http",
+          model: "test-model",
+          detail: "a vision model judged the capture",
+        },
+      }),
+    ).toThrow(/without stating what it reviewed/);
   });
 });

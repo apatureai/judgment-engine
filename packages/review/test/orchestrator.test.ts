@@ -583,3 +583,135 @@ describe("runReview — end-to-end orchestrator", () => {
     expect(thinking?.messages.some((m) => m.content.includes("Primary CTA must use the accent token"))).toBe(true);
   });
 });
+
+// ---------------------------------------------------------------------------
+// #165: coverage, the structural answer to "what did this run actually look at"
+// ---------------------------------------------------------------------------
+describe("runReview coverage (#165)", () => {
+  it("reports full coverage when every requested route and viewport was judged", async () => {
+    const routes = ["/pricing", "/home"];
+    const { factory } = scriptedModel((route) =>
+      route === "/pricing"
+        ? critiqueFor("/pricing", "minor", "needs_work", { dimension: "color_contrast", elementRef: "#cta" })
+        : critiqueFor("/home", "nit", "ship_with_nits", { dimension: "spacing", elementRef: "#hero" }),
+    );
+
+    const result = await runReview(baseInput(routes), {
+      captureInSandbox: stubCapture(routes, ["#cta", "#hero"]),
+      modelFactory: factory,
+    });
+
+    expect(result.coverage).toEqual({
+      routesRequested: ["/pricing", "/home"],
+      routesReviewed: ["/pricing", "/home"],
+      viewportsRequested: ["mobile", "desktop"],
+      viewportsReviewed: ["mobile", "desktop"],
+    });
+  });
+
+  it("reports partial coverage for a requested route the capture never produced", async () => {
+    // Two routes asked for, only /pricing captured. A clean partial review is
+    // still a real review: coverage says which half of the ask it covered.
+    const captured = ["/pricing"];
+    const requested = ["/pricing", "/checkout"];
+    const { factory } = scriptedModel(() => critiqueFor("/pricing", "minor", "needs_work"));
+
+    const input = baseInput(requested);
+    const result = await runReview(input, {
+      captureInSandbox: stubCapture(captured, ["#cta"]),
+      modelFactory: factory,
+    });
+
+    expect(result.coverage).toEqual({
+      routesRequested: ["/pricing", "/checkout"],
+      routesReviewed: ["/pricing"],
+      viewportsRequested: ["mobile", "desktop"],
+      viewportsReviewed: ["mobile", "desktop"],
+    });
+    expect(result.notReviewed.some((line) => line.includes("/checkout"))).toBe(true);
+  });
+
+  it("reports NOTHING reviewed when the capture produced no images", async () => {
+    const routes = ["/pricing"];
+    const { factory } = scriptedModel(() => critiqueFor("/pricing", "major", "blocked"));
+
+    const result = await runReview(baseInput(routes), {
+      captureInSandbox: stubCapture(routes, ["#cta"], { empty: true }),
+      modelFactory: factory,
+    });
+
+    // The grade is still `ship` and findings are still empty: field for field
+    // this is a clean review, and coverage is the only thing that says otherwise.
+    expect(result.grade).toBe("ship");
+    expect(result.findings).toHaveLength(0);
+    expect(result.coverage).toEqual({
+      routesRequested: ["/pricing"],
+      routesReviewed: [],
+      viewportsRequested: ["mobile", "desktop"],
+      viewportsReviewed: [],
+    });
+  });
+
+  it("reports NOTHING reviewed when every route's critique fails coercion", async () => {
+    const routes = ["/pricing", "/home"];
+    // Deep-pass coercion returns a payload that is not a CritiqueOutput, so
+    // every route comes back `output: null` and contributes no judgment.
+    const { factory } = scriptedModel(() => ({ not: "a critique" }));
+
+    const result = await runReview(baseInput(routes), {
+      captureInSandbox: stubCapture(routes, ["#cta", "#hero"]),
+      modelFactory: factory,
+    });
+
+    expect(result.grade).toBe("ship");
+    expect(result.findings).toHaveLength(0);
+    expect(result.notReviewed).toContain("/pricing: no valid critique");
+    expect(result.notReviewed).toContain("/home: no valid critique");
+    expect(result.coverage?.routesReviewed).toEqual([]);
+    expect(result.coverage?.viewportsReviewed).toEqual([]);
+  });
+
+  it("counts a route as reviewed only when its own critique came back valid", async () => {
+    const routes = ["/pricing", "/home"];
+    // /pricing coerces; /home does not.
+    const { factory } = scriptedModel((route) =>
+      route === "/pricing" ? critiqueFor("/pricing", "minor", "needs_work") : { not: "a critique" },
+    );
+
+    const result = await runReview(baseInput(routes), {
+      captureInSandbox: stubCapture(routes, ["#cta", "#hero"]),
+      modelFactory: factory,
+    });
+
+    expect(result.coverage?.routesRequested).toEqual(["/pricing", "/home"]);
+    expect(result.coverage?.routesReviewed).toEqual(["/pricing"]);
+  });
+
+  it("counts the triage short-circuit as reviewed: unchanged-since-baseline is a conclusion", async () => {
+    const routes = ["/pricing"];
+    const { factory, calls } = scriptedModel(() => critiqueFor("/pricing", "major", "blocked"));
+    const input = baseInput(routes, {
+      routes: [
+        {
+          route: "/pricing",
+          baselinePhash: "ffff",
+          currentPhash: "ffff",
+          tileScores: [{ ssim: 1, diffRatio: 0 }],
+        },
+      ],
+    });
+
+    const result = await runReview(input, {
+      captureInSandbox: stubCapture(routes, ["#cta"]),
+      modelFactory: factory,
+    });
+
+    expect(calls).toHaveLength(0);
+    expect(result.coverage).toEqual({
+      routesRequested: ["/pricing"],
+      routesReviewed: ["/pricing"],
+      viewportsRequested: ["mobile", "desktop"],
+      viewportsReviewed: ["mobile", "desktop"],
+    });
+  });
+});

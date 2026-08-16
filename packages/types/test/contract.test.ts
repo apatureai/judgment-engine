@@ -3,6 +3,7 @@ import {
   hasDisplayableConfidence,
   loadGoldenResult,
   loadPreCalibrationResult,
+  nothingReviewed,
   SCHEMA_VERSION,
 } from "../src/index.js";
 import type { EngineReviewResult } from "../src/index.js";
@@ -76,6 +77,38 @@ describe("wire contract (cross-repo anchor with Gate)", () => {
     // annotatedScreenshots entries keep their {findingId, url} shape.
     const a = golden.artifacts.annotatedScreenshots[0];
     if (a) expect(Object.keys(a).sort()).toEqual(["findingId", "url"]);
+  });
+
+  it("#165: is the cross-repo PARTIAL-coverage anchor (skipped route + skipped viewport, real findings)", () => {
+    const coverage = golden.coverage;
+    if (!coverage) throw new Error("the golden fixture must state coverage");
+    expect(coverage.routesRequested).toEqual(["/pricing", "/checkout"]);
+    expect(coverage.routesReviewed).toEqual(["/pricing"]);
+    expect(coverage.viewportsRequested).toEqual(["mobile", "tablet", "desktop"]);
+    expect(coverage.viewportsReviewed).toEqual(["mobile", "desktop"]);
+    // Reviewed is a subset of requested: no producer may report reviewing
+    // something nobody asked for.
+    for (const route of coverage.routesReviewed) expect(coverage.routesRequested).toContain(route);
+    for (const vp of coverage.viewportsReviewed) expect(coverage.viewportsRequested).toContain(vp);
+    // Partial, but NOT empty: something was reviewed, so the grade is a verdict.
+    expect(nothingReviewed(coverage)).toBe(false);
+    // ...and every skipped item is named in prose too, so a consumer reading only
+    // `notReviewed` still sees it.
+    expect(golden.notReviewed.some((line) => line.includes("/checkout"))).toBe(true);
+    expect(golden.notReviewed.some((line) => line.includes("tablet"))).toBe(true);
+  });
+
+  it("#165: reads an EMPTY reviewed-route set as 'nothing was reviewed', whatever the grade says", () => {
+    // The exact state the field exists for: a `ship` grade with zero findings,
+    // byte-identical to a clean page apart from this one field.
+    expect(
+      nothingReviewed({
+        routesRequested: ["/pricing"],
+        routesReviewed: [],
+        viewportsRequested: ["mobile"],
+        viewportsReviewed: [],
+      }),
+    ).toBe(true);
   });
 
   it("carries the version stamp (engine/model/prompt/capture/ui-dna)", () => {

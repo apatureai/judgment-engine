@@ -29,6 +29,58 @@ export type WireDimension =
   | "accessibility"
   | "brand";
 
+/** The viewport identifiers on the wire: the closed enum shared by findings and coverage. */
+export type WireViewport = "mobile" | "tablet" | "desktop";
+
+/**
+ * What this run actually looked at (#165).
+ *
+ * A wire result always carries a `grade`, and a result with zero findings always
+ * grades `ship` (`gradeFromFindings`: no surviving finding implies nothing to
+ * report). That is correct for a clean page and indistinguishable, field for
+ * field, from three runs that judged nothing at all: a capture that produced no
+ * images, a run where every route's critique failed coercion, and a route set
+ * that was never reachable. A consumer that gates a merge on the grade publishes
+ * a green tick for all four.
+ *
+ * `notReviewed` cannot close that gap. It is free prose, a producer may leave it
+ * empty, and a NON-empty `notReviewed` is perfectly compatible with a real,
+ * clean, partial review (the golden fixture is exactly that: `/checkout` and the
+ * tablet viewport skipped, real findings on what was reviewed). So coverage is
+ * stated structurally instead, in identifiers rather than counts, so a consumer
+ * can name what was skipped rather than only count it.
+ *
+ * The contract every producer follows: populate these from WHAT HAPPENED, never
+ * from configuration. `routesRequested` is what the review was asked to cover;
+ * `routesReviewed` is the subset this run actually formed a judgment about.
+ * `routesReviewed` empty means nothing was reviewed, and a consumer is entitled
+ * to treat the accompanying grade as meaningless.
+ *
+ * Additive + optional on schema v1 (`x-schema-version` unchanged), like
+ * `dimension`, `pageHealthFootnote` and `provenance`: an older consumer parses a
+ * result carrying it, and a consumer must read ABSENT as "this producer does not
+ * report coverage", never as "everything was reviewed".
+ */
+export interface ReviewCoverage {
+  /** Routes the review was asked to cover. */
+  routesRequested: string[];
+  /** Routes this run actually formed a judgment about. Empty ⇒ nothing was reviewed. */
+  routesReviewed: string[];
+  /** Viewports the review was asked to cover. */
+  viewportsRequested: WireViewport[];
+  /** Viewports actually captured and judged, across the reviewed routes. */
+  viewportsReviewed: WireViewport[];
+}
+
+/**
+ * True when the run this coverage describes judged nothing at all. Deliberately
+ * keyed on routes: a viewport is only ever reviewed as part of a route, so an
+ * empty reviewed-route set is the complete statement of "nothing was reviewed".
+ */
+export function nothingReviewed(coverage: ReviewCoverage): boolean {
+  return coverage.routesReviewed.length === 0;
+}
+
 export interface WireFinding {
   id: string;
   /**
@@ -45,7 +97,7 @@ export interface WireFinding {
   title: string;
   description: string;
   route: string;
-  viewport: "mobile" | "tablet" | "desktop";
+  viewport: WireViewport;
   element: string | null;
   screenshotId: string | null;
   suggestion: string | null;
@@ -88,6 +140,12 @@ export interface EngineReviewResult {
   };
   screenshotRetentionSeconds: number;
   metadata: ResultMetadata;
+  /**
+   * What this run actually looked at (#165). Additive + optional on schema v1.
+   * Absent means the producer does not report coverage, never "everything was
+   * reviewed". See `ReviewCoverage`.
+   */
+  coverage?: ReviewCoverage;
   /**
    * Whether anything judged this page, stated in the payload itself. Additive +
    * optional (schema v1, x-schema-version), like `dimension` and

@@ -593,6 +593,17 @@ down the in-flight work. Jobs live in Postgres (`pg_notify` wakeups,
 `SELECT ... FOR UPDATE SKIP LOCKED` claims) and results live in object storage. Every result carries
 an `x-schema-version` header and a `{engineVersion, model, promptVersion, captureVersion}` stamp.
 
+Every result also states, in the payload, **whether anything judged the page and what it judged**. A
+wire result always carries a `grade`, and a result with no surviving findings grades `ship`, so an
+empty capture and a genuinely clean page are otherwise identical documents. `provenance` answers the
+first half (`model_backed`, `source`, `engine`, `model`, `detail`); `coverage` answers the second
+(`routesRequested`, `routesReviewed`, `viewportsRequested`, `viewportsReviewed`), populated from what
+the pipeline actually did rather than from what it was configured to do. An empty `routesReviewed` is
+this engine saying its own grade describes nothing, and the server refuses to publish a result
+carrying neither stamp. Both fields are additive and optional on schema v1, so an older consumer
+still parses a result that has them, and a consumer that reads a missing `coverage` must read it as
+"not stated", never as "everything was reviewed".
+
 Idempotency is exact: `INSERT ... ON CONFLICT DO NOTHING` is the linearization point, and an existing
 job is returned only when its persisted request digest matches. A reused key with a different request
 is a non-enumerating `409` that does not leak the existing job id.

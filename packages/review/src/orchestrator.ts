@@ -6,6 +6,8 @@ import type {
   CaptureInSandbox,
   ConfidenceUnavailableReason,
   GeometryRect,
+  ReviewCoverage,
+  WireViewport,
 } from "@engine/types";
 import {
   buildContextBlock,
@@ -173,6 +175,49 @@ function capturedRoutes(images: CaptureImage[]): string[] {
   return [...new Set(images.map((i) => i.route))];
 }
 
+/**
+ * State what this run actually looked at (#165).
+ *
+ * Built from observations, never from configuration: `routesRequested` and
+ * `viewportsRequested` are the ask, and everything else is what happened to it.
+ * A route counts as REVIEWED when this run reached a judgment about it, which is
+ * true on exactly two paths:
+ *
+ *   - the triage short-circuit, where every captured route was positively
+ *     confirmed unchanged against a reviewed baseline (pHash match confirmed by
+ *     a tile-wise sensitive diff): that is a conclusion about the route, so the
+ *     captured routes are reviewed; and
+ *   - the deep path, where a route was captured and its critique either came
+ *     back valid or was never needed because triage cleared it. A suspect route
+ *     whose deep-pass output failed coercion (`output: null`) is NOT reviewed:
+ *     nothing survived to judge it with, and `assembleCritique` already records
+ *     it in `notReviewed` as "<route>: no valid critique".
+ *
+ * A route with no captured image is never reviewed, so an empty capture yields
+ * an empty `routesReviewed`, which is the honest statement that this run judged
+ * nothing at all.
+ *
+ * Viewports are reported per reviewed route: a viewport is only ever looked at
+ * as part of a route, so viewports of a route that was not reviewed are not
+ * reviewed either.
+ */
+function buildCoverage(args: {
+  requestedRoutes: string[];
+  requestedViewports: WireViewport[];
+  reviewedRoutes: string[];
+  images: CaptureImage[];
+}): ReviewCoverage {
+  const reviewed = new Set(args.reviewedRoutes);
+  return {
+    routesRequested: [...new Set(args.requestedRoutes)],
+    routesReviewed: [...new Set(args.reviewedRoutes)],
+    viewportsRequested: [...new Set(args.requestedViewports)],
+    viewportsReviewed: [
+      ...new Set(args.images.filter((i) => reviewed.has(i.route)).map((i) => i.viewport)),
+    ],
+  };
+}
+
 /** Project captured images for one route into the model-image shape (#16/#17 seam). */
 function modelImagesFor(route: string, images: CaptureImage[]): ModelImage[] {
   return images
@@ -203,6 +248,15 @@ export async function runReview(input: ReviewInput, deps: ReviewDeps): Promise<E
   if (capture.images.length === 0) {
     return emptyFindingsResult(input, deps, capture.captureVersion, {
       extraNotReviewed: ["no captured routes"],
+      // Nothing was captured, so nothing was reviewed. The grade this result
+      // still carries is `ship` by construction, and coverage is what tells a
+      // consumer not to publish it as one.
+      coverage: buildCoverage({
+        requestedRoutes: input.captureContext.routes,
+        requestedViewports: input.captureContext.viewports,
+        reviewedRoutes: [],
+        images: [],
+      }),
     });
   }
 
@@ -231,7 +285,17 @@ export async function runReview(input: ReviewInput, deps: ReviewDeps): Promise<E
 
   // 3a. Short-circuit: no design changes -> emit the triage result, no deep pass.
   if (!triage.needsDeepReview) {
-    return emptyFindingsResult(input, deps, capture.captureVersion, { overall: triage.summary });
+    return emptyFindingsResult(input, deps, capture.captureVersion, {
+      overall: triage.summary,
+      // Every captured route was positively confirmed unchanged against its
+      // baseline, which is a conclusion about the route: reviewed.
+      coverage: buildCoverage({
+        requestedRoutes: input.captureContext.routes,
+        requestedViewports: input.captureContext.viewports,
+        reviewedRoutes: capturedRoutes(capture.images),
+        images: capture.images,
+      }),
+    });
   }
 
   // 4. Deep pass (#29) over the SUSPECT routes only. Thread the route's
@@ -309,10 +373,25 @@ export async function runReview(input: ReviewInput, deps: ReviewDeps): Promise<E
   //    page-health footnote (#20), console errors / failed requests / blocked
   //    fonts gathered during capture, is surfaced in `artifacts`, never mixed
   //    into findings; a clean page yields null and omits the field (golden-safe).
+  // Coverage (#165) from what the deep path actually did: a captured route is
+  // reviewed unless its deep pass came back with no valid critique at all. When
+  // EVERY route lands there the reviewed set is empty, which is how a run that
+  // judged nothing is told apart from a clean page that graded `ship`.
+  const noValidCritique = new Set(
+    deepResults.filter((r) => r.output === null).map((r) => r.route),
+  );
+  const coverage = buildCoverage({
+    requestedRoutes: input.captureContext.routes,
+    requestedViewports: input.captureContext.viewports,
+    reviewedRoutes: capturedRoutes(capture.images).filter((route) => !noValidCritique.has(route)),
+    images: capture.images,
+  });
+
   deps.onCritique?.(critique);
   return toEngineReviewResult(critique, {
     ...input.wireOptions,
     pageHealthFootnote: input.wireOptions.pageHealthFootnote ?? pageHealthFootnote(capture.pageHealth),
+    coverage,
   });
 }
 
@@ -357,7 +436,7 @@ function emptyFindingsResult(
   input: ReviewInput,
   deps: ReviewDeps,
   captureVersion: string,
-  options: { overall?: string; extraNotReviewed?: string[] } = {},
+  options: { overall?: string; extraNotReviewed?: string[]; coverage: ReviewCoverage },
 ): EngineReviewResult {
   const deepConfig = resolvePassModel("deep", deps.passModels);
   const critique = assembleCritique([], {
@@ -375,5 +454,5 @@ function emptyFindingsResult(
   // short-circuit we carry the triage summary through verbatim.
   const stamped = options.overall !== undefined ? { ...critique, overall: options.overall } : critique;
   deps.onCritique?.(stamped);
-  return toEngineReviewResult(stamped, input.wireOptions);
+  return toEngineReviewResult(stamped, { ...input.wireOptions, coverage: options.coverage });
 }

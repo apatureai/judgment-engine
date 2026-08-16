@@ -35,5 +35,17 @@ export function assertAttested(result: EngineReviewResult): EngineReviewResult {
       "a result nothing judged reached publication without its notReviewed disclosure",
     );
   }
+  // The same guard, for the other half of the question (#165). `provenance` says
+  // whether a model was called; `coverage` says what it was called ON, and only
+  // the second one catches a green grade published over an empty capture.
+  // Coverage is OPTIONAL on the wire, because a third-party engine may have no
+  // way to report it, but it is MANDATORY for anything this server publishes:
+  // every result here came through the orchestrator, which always knows.
+  if (!result.coverage) {
+    throw new LocalEngineError(
+      "unattested_result",
+      "a review reached publication without stating what it reviewed; refusing to serve a grade of unknown coverage",
+    );
+  }
   return result;
 }

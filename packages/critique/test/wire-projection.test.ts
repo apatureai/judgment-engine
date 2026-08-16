@@ -1,5 +1,5 @@
 import { hasDisplayableConfidence, loadGoldenResult } from "@engine/types";
-import type { Critique, Finding } from "@engine/types";
+import type { Critique, Finding, ReviewCoverage } from "@engine/types";
 import { describe, expect, it } from "vitest";
 import { deriveTitle, toEngineReviewResult, wireFindingId } from "../src/index.js";
 
@@ -48,14 +48,36 @@ describe("toEngineReviewResult (wire projection — cross-repo contract)", () =>
 
     // `provenance` is stamped by the surface that ran the review
     // (`stampJudgmentProvenance` in @engine/cli), not by the projector, because
-    // only the surface knows whether a model was actually called. The golden
-    // fixture carries the stamp because it is a PUBLISHED result; a projection is
-    // one stage earlier.
-    const goldenKeys = Object.keys(golden).filter((key) => key !== "provenance");
+    // only the surface knows whether a model was actually called. `coverage`
+    // (#165) is supplied by the ORCHESTRATOR for the same kind of reason: only it
+    // knows which routes reached a judgment, and a critique with zero findings
+    // says nothing about that. The golden fixture carries both because it is a
+    // PUBLISHED result; a bare projection is one stage earlier than either.
+    const goldenKeys = Object.keys(golden).filter(
+      (key) => key !== "provenance" && key !== "coverage",
+    );
     expect(Object.keys(result).sort()).toEqual(goldenKeys.sort());
     expect(Object.keys(result.findings[0]!).sort()).toEqual(Object.keys(golden.findings[0]!).sort());
     expect(Object.keys(result.artifacts).sort()).toEqual(["annotatedScreenshots"]); // engineDebugUrl omitted when absent
     expect(Object.keys(result.metadata).sort()).toEqual(Object.keys(golden.metadata).sort());
+  });
+
+  it("#165: emits coverage verbatim when the caller states it, and omits it when it cannot", () => {
+    const coverage: ReviewCoverage = {
+      routesRequested: ["/pricing", "/checkout"],
+      routesReviewed: ["/pricing"],
+      viewportsRequested: ["mobile", "tablet", "desktop"],
+      viewportsReviewed: ["mobile", "desktop"],
+    };
+    const stated = toEngineReviewResult(critique(), {
+      screenshotRetentionSeconds: 60,
+      coverage,
+    });
+    expect(stated.coverage).toEqual(coverage);
+
+    // No coverage stated -> the field is absent, never a fabricated "everything".
+    const silent = toEngineReviewResult(critique(), { screenshotRetentionSeconds: 60 });
+    expect(silent).not.toHaveProperty("coverage");
   });
 
   it("passes title/description/confidence/dimension through and DROPS only internal-only introducedByThisPr", () => {

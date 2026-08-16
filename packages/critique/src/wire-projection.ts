@@ -1,4 +1,10 @@
-import type { Critique, EngineReviewResult, Finding, WireFinding } from "@engine/types";
+import type {
+  Critique,
+  EngineReviewResult,
+  Finding,
+  ReviewCoverage,
+  WireFinding,
+} from "@engine/types";
 
 /**
  * Project the engine's internal `Critique` into the consumer-facing wire result
@@ -60,6 +66,17 @@ export interface WireProjectionOptions {
    * page leaves the result byte-identical to before.
    */
   pageHealthFootnote?: string | null;
+  /**
+   * What the run actually looked at (#165). Supplied by the ORCHESTRATOR, which
+   * is the only stage that knows which routes reached a judgment and which
+   * viewports were captured for them; the projector is one stage earlier than
+   * that knowledge and must never synthesize it from the critique (a critique
+   * with zero findings says nothing about whether anything was reviewed, which
+   * is the whole reason this field exists). Omitted from the wire result when
+   * absent, so a producer that cannot answer honestly says nothing rather than
+   * claiming full coverage.
+   */
+  coverage?: ReviewCoverage;
   /** Screenshot retention seconds (tier retention policy, #51). */
   screenshotRetentionSeconds: number;
 }
@@ -134,5 +151,8 @@ export function toEngineReviewResult(critique: Critique, options: WireProjection
     },
     screenshotRetentionSeconds: options.screenshotRetentionSeconds,
     metadata: critique.metadata,
+    // Coverage (#165): emitted verbatim from what the orchestrator observed,
+    // omitted entirely when the caller did not state it.
+    ...(options.coverage ? { coverage: options.coverage } : {}),
   };
 }
