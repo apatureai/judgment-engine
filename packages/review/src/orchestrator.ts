@@ -107,11 +107,13 @@ export interface ReviewDeps {
   confidenceUnavailableReason?: ConfidenceUnavailableReason;
   /**
    * Observer for the assembled internal `Critique`, called once immediately
-   * before the wire projection drops the internal-only fields. This is the seam
-   * for `validation.hallucinationDrops` (#32): the drop COUNT is an SLO input
-   * and is deliberately not part of the consumer wire contract, so a metrics
-   * emitter (or a CLI that wants to report it) reads it here. Never mutates the
-   * result; throwing from it is the caller's problem, not the review's.
+   * before the wire projection drops the internal-only fields, so a metrics
+   * emitter (or a CLI) can read the full internal form. The drop count itself is
+   * no longer confined to this seam: `validation.hallucinationDrops` (#32) is
+   * both an SLO input here and a field on the wire result, because a consumer
+   * holding only the result must be able to tell a clean page from findings that
+   * could not be grounded. Never mutates the result; throwing from it is the
+   * caller's problem, not the review's.
    */
   onCritique?: (critique: Critique) => void;
 }
@@ -215,6 +217,16 @@ function requestedRoutesOf(input: ReviewInput): string[] {
  *     whose deep-pass output failed coercion (`output: null`) is NOT reviewed:
  *     nothing survived to judge it with, and `assembleCritique` already records
  *     it in `notReviewed` as "<route>: no valid critique".
+ *
+ * "Triage cleared it" is a real judgment ONLY when triage named the routes it
+ * did suspect. A triage response that asks for a deep review and then names no
+ * route at all clears nothing: no deep pass runs, no page is looked at, and
+ * counting those routes as reviewed reported full coverage over zero judgments
+ * (`success / Ship`, empty narrative, "2 of 2 routes reviewed"). That takes no
+ * adversary, only a model having an off day, so the reviewed set is built from
+ * the deep passes that actually returned plus the routes triage explicitly did
+ * not suspect, and the routes left over are named in `notReviewed` with the
+ * reason.
  *
  * A route with no captured image is never reviewed, so an empty capture yields
  * an empty `routesReviewed`, which is the honest statement that this run judged
@@ -369,10 +381,24 @@ export async function runReview(input: ReviewInput, deps: ReviewDeps): Promise<E
 
   // Routes triage suspected but that had no captured image are recorded as
   // not-reviewed so the wire result is honest about coverage.
-  const reviewedRoutes = new Set(deepRoutes.map((r) => r.route));
+  const attemptedRoutes = new Set(deepRoutes.map((r) => r.route));
   const uncapturedNotReviewed = routesToReview
-    .filter((r) => !reviewedRoutes.has(r.route))
+    .filter((r) => !attemptedRoutes.has(r.route))
     .map((r) => `route ${r.route} (no captured image)`);
+
+  // Triage concluded a deep review was needed and then named no route to run it
+  // on. No page was cleared and no page was looked at, so every captured route is
+  // unjudged and has to say so in words as well as in coverage. Naming the cause
+  // matters: the run is not partial because a route was skipped or a capture
+  // failed, it is empty because the triage answer contradicted itself, and
+  // re-running the review is the action.
+  const triageNamedNothing = suspect.size === 0;
+  const unnamedByTriage = triageNamedNothing
+    ? capturedRoutes(capture.images).map(
+        (route) =>
+          `${route}: triage concluded a deep review was needed but named no routes to review, so no pass judged this page`,
+      )
+    : [];
 
   // 5. Assemble (#106): the global validation tail (gate #32 / ceiling #70 /
   //    post-filter #33 / reconcileGrade / stamp #68) over ALL merged findings.
@@ -386,7 +412,7 @@ export async function runReview(input: ReviewInput, deps: ReviewDeps): Promise<E
     ...(deps.confidenceUnavailableReason
       ? { confidenceUnavailableReason: deps.confidenceUnavailableReason }
       : {}),
-    notReviewed: [...(input.notReviewed ?? []), ...uncapturedNotReviewed],
+    notReviewed: [...(input.notReviewed ?? []), ...uncapturedNotReviewed, ...unnamedByTriage],
     model: deepConfig.model,
     captureVersion: capture.captureVersion,
     uiDnaVersion: input.context.uiDnaVersion,
@@ -396,17 +422,22 @@ export async function runReview(input: ReviewInput, deps: ReviewDeps): Promise<E
   //    page-health footnote (#20), console errors / failed requests / blocked
   //    fonts gathered during capture, is surfaced in `artifacts`, never mixed
   //    into findings; a clean page yields null and omits the field (golden-safe).
-  // Coverage (#165) from what the deep path actually did: a captured route is
-  // reviewed unless its deep pass came back with no valid critique at all. When
-  // EVERY route lands there the reviewed set is empty, which is how a run that
+  // Coverage (#165) from what the deep path actually did. A captured route is
+  // reviewed on exactly two grounds: its own deep pass returned a valid critique,
+  // or triage looked at the route set, named its suspects, and did not name this
+  // one. Everything else is unreviewed, which covers a deep pass whose output
+  // failed coercion (`output: null`) and a triage that named nothing at all. When
+  // every route lands there the reviewed set is empty, which is how a run that
   // judged nothing is told apart from a clean page that graded `ship`.
-  const noValidCritique = new Set(
-    deepResults.filter((r) => r.output === null).map((r) => r.route),
+  const deepJudged = new Set(
+    deepResults.filter((r) => r.output !== null).map((r) => r.route),
   );
   const coverage = buildCoverage({
     requestedRoutes: requestedRoutesOf(input),
     requestedViewports: input.captureContext.viewports,
-    reviewedRoutes: capturedRoutes(capture.images).filter((route) => !noValidCritique.has(route)),
+    reviewedRoutes: capturedRoutes(capture.images).filter(
+      (route) => deepJudged.has(route) || (!triageNamedNothing && !suspect.has(route)),
+    ),
     images: capture.images,
   });
 

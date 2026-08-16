@@ -151,6 +151,12 @@ export function toEngineReviewResult(critique: Critique, options: WireProjection
     },
     screenshotRetentionSeconds: options.screenshotRetentionSeconds,
     metadata: critique.metadata,
+    // The grounding gate's drop count (#32) crosses the wire verbatim. It used
+    // to stop here: the count was computed, logged, counted into an SLO and then
+    // dropped at this projection, so a consumer holding the result could not tell
+    // a clean page from three findings that could not be pointed at. Emitted even
+    // when zero, because zero is the answer to the same question.
+    hallucinationDrops: critique.validation.hallucinationDrops,
     // Coverage (#165): emitted verbatim from what the orchestrator observed,
     // omitted entirely when the caller did not state it.
     ...(options.coverage ? { coverage: options.coverage } : {}),

@@ -147,6 +147,26 @@ export interface EngineReviewResult {
    */
   coverage?: ReviewCoverage;
   /**
+   * How many findings the grounding gate deleted for citing a route that was
+   * never captured or an element that is not in the geometry map (#32).
+   * Additive + optional on schema v1, alongside `coverage`.
+   *
+   * Without it, "the page is clean" and "the model produced three findings and
+   * not one of them could be pointed at" are the same payload: zero findings, a
+   * `ship` grade, and the count known only to a log line and an SLO counter. The
+   * second of those is the most useful sentence this engine can say about its
+   * own model, so it travels with the result.
+   *
+   * `0` is a statement ("nothing was dropped"), which is why it is emitted even
+   * then. ABSENT means the producer does not report drops, never "none were
+   * dropped": a consumer must not read a missing field as a clean gate.
+   *
+   * It says nothing about `overall`. A narrative written before the gate ran can
+   * still describe a dropped finding under a clean grade; this count is what
+   * lets a consumer notice that and caveat it.
+   */
+  hallucinationDrops?: number;
+  /**
    * Whether anything judged this page, stated in the payload itself. Additive +
    * optional (schema v1, x-schema-version), like `dimension` and
    * `pageHealthFootnote`.

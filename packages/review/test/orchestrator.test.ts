@@ -29,8 +29,22 @@ import {
 // Stubs: NO real model / sandbox / browser / GPU. All live I/O is injected.
 // ---------------------------------------------------------------------------
 
-/** A model whose deep-pass json_object coercion returns a per-route critique. */
-function scriptedModel(critiqueByRoute: (route: string) => unknown): {
+/**
+ * A model whose deep-pass json_object coercion returns a per-route critique.
+ *
+ * `triageFor` scripts the triage answer from the routes the pass was handed;
+ * the default suspects every one of them, which is what the pipeline tests want.
+ * A test that cares about a specific triage response (an empty suspect list, a
+ * partial one) passes its own.
+ */
+function scriptedModel(
+  critiqueByRoute: (route: string) => unknown,
+  triageFor: (routes: string[]) => unknown = (routes) => ({
+    needsDeepReview: true,
+    suspectRoutes: routes,
+    obviousBreakage: [],
+  }),
+): {
   factory: (config: PassModelConfig) => ModelClient;
   calls: ModelRequest[];
 } {
@@ -46,10 +60,10 @@ function scriptedModel(critiqueByRoute: (route: string) => unknown): {
         // mentions triaging. Triage system msg starts with "You are triaging".
         const system = request.messages.find((m) => m.role === "system")?.content ?? "";
         if (system.startsWith("You are triaging")) {
-          // Triage: deep review warranted on every listed route.
+          // Triage: answer from the scripted triage function (default: suspect all).
           const userMsg = request.messages.find((m) => m.role === "user")?.content ?? "";
           const routes = userMsg.replace("Routes: ", "").split(", ").filter(Boolean);
-          text = JSON.stringify({ needsDeepReview: true, suspectRoutes: routes, obviousBreakage: [] });
+          text = JSON.stringify(triageFor(routes));
         } else {
           // Deep-pass coercion: the prior user message is the route's prose, which
           // we encoded as the route id so we can return that route's critique.
@@ -257,7 +271,11 @@ describe("runReview — end-to-end orchestrator", () => {
     // (only the surface knows whether a model was actually called).
     const golden = loadGoldenResult();
     const goldenKeys = Object.keys(golden).filter((key) => key !== "provenance");
-    expect(Object.keys(result).sort()).toEqual(goldenKeys.sort());
+    // ...plus `hallucinationDrops`, which every result now states and the anchor
+    // does not carry yet: additive on schema v1, so the anchor's keys stay a
+    // subset of what this producer emits.
+    expect(Object.keys(result).sort()).toEqual([...goldenKeys, "hallucinationDrops"].sort());
+    for (const key of goldenKeys) expect(result).toHaveProperty(key);
     expect(Object.keys(result.findings[0]!).sort()).toEqual(Object.keys(golden.findings[0]!).sort());
     expect(Object.keys(result.metadata).sort()).toEqual(Object.keys(golden.metadata).sort());
 
@@ -515,14 +533,19 @@ describe("runReview — end-to-end orchestrator", () => {
     expect(result.overall).toMatch(/no design changes/i);
     // Same top-level + metadata keys as the cross-repo golden anchor, except a
     // clean short-circuit has no raw finding score and therefore no synthetic
-    // numeric confidence (#160), and `provenance` is stamped by the surface after
-    // the orchestrator returns.
+    // numeric confidence (#160), `provenance` is stamped by the surface after
+    // the orchestrator returns, and `hallucinationDrops` is emitted on every
+    // result while the anchor does not carry it yet (additive on schema v1).
     const golden = loadGoldenResult();
     expect(Object.keys(result).sort()).toEqual(
-      Object.keys(golden)
-        .filter((key) => key !== "confidence" && key !== "provenance")
-        .sort(),
+      [
+        ...Object.keys(golden).filter((key) => key !== "confidence" && key !== "provenance"),
+        "hallucinationDrops",
+      ].sort(),
     );
+    // Nothing ran a model here, so nothing could be dropped, and the result says
+    // so rather than staying silent about it.
+    expect(result.hallucinationDrops).toBe(0);
     expect(result).not.toHaveProperty("confidence");
     expect(Object.keys(result.metadata).sort()).toEqual(Object.keys(golden.metadata).sort());
     // Routed through buildResultMetadata: the #68 version stamp is present + valid.
@@ -687,6 +710,61 @@ describe("runReview coverage (#165)", () => {
     expect(result.coverage?.routesReviewed).toEqual(["/pricing"]);
   });
 
+  it("reviews NOTHING when triage asks for a deep review and then names no route", async () => {
+    // The producer that needs no adversary: a model having an off day answers
+    // {"needsDeepReview": true, "suspectRoutes": []}. No deep pass runs, so no
+    // route reaches a judgment, so nothing may be counted as reviewed.
+    const routes = ["/pricing", "/home"];
+    const { factory, calls } = scriptedModel(
+      () => critiqueFor("/pricing", "major", "blocked"),
+      () => ({ needsDeepReview: true, suspectRoutes: [], obviousBreakage: [] }),
+    );
+
+    const result = await runReview(baseInput(routes), {
+      captureInSandbox: stubCapture(routes, ["#cta", "#hero"]),
+      modelFactory: factory,
+    });
+
+    // Field for field this is the clean result it always was...
+    expect(result.grade).toBe("ship");
+    expect(result.findings).toHaveLength(0);
+    // ...and exactly one deep-pass-shaped call was never made: only triage ran.
+    expect(calls).toHaveLength(1);
+    // Coverage is the field that refuses to call it a review.
+    expect(result.coverage).toEqual({
+      routesRequested: ["/pricing", "/home"],
+      routesReviewed: [],
+      viewportsRequested: ["mobile", "desktop"],
+      viewportsReviewed: [],
+    });
+    // And the reason is stated in words, per route, naming what happened.
+    expect(result.notReviewed).toContain(
+      "/pricing: triage concluded a deep review was needed but named no routes to review, so no pass judged this page",
+    );
+    expect(result.notReviewed).toContain(
+      "/home: triage concluded a deep review was needed but named no routes to review, so no pass judged this page",
+    );
+  });
+
+  it("keeps a route triage explicitly did not suspect as reviewed: that IS a judgment", async () => {
+    // The near-identical response that means the opposite: triage looked at both
+    // routes and named one. /home was considered and cleared, /pricing was
+    // deep-reviewed; both are reviewed, and the two cases stay distinguishable.
+    const routes = ["/pricing", "/home"];
+    const { factory } = scriptedModel(
+      () => critiqueFor("/pricing", "minor", "needs_work"),
+      () => ({ needsDeepReview: true, suspectRoutes: ["/pricing"], obviousBreakage: [] }),
+    );
+
+    const result = await runReview(baseInput(routes), {
+      captureInSandbox: stubCapture(routes, ["#cta", "#hero"]),
+      modelFactory: factory,
+    });
+
+    expect(result.coverage?.routesReviewed).toEqual(["/pricing", "/home"]);
+    expect(result.notReviewed.some((line) => line.includes("named no routes"))).toBe(false);
+  });
+
   it("counts the triage short-circuit as reviewed: unchanged-since-baseline is a conclusion", async () => {
     const routes = ["/pricing"];
     const { factory, calls } = scriptedModel(() => critiqueFor("/pricing", "major", "blocked"));
@@ -792,5 +870,83 @@ describe("runReview when the caller narrowed the ask before capture", () => {
       modelFactory: factory,
     });
     expect(result.coverage?.routesRequested).toEqual(routes);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// #32 on the wire: how many findings the grounding gate deleted
+// ---------------------------------------------------------------------------
+describe("runReview reports the grounding gate's drop count", () => {
+  /** A critique whose single finding cites an element the capture never produced. */
+  function ungroundedCritique(route: string): unknown {
+    return {
+      grade: "needs_work",
+      overall: `The ${route} hero overlaps the nav on mobile.`,
+      findings: [
+        {
+          dimension: "spacing",
+          severity: "major",
+          confidence: 0.9,
+          route,
+          viewport: "mobile",
+          elementRef: "#ghost", // never in the geometry map
+          title: "Hero overlaps the nav",
+          description: "The hero block sits on top of the navigation bar.",
+          suggestion: "Add top margin.",
+          introducedByThisPr: true,
+        },
+      ],
+      notReviewed: [],
+    };
+  }
+
+  it("states the count when every finding was deleted for citing something uncaptured", async () => {
+    const routes = ["/pricing"];
+    const { factory } = scriptedModel(() => ungroundedCritique("/pricing"));
+
+    const result = await runReview(baseInput(routes), {
+      captureInSandbox: stubCapture(routes, ["#cta"]),
+      modelFactory: factory,
+    });
+
+    // Zero findings and a `ship` grade, the same payload a genuinely clean page
+    // produces. The drop count is what separates the two.
+    expect(result.grade).toBe("ship");
+    expect(result.findings).toHaveLength(0);
+    expect(result.hallucinationDrops).toBe(1);
+    // Known limitation, asserted so it cannot change silently: the narrative is
+    // written before the gate runs, so it still describes the dropped problem
+    // under a clean grade. The count is what lets a consumer caveat it.
+    expect(result.overall).toContain("overlaps the nav");
+  });
+
+  it("states zero when nothing was dropped, so absent can only mean an older producer", async () => {
+    const routes = ["/pricing"];
+    const { factory } = scriptedModel(() => critiqueFor("/pricing", "minor", "needs_work"));
+
+    const result = await runReview(baseInput(routes), {
+      captureInSandbox: stubCapture(routes, ["#cta"]),
+      modelFactory: factory,
+    });
+
+    expect(result.findings).toHaveLength(1);
+    expect(result.hallucinationDrops).toBe(0);
+  });
+
+  it("matches the internal count the SLO reads, so the wire and the metric cannot disagree", async () => {
+    const routes = ["/pricing"];
+    const { factory } = scriptedModel(() => ungroundedCritique("/pricing"));
+    let observed: number | null = null;
+
+    const result = await runReview(baseInput(routes), {
+      captureInSandbox: stubCapture(routes, ["#cta"]),
+      modelFactory: factory,
+      onCritique: (critique) => {
+        observed = critique.validation.hallucinationDrops;
+      },
+    });
+
+    expect(observed).toBe(1);
+    expect(result.hallucinationDrops).toBe(observed);
   });
 });

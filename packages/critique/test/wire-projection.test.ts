@@ -56,7 +56,14 @@ describe("toEngineReviewResult (wire projection — cross-repo contract)", () =>
     const goldenKeys = Object.keys(golden).filter(
       (key) => key !== "provenance" && key !== "coverage",
     );
-    expect(Object.keys(result).sort()).toEqual(goldenKeys.sort());
+    // `hallucinationDrops` runs the other way: the projector emits it on every
+    // result and the anchor does not carry it yet (the anchor is copied from
+    // Gate, whose non-strict schema tolerates and strips a field it does not
+    // name). So assert the ADDITIVE relation instead of equality: every anchor
+    // key is still emitted, plus the new one. That is what "additive on schema
+    // v1" means and it is what keeps an older consumer parsing.
+    expect(Object.keys(result).sort()).toEqual([...goldenKeys, "hallucinationDrops"].sort());
+    for (const key of goldenKeys) expect(result).toHaveProperty(key);
     expect(Object.keys(result.findings[0]!).sort()).toEqual(Object.keys(golden.findings[0]!).sort());
     expect(Object.keys(result.artifacts).sort()).toEqual(["annotatedScreenshots"]); // engineDebugUrl omitted when absent
     expect(Object.keys(result.metadata).sort()).toEqual(Object.keys(golden.metadata).sort());
@@ -78,6 +85,24 @@ describe("toEngineReviewResult (wire projection — cross-repo contract)", () =>
     // No coverage stated -> the field is absent, never a fabricated "everything".
     const silent = toEngineReviewResult(critique(), { screenshotRetentionSeconds: 60 });
     expect(silent).not.toHaveProperty("coverage");
+  });
+
+  it("#32: carries the grounding gate's drop count, so a clean page differs from a fully dropped one", () => {
+    const cleanPage = toEngineReviewResult(
+      critique({ findings: [], validation: { hallucinationDrops: 0, captureUnstable: false } }),
+      { screenshotRetentionSeconds: 60 },
+    );
+    const allDropped = toEngineReviewResult(
+      critique({ findings: [], validation: { hallucinationDrops: 3, captureUnstable: false } }),
+      { screenshotRetentionSeconds: 60 },
+    );
+
+    expect(cleanPage.hallucinationDrops).toBe(0);
+    expect(allDropped.hallucinationDrops).toBe(3);
+    // The count is load-bearing: without it these two payloads are the same
+    // bytes, and "the page is clean" reads identically to "three findings
+    // entered and none of them could be grounded".
+    expect({ ...cleanPage, hallucinationDrops: 0 }).toEqual({ ...allDropped, hallucinationDrops: 0 });
   });
 
   it("passes title/description/confidence/dimension through and DROPS only internal-only introducedByThisPr", () => {

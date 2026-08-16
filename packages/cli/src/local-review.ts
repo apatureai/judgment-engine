@@ -85,8 +85,9 @@ export interface LocalReviewOutcome {
   /** The wire result, exactly as the job API and `review.json` carry it. */
   result: EngineReviewResult;
   /**
-   * The internal critique, whose `validation.hallucinationDrops` is deliberately
-   * not on the wire. Null only if the orchestrator never assembled one.
+   * The internal critique: the rich form the wire result is projected from,
+   * carrying the fields the projection drops (`introducedByThisPr`, the raw
+   * per-finding confidence). Null only if the orchestrator never assembled one.
    */
   critique: Critique | null;
   capture: BrowserCaptureResult;

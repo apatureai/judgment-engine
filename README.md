@@ -82,8 +82,10 @@ for (const finding of findings) {
 ```
 
 The gate is a small function, and that is the point. It is cheap because everything upstream is
-arranged so that "can you point at it" has a real answer. `hallucinationDrops` is not discarded; it
-is an SLO input surfaced through the `onCritique` observer.
+arranged so that "can you point at it" has a real answer. `hallucinationDrops` is not discarded: it
+is an SLO input surfaced through the `onCritique` observer, and it is a field on the wire result, so
+a consumer can tell "the page is clean" apart from "three findings entered and none of them could be
+grounded". Zero is emitted too, because zero is an answer to the same question.
 
 **2. The model does not get to assert its own confidence.**
 Verbalized confidence never crosses the wire. A numeric confidence is displayable only when an exact,
