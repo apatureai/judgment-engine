@@ -709,6 +709,73 @@ ones.
 | `rust/capture-dedup` | Cross-language golden vectors. |
 | Async job API, job store, migrations | Implemented and tested against Postgres/PGlite. |
 
+### Known limitations
+
+The roadmap below is work that is absent. These are limits in the work that is present. Each one
+behaves the way it was designed to behave, each one has already surprised somebody, and none of them
+is closed by a patch to this repository alone. They are written down here so that nobody has to
+rediscover them from a result that did not say what they expected.
+
+- **A review run through the deployed service is not told which component library you build with.**
+  The CLI reads your repository's `package.json`, detects shadcn/ui, Radix, MUI, Chakra or Mantine,
+  and appends that library's rubric note to the deep prompt, so the model is told to judge spacing
+  against MUI's 8px scale, or to expect Radix's ARIA semantics and app-owned styling. The deployable
+  composition in `packages/runtime` sends an empty list instead (`componentLibraries: []` in
+  `packages/runtime/src/input.ts`), and it is not skipping a step it could have taken: the request
+  contract it parses carries design tokens and a brand string and has no field for component
+  libraries, and the service holds no checkout of your repository to detect them from. So a review
+  that comes back from the service is grounded on tokens and brand only, and the library-specific
+  part of the rubric is missing from it without the result saying so. If those addenda matter to
+  you, run the CLI, or run `judgment-engine-serve` with `--context-dir` pointed at the repository:
+  that server fills in from your checkout exactly what the request could not carry. Closing it for
+  the production service means adding a field to the request contract, which is an agreement with
+  the caller rather than a change here.
+- **The repeat-capture determinism check cannot be requested over the wire.** `--verify-stability`
+  captures each page twice and compares the PNG bytes, and it is a flag on the CLI and an operator
+  flag on `judgment-engine-serve`, where it applies to every job that server runs. A caller cannot
+  ask for it per review: the job request has no field for it, and neither does the capture request
+  the service sends to a capture fleet, whose body is the job id, the URL and the capture context.
+  Two consequences are worth knowing before you read a result. `pageHealth.unstable` is `false` on
+  every run where the check did not run, so read it as "nothing contradicted this" rather than
+  "verified stable", and note that the counts behind it (`pagesCompared`, `unstablePages`) do not
+  cross the capture wire at all. And the confidence ceiling that exists for unstable captures caps
+  confidence only when a capture was measured unstable, so it cannot fire on a run that compared
+  nothing. When you need the guarantee, capture through the CLI with `--verify-stability`, or run
+  your own server with the flag on.
+- **Nothing on any path has a baseline to compare this capture against.** `baselinePhash` and
+  `tileScores` describe this capture against a previous one, and no composition here records a
+  previous one, so both stay empty on the CLI, on the local HTTP server and on the deployed service.
+  The consequence shows up in your results rather than in a log: the triage short-circuit that would
+  skip the model call entirely for a confirmed-unchanged route is unreachable, and when the triage
+  model answers that no deep review is needed, the run has nothing it declined against, so those
+  routes come back marked not reviewed with a line saying the run carried no baseline for the route.
+  That line is this limitation, not a fault in your page and not a failed review, and it will appear
+  on every real triage decline until a baseline store exists. The store is a roadmap item below.
+- **The publication guard on the HTTP server is a backstop, not the decision.** `assertAttested`
+  refuses to serve a result that asserts a grade nothing earned, and one of its checks is a run
+  whose findings were all deleted: an empty findings list beside a positive `hallucinationDrops`
+  means findings existed and none of them are here. That check reaches only as far as a published
+  payload can prove. When the confidence floor and the trust budget did the deleting instead, the
+  run reports zero grounding drops, and the wire does not carry how many findings entered
+  validation, so at that layer it is indistinguishable from a genuinely clean page. The case is not
+  unhandled: it is decided one stage earlier, in the wire projection, from
+  `validation.modelFindingsSeen`, which sees both. What that means for a reader is that
+  `gradeUnavailableReason` on the result is the field to trust, and the server guard is the
+  fail-closed net beneath it. If you build another front end on `packages/critique`, put the
+  decision in the projection rather than in your own publisher, or you will inherit the narrower
+  half.
+- **A prompt change invalidates promoted calibration reports until they are re-derived.**
+  `SYSTEM_PROMPT_VERSION` is bumped on any wording change to the system prompt, and the runtime
+  binds a calibration report only when its identity matches, prompt version included. A report
+  derived under `system-prompt@v3` is rejected against a `v4` engine as
+  `mismatched_calibration_report`, confidence is withheld, and the result stays advisory rather than
+  blocking. That is the version stamp working, and it means promoting a calibration report is not a
+  one-time deployment step: every prompt edit, including the ones already shipped in this
+  repository, needs an eval pass and a re-promotion before a numeric confidence is displayable again
+  and before a blocking gate can block. Plan for that when you plan a prompt change. The alternative
+  the check exists to prevent is a confidence number derived from a prompt nobody is running any
+  more.
+
 ### Roadmap
 
 Each of these is a real gap, stated so you know exactly what you are picking up. Contributions
@@ -746,14 +813,12 @@ welcome on any of them.
 - **A baseline store, so a review can compare against a previous run.** The triage pass can skip a
   deep review when a route's perceptual hash matches a recorded baseline and a tile-wise sensitive
   diff confirms the match. Both inputs, `baselinePhash` and `tileScores` on `ReviewRoute`, describe
-  this capture against a previous one, and neither shipped surface has a previous one: nothing in the
-  CLI or the local HTTP server records a per-`(repo, route, viewport)` hash or tile score anywhere it
-  can read back. Nothing invents one, so the consequences are exact rather than hidden. The
-  short-circuit is unreachable in production, so every run pays for a triage model call it could
-  sometimes have skipped. And when the triage model answers that no deep review is needed, the run
-  has no baseline it declined against, which is why the result marks those routes not reviewed
-  instead of clean, and why the "no baseline for the route" line appears on every real triage
-  decline. Closing this needs a store with a retention and invalidation policy, keyed by repo and
+  this capture against a previous one, and no shipped surface has a previous one: nothing in the CLI,
+  the local HTTP server or the deployed service records a per-`(repo, route, viewport)` hash or tile
+  score anywhere it can read back. Nothing invents one, so the consequences are exact rather than
+  hidden, and they are the ones stated under [Known limitations](#known-limitations): the
+  short-circuit is unreachable, and a triage decline has no baseline behind it. Closing this needs a
+  store with a retention and invalidation policy, keyed by repo and
   route, plus the plumbing to populate the two fields from it. The measured-breakage half of triage
   needs no baseline and is wired: an overflow measured on this capture forces a deep review of that
   route whatever the triage model answered.
