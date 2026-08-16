@@ -67,8 +67,9 @@ const EXTRACTED: ExtractedPage = {
       text: null,
     },
     {
-      // A <p> is not a landmark, so it never enters the geometry map, but its
-      // computed style still feeds the deterministic contrast check.
+      // A <p> is not a landmark, so it enters the geometry map only because the
+      // deterministic checks measure it: its computed style feeds the contrast
+      // check and its content width feeds the overflow check.
       tag: "p",
       id: "hero-subtitle",
       testId: null,
@@ -253,15 +254,42 @@ describe("captureWithBrowser", () => {
     ]);
   });
 
-  it("keeps only landmark elements in the geometry map", async () => {
+  it("keeps landmark elements and every element the checks measured in the geometry map", async () => {
     const { browser } = fakeBrowser();
     const capture = await captureWithBrowser(
       "http://127.0.0.1:5000",
       { ...CONTEXT, routes: ["/"], viewports: ["mobile"] },
       { browser, sink: memorySink() },
     );
-    expect(capture.geometry.map((g) => g.selector)).toEqual(["#hero-title", "#icon-close"]);
+    // `#hero-subtitle` is a <p>, so it is not a landmark, but the contrast and
+    // overflow checks measured it and this run publishes those measurements as
+    // facts. An element the engine measured has to be citable, or the grounding
+    // gate deletes the model's finding about this run's own measurement.
+    expect(capture.geometry.map((g) => g.selector)).toEqual([
+      "#hero-title",
+      "#icon-close",
+      "#hero-subtitle",
+    ]);
     expect(capture.geometry[0]).toMatchObject({ route: "/", viewport: "mobile", role: "heading" });
+    // Admitted for being measured, not reclassified as a landmark.
+    expect(capture.geometry[2]).toMatchObject({ selector: "#hero-subtitle", role: "generic" });
+  });
+
+  it("every element named in the measured facts is citable in the geometry map", async () => {
+    const { browser } = fakeBrowser();
+    const capture = await captureWithBrowser(
+      "http://127.0.0.1:5000",
+      { ...CONTEXT, routes: ["/"], viewports: ["mobile", "desktop"] },
+      { browser, sink: memorySink() },
+    );
+    // The invariant the grounding gate depends on, asserted over the whole
+    // capture rather than one element: nothing the engine measured can be
+    // uncitable, on any route or viewport.
+    const citable = new Set(capture.geometry.map((g) => `${g.route}\n${g.viewport}\n${g.selector}`));
+    expect(capture.deterministicFindings.length).toBeGreaterThan(0);
+    for (const f of capture.deterministicFindings) {
+      expect([...citable]).toContain(`${f.route}\n${f.viewport}\n${f.selector}`);
+    }
   });
 
   it("produces deterministic contrast / overflow / touch-target facts", async () => {

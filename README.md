@@ -81,6 +81,16 @@ for (const finding of findings) {
 }
 ```
 
+For that check to be fair, the map has to contain everything the engine itself can point at. It holds
+the landmark elements (`h1`-`h6`, `nav`, `a`, `button`, `input`, `select`, `textarea`) **and** every
+element a deterministic check measured. The second half is not decoration: the contrast and overflow
+checks run over text nodes, so `p`, `li` and `span` get measured but are not landmarks. With a
+landmark-only map the engine could measure an overflow on a `<p>`, hand the model that measurement as
+a fact it is told to trust, force a deep review because of it, and then delete the model's finding
+about it as "citing a route or element that was never captured". That sentence was false: the
+element had been captured *and* measured. An element the engine measured is groundable by
+construction. Nothing else was added, so a genuinely uncaptured element is still deleted.
+
 The gate is a small function, and that is the point. It is cheap because everything upstream is
 arranged so that "can you point at it" has a real answer. `hallucinationDrops` is not discarded: it
 is an SLO input surfaced through the `onCritique` observer, and it is a field on the wire result, so
@@ -186,7 +196,7 @@ Target
 
 Capture
   6 screenshot(s) written to out/screenshots
-  57 DOM element(s) recorded in the geometry map
+  66 DOM element(s) recorded in the geometry map
   page health: clean
 
 Measured facts  (computed from the captured DOM, no model involved)

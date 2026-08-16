@@ -43,6 +43,8 @@ export type { CaptureSegment, Tile } from "./tiling.js";
 export {
   normalizeRole,
   isLandmark,
+  isMeasured,
+  measuredKeys,
   stableSelector,
   serializeGeometry,
   animatedExclusions,

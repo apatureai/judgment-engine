@@ -19,7 +19,7 @@ const finding = (over: Partial<Finding> = {}): Finding => ({
 
 const identity: CalibrationRuntimeIdentity = {
   model: "qwen3-vl-plus",
-  promptVersion: "system-prompt@v3",
+  promptVersion: "system-prompt@v4",
   engineVersion: "0.1.0",
   captureVersion: "capture@1",
   rubricVersion: "design-rubric@1",

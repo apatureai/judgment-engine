@@ -228,7 +228,20 @@ export async function captureWithBrowser(
         const dimensions = pngDimensions(outcome.png);
         images.push({ route, viewport, objectKey: key, ...dimensions });
 
-        for (const entry of serializeGeometry(toRawGeometryElements(outcome.extracted, route, viewport))) {
+        // The checks run BEFORE the geometry map is serialized, because the map
+        // has to contain every element they measured. The check set is wider
+        // than the landmark set (overflow and contrast run over text nodes), and
+        // an element the engine published a measured fact about has to be
+        // citable, or the grounding gate (#32) deletes the model's finding about
+        // the very measurement this run handed it. See `serializeGeometry`.
+        const pageFindings = deterministicChecks({
+          textNodes: toTextNodeStyles(outcome.extracted, route, viewport),
+          interactive: toInteractiveElements(outcome.extracted, route, viewport),
+        });
+        deterministicFindings.push(...pageFindings);
+
+        const rawElements = toRawGeometryElements(outcome.extracted, route, viewport);
+        for (const entry of serializeGeometry(rawElements, pageFindings)) {
           geometry.push({
             route: entry.route,
             viewport: entry.viewport,
@@ -237,13 +250,6 @@ export async function captureWithBrowser(
             rect: entry.rect,
           });
         }
-
-        deterministicFindings.push(
-          ...deterministicChecks({
-            textNodes: toTextNodeStyles(outcome.extracted, route, viewport),
-            interactive: toInteractiveElements(outcome.extracted, route, viewport),
-          }),
-        );
 
         consoleEvents.push(...outcome.console);
         failedRequests.push(...outcome.failedRequests);

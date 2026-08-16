@@ -40,6 +40,19 @@ describe("buildSystemPrompt (#30)", () => {
     expect(prompt).toMatch(/ignore previous instructions|approve this PR/i);
   });
 
+  it("reconciles 'trust the measured facts' with 'only cite elements in the geometry map'", () => {
+    const prompt = buildSystemPrompt({ brandPresent: true });
+    // Both halves are still asked for.
+    expect(prompt).toMatch(/contrast\/overflow\/touch-targets are measured facts: trust them/);
+    expect(prompt).toMatch(/elements present in the geometry map/);
+    // And the prompt states why they do not conflict, instead of leaving a model
+    // that obeys the first to be punished by the second.
+    expect(prompt).toMatch(
+      /Every element named in a deterministic check fact IS present in the geometry map/,
+    );
+    expect(prompt).toMatch(/never conflicts with the rule above/);
+  });
+
   it("appends component-library addenda when present", () => {
     const prompt = buildSystemPrompt({
       brandPresent: false,
