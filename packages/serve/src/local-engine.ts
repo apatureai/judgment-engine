@@ -4,12 +4,16 @@ import { createJobApi, type ApiRequest, type ApiResponse } from "@engine/api";
 import type { CaptureBrowser } from "@engine/capture";
 import {
   FileScreenshotSink,
+  lexicalEmbedder,
   loadRepoContext,
+  loadRepoGenome,
   localJudgmentProvenance,
   resolveLocalModel,
   runLocalReview,
   stampJudgmentProvenance,
   writeReviewArtifacts,
+  LEXICAL_EMBEDDER_ID,
+  type LocalGenome,
   type ModelChoice,
   type ResolvedLocalModel,
 } from "@engine/cli";
@@ -128,8 +132,14 @@ export async function createLocalEngine(options: LocalEngineOptions): Promise<Lo
   });
 
   let repoContext: ContextBlockInput | undefined;
+  // The design system every job on this server is judged against, read once at
+  // startup from the operator's directory. Without a `--context-dir` there is
+  // nowhere to read one from and the reviews say so, job by job, rather than
+  // reading as grounded reviews that happened to find nothing.
+  let repoGenome: LocalGenome | undefined;
   if (options.contextDir) {
     repoContext = (await loadRepoContext(options.contextDir, [])).context;
+    repoGenome = await loadRepoGenome(options.contextDir);
   }
 
   let base = options.publicBaseUrl ?? "";
@@ -161,6 +171,7 @@ export async function createLocalEngine(options: LocalEngineOptions): Promise<Lo
   const processor = async (job: JobRecord): Promise<EngineReviewResult> => {
     const request = toLocalReviewRequest(job, {
       ...(repoContext ? { repoContext } : {}),
+      ...(repoGenome ? { genome: repoGenome } : {}),
       ...(options.verifyStability !== undefined ? { verifyStability: options.verifyStability } : {}),
       keyPrefix: jobScreenshotPrefix(job.id),
     });
@@ -169,6 +180,10 @@ export async function createLocalEngine(options: LocalEngineOptions): Promise<Lo
       browser: await ensureBrowser(),
       sink,
       modelFactory: model.factory,
+      // The same offline embedder the CLI injects, so a job served here and a
+      // run of `pnpm review` over the same directory retrieve the same rules.
+      embedder: lexicalEmbedder,
+      embedderId: LEXICAL_EMBEDDER_ID,
       artifactUrlFor: (key) => artifactUrl(base, options.secret, key),
       signal,
     });

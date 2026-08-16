@@ -1,4 +1,4 @@
-import type { LocalReviewRequest } from "@engine/cli";
+import type { LocalGenome, LocalReviewRequest } from "@engine/cli";
 import type { ContextBlockInput } from "@engine/context";
 import type { JobRecord } from "@engine/jobs";
 import { toReviewInput } from "@engine/runtime/input";
@@ -23,6 +23,14 @@ import { LocalEngineError } from "./errors.js";
 export interface LocalRequestOptions {
   /** Design context loaded from `--context-dir`, if the operator configured one. */
   repoContext?: ContextBlockInput;
+  /**
+   * The UI-DNA genome loaded from `--context-dir`, or the reason there is none.
+   * Gate's job contract has no field for a genome (the deployed engine resolves
+   * one itself from the Source of Truth), so this can only come from the
+   * operator's own directory, and it is forwarded whichever way it came out: a
+   * review that could not be grounded says so rather than staying silent.
+   */
+  genome?: LocalGenome;
   /** Retention advertised on the wire result. */
   screenshotRetentionSeconds?: number;
   /** Capture each page twice and compare the bytes. */
@@ -78,6 +86,7 @@ export function toLocalReviewRequest(
     installationId: input.captureContext.installationId,
     depth: input.depth,
     context: mergeContext(input.context, options.repoContext),
+    ...(options.genome ? { genome: options.genome } : {}),
     ...(input.previewBuildFacts ? { previewBuildFacts: input.previewBuildFacts } : {}),
     // Everything `toReviewInput` decided BEFORE the review ran has to survive
     // this projection or the local path silently reviews a different request

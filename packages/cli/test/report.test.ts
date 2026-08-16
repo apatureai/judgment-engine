@@ -2,12 +2,18 @@ import type { DeterministicFinding } from "@engine/capture";
 import type { EngineReviewResult } from "@engine/types";
 import { describe, expect, it } from "vitest";
 import {
+  ungroundedDisclosure,
+  UNGROUNDED_DISCLOSURE_PREFIX,
+  type LocalGrounding,
+} from "../src/grounding.js";
+import {
   countByKind,
   displayPath,
   groupFacts,
   renderFacts,
   renderFindings,
   renderFixtureCritique,
+  renderGrounding,
   renderStability,
   renderSummary,
   type RunSummary,
@@ -50,6 +56,25 @@ const RESULT: EngineReviewResult = {
   },
 };
 
+const UNGROUNDED: Extract<LocalGrounding, { grounded: false }> = {
+  grounded: false,
+  reason: "no_genome_file",
+  disclosure: ungroundedDisclosure(
+    "no_genome_file",
+    "no UI-DNA snapshot was found at ./demo-site/ui-dna.json",
+    { tokens: { "color.brand": "#4f46e5" }, brand: null, componentLibraries: [], uiDnaVersion: null },
+  ),
+};
+
+const GROUNDED: LocalGrounding = {
+  grounded: true,
+  uiDnaVersion: "ui-dna@2026.06.12",
+  ruleCount: 9,
+  source: "./demo-site/ui-dna.json",
+  embedder: "lexical-hash-256@1",
+  authorityChecked: false,
+};
+
 function summary(overrides: Partial<RunSummary> = {}): RunSummary {
   return {
     target: "http://127.0.0.1:5000",
@@ -62,6 +87,9 @@ function summary(overrides: Partial<RunSummary> = {}): RunSummary {
     screenshotCount: 4,
     screenshotDir: "out/screenshots",
     geometryCount: 57,
+    // The default for these cases is the common one: no genome was resolved, so
+    // the review carries the disclosure rather than a version stamp.
+    grounding: UNGROUNDED,
     deterministicFindings: FACTS,
     factsFile: "out/deterministic-facts.txt",
     pageHealthFootnote: null,
@@ -168,7 +196,56 @@ describe("renderFixtureCritique", () => {
   });
 });
 
+/**
+ * The report has to answer "was this critiqued against my design system" as
+ * plainly as it answers "did a model look at my page". Both answers are printed
+ * from the same values the result carries, so the terminal and `review.json`
+ * cannot say different things.
+ */
+describe("renderGrounding", () => {
+  it("names the version, the rule count and the function that ranked them", () => {
+    const lines = renderGrounding(GROUNDED).join("\n");
+    expect(lines).toContain("ui-dna@2026.06.12");
+    expect(lines).toContain("9 rule(s) from ./demo-site/ui-dna.json");
+    // Two embedders retrieve different rules from one genome, so a grounded run
+    // that cannot say which one ranked it cannot be compared with another.
+    expect(lines).toContain("lexical-hash-256@1");
+  });
+
+  it("says a locally grounded review is advisory because authority was not checked", () => {
+    const lines = renderGrounding(GROUNDED).join("\n");
+    expect(lines).toContain("authority");
+    expect(lines).toContain("no authority service is reachable from a local run");
+    expect(lines).toContain("cannot block");
+  });
+
+  it("prints the reason and the result's own disclosure when nothing grounded the run", () => {
+    const lines = renderGrounding(UNGROUNDED).join("\n");
+    expect(lines).toContain("none (no_genome_file)");
+    // Verbatim, so a reader of the terminal and a reader of review.json meet the
+    // same sentence rather than two paraphrases of it.
+    expect(lines).toContain(UNGROUNDED.disclosure);
+    expect(lines).not.toContain("ui-dna@");
+  });
+});
+
 describe("renderSummary", () => {
+  it("prints the design-system grounding block between the facts and the gate", () => {
+    const grounded = renderSummary(summary({ grounding: GROUNDED }));
+    expect(grounded).toContain("Design-system grounding");
+    expect(grounded).toContain("ui-dna@2026.06.12");
+    expect(grounded.indexOf("Design-system grounding")).toBeGreaterThan(
+      grounded.indexOf("Measured facts"),
+    );
+    expect(grounded.indexOf("Design-system grounding")).toBeLessThan(
+      grounded.indexOf("Grounding gate"),
+    );
+
+    const ungrounded = renderSummary(summary());
+    expect(ungrounded).toContain(UNGROUNDED_DISCLOSURE_PREFIX);
+    expect(ungrounded).not.toContain("ui-dna@2026.06.12");
+  });
+
   it("reports the capture, the gate and the review together", () => {
     const text = renderSummary(summary());
     expect(text).toContain("4 screenshot(s) written to out/screenshots");

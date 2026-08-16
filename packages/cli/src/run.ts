@@ -3,6 +3,8 @@ import { join, relative, resolve } from "node:path";
 import { pageHealthFootnote, type CaptureBrowser } from "@engine/capture";
 import type { CliOptions } from "./args.js";
 import { FileScreenshotSink } from "./file-sink.js";
+import { loadRepoGenome } from "./genome-source.js";
+import { lexicalEmbedder, LEXICAL_EMBEDDER_ID } from "./lexical-embedder.js";
 import { runLocalReview, writeReviewArtifacts } from "./local-review.js";
 import { fixturesDir, resolveLocalModel } from "./model-choice.js";
 import { CLI_ENGINE_NAME, localJudgmentProvenance, stampJudgmentProvenance } from "./provenance.js";
@@ -55,6 +57,10 @@ export async function runCli(options: CliOptions, io: RunIo): Promise<number> {
 
     const contextDir = options.contextDir ?? demoRoot;
     const loaded = await loadRepoContext(contextDir, options.routes);
+    // The design system this review is judged against, from the same directory
+    // the tokens and the brand block come from. A missing snapshot is the common
+    // case and is not an error: the run says what it could not ground on.
+    const genome = await loadRepoGenome(contextDir);
 
     const outDir = resolve(options.outDir);
     await mkdir(outDir, { recursive: true });
@@ -82,12 +88,18 @@ export async function runCli(options: CliOptions, io: RunIo): Promise<number> {
         installationId: "local",
         depth: "deep",
         context: loaded.context,
+        genome,
         verifyStability: options.verifyStability,
       },
       {
         browser,
         sink,
         modelFactory: model.factory,
+        // Offline and deterministic, so genome retrieval costs a local run
+        // nothing and works with no credentials. It ranks by word overlap, not
+        // by meaning, which the report states next to the grounding it produced.
+        embedder: lexicalEmbedder,
+        embedderId: LEXICAL_EMBEDDER_ID,
         artifactUrlFor: (key) => sink.urlFor(key),
       },
     );
@@ -114,6 +126,7 @@ export async function runCli(options: CliOptions, io: RunIo): Promise<number> {
         screenshotCount: outcome.capture.images.length,
         screenshotDir: show(join(outDir, "screenshots")),
         geometryCount: outcome.capture.geometry.length,
+        grounding: outcome.grounding,
         deterministicFindings: outcome.capture.deterministicFindings,
         factsFile: show(written.factsPath),
         pageHealthFootnote: pageHealthFootnote(outcome.capture.pageHealth),

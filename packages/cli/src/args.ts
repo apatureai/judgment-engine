@@ -135,8 +135,13 @@ Options:
   --routes <a,b>          Routes to capture (default: / and /pricing)
   --viewports <a,b>       mobile, tablet, desktop (default: all three)
   --out <dir>             Output directory (default: out)
-  --context-dir <dir>     Directory holding tokens.json, .designreview.yml and
-                          package.json (default: the demo site directory)
+  --context-dir <dir>     Directory holding tokens.json, .designreview.yml,
+                          package.json and ui-dna.json (default: the demo site
+                          directory). ui-dna.json is a UI-DNA snapshot exported
+                          from the Source of Truth, and it is what the critique
+                          is grounded against; with none, the review states in
+                          its own notReviewed that no design-system rule
+                          grounded it.
   --script <file.json>    Canned model script for the offline path
   --model <choice>        auto | mock | canned | live (default: auto)
                             auto   live if MODEL_API_KEY is set, else canned

@@ -9,9 +9,9 @@ import {
   type DeterministicFinding,
   type ScreenshotSink,
 } from "@engine/capture";
-import type { ModelClientFactory } from "@engine/critique";
+import { enforceGroundingAuthority, type ModelClientFactory } from "@engine/critique";
 import { reviewSystemPrompt, runReview, type ReviewRoute } from "@engine/review";
-import type { ContextBlockInput } from "@engine/context";
+import { buildGenomeIndex, type ContextBlockInput, type Embedder } from "@engine/context";
 import type {
   CaptureContext,
   Critique,
@@ -19,6 +19,12 @@ import type {
   PreviewBuildFact,
   Viewport,
 } from "@engine/types";
+import {
+  resolveGrounding,
+  withDisclosure,
+  type LocalGenome,
+  type LocalGrounding,
+} from "./grounding.js";
 
 /**
  * One local, in-process review: real Chromium capture, real deterministic
@@ -30,8 +36,9 @@ import type {
  * two front doors onto this function; neither reimplements a step, so a result
  * polled from `GET /jobs/:id` and a result written to `out/review.json` are the
  * same bytes for the same input. Every live I/O is a parameter: the browser,
- * the screenshot sink and the model client factory, which is what keeps the
- * whole thing testable against a fake browser and the mock model.
+ * the screenshot sink, the model client factory and the genome embedder, which
+ * is what keeps the whole thing testable against a fake browser and the mock
+ * model.
  */
 
 export interface LocalReviewRequest {
@@ -53,6 +60,25 @@ export interface LocalReviewRequest {
   depth: "triage" | "deep";
   /** Resolved design context (tokens, brand, component libraries, routes). */
   context: ContextBlockInput;
+  /**
+   * The resolved UI-DNA genome this review is grounded against, or the reason
+   * there is none.
+   *
+   * This is the design-system half of verdict's claim, and until now no local
+   * run had it: `runLocalReview` passed neither a genome index nor an embedder,
+   * so the deep prompt's "Design-system rules (UI-DNA; trusted)" block was empty
+   * on every review the CLI and the local HTTP server ever produced, and nothing
+   * in the result said so. The deployed composition passed both, so the two
+   * compositions disagreed about the one thing the product is for, and the path
+   * a reader runs from the README was the one missing it.
+   *
+   * Resolution belongs to the caller, exactly as it does in the deployed path
+   * (`GenomeResolver` there, `loadRepoGenome` here), because the two have
+   * different sources of truth and only the caller knows which one it asked.
+   * Absent means the caller resolved nothing and said nothing about why, which
+   * is disclosed on the result as `no_genome_resolved` rather than passed over.
+   */
+  genome?: LocalGenome;
   /** Build/runtime facts from a preview supervisor, threaded into the deep prompt. */
   previewBuildFacts?: PreviewBuildFact[];
   /** Not-reviewed reasons decided before the review ran; carried through verbatim. */
@@ -76,6 +102,20 @@ export interface LocalReviewDeps {
   /** Where PNG bytes land. `FileScreenshotSink` writes them to a directory. */
   sink: ScreenshotSink;
   modelFactory: ModelClientFactory;
+  /**
+   * Embeds the genome's rules and each route's retrieval query (#104). Required
+   * exactly when `request.genome` carries rules, which is the same invariant the
+   * deployed composition enforces; a genome with no way to index it is a
+   * configuration error, never a review that quietly drops the design system.
+   * `lexicalEmbedder` is the offline implementation the local front doors inject.
+   */
+  embedder?: Embedder;
+  /**
+   * Names the embedding function for the run's record. Two embedders rank the
+   * same genome differently, so a grounded review that cannot say which one
+   * ranked it cannot be compared with another one.
+   */
+  embedderId?: string;
   /** Maps a screenshot object key to the URL the wire result should carry. */
   artifactUrlFor?: (key: string) => string;
   /** Cooperative cancellation, threaded into every model call. */
@@ -93,10 +133,50 @@ export interface LocalReviewOutcome {
   critique: Critique | null;
   capture: BrowserCaptureResult;
   systemPrompt: string;
+  /**
+   * Whether the repository's own design system reached the model, and when it
+   * did not, the line the result carries saying so.
+   */
+  grounding: LocalGrounding;
   /** Findings deleted for citing a route or element the capture never produced. */
   hallucinationDrops: number;
   /** Findings the model or the replay script emitted before the gate ran. */
   modelFindingsSeen: number;
+}
+
+/** What a grounded run records when the caller injected an embedder it did not name. */
+const UNNAMED_EMBEDDER = "unnamed embedder";
+
+/**
+ * State the run's design-system grounding on the result itself.
+ *
+ * Two cases, and the engine already owns the vocabulary for both:
+ *
+ *   - Nothing grounded it. The disclosure goes in `notReviewed`, next to the
+ *     `[verdict] no model judged this page` line the same local front doors
+ *     stamp when nothing judged the page, and for the same reason: the terminal
+ *     report is not where most readers meet this result.
+ *
+ *   - A genome grounded it, and this process could not check that the version is
+ *     still effective. Only the authority service can answer that, it is not
+ *     reachable from a local run, and a snapshot on disk cannot answer it about
+ *     itself: a revoked version's export still carries the receipt it was
+ *     exported with. So the run treats its own grounding exactly as the deployed
+ *     path treats grounding whose authority came back unknown, through the same
+ *     `enforceGroundingAuthority` call: findings and provenance are preserved,
+ *     blocking is suppressed, a `blocked` grade is floored to `needs_work`, and
+ *     the reason is recorded in `notReviewed` in the engine's own words. Writing
+ *     a second, friendlier sentence for the local case would have made two
+ *     vocabularies for one fact.
+ */
+export function discloseGrounding(
+  result: EngineReviewResult,
+  grounding: LocalGrounding,
+): EngineReviewResult {
+  if (!grounding.grounded) {
+    return { ...result, notReviewed: withDisclosure(result.notReviewed, grounding.disclosure) };
+  }
+  return enforceGroundingAuthority(result, { status: "unknown" });
 }
 
 /** Run one local review end to end. */
@@ -104,7 +184,45 @@ export async function runLocalReview(
   request: LocalReviewRequest,
   deps: LocalReviewDeps,
 ): Promise<LocalReviewOutcome> {
-  const systemPrompt = reviewSystemPrompt(request.context);
+  // 0. Resolve the design-system grounding BEFORE the context block is built,
+  //    because the genome's version is part of that block and therefore part of
+  //    the prefix-cache key: a review grounded on `ui-dna@2026.06.12` and a
+  //    review grounded on nothing must not share a cache entry.
+  //
+  //    `resolveGrounding` is the one place that decides whether this run is
+  //    grounded. A genome that resolved but carries no rules retrieves nothing,
+  //    so it counts as ungrounded here rather than as a version stamp over an
+  //    empty prompt block.
+  const grounding = resolveGrounding(
+    request.genome,
+    request.context,
+    deps.embedderId ?? UNNAMED_EMBEDDER,
+  );
+  const genome = grounding.grounded ? (request.genome as Extract<LocalGenome, { available: true }>) : null;
+
+  // The deployed composition throws on exactly this pairing, and so does this
+  // one: a caller holding a genome and no embedder has misconfigured the review,
+  // and silently reviewing without the design system is the failure this whole
+  // change exists to remove.
+  if (genome && !deps.embedder) {
+    throw new Error("UI-DNA grounding resolved a genome but no embedder is configured");
+  }
+
+  // The version stamp travels on the context, which is what puts it in the
+  // context block, in `metadata.uiDnaVersion` on the wire result, and in the
+  // prompt the run writes to `system-prompt.txt`.
+  const context: ContextBlockInput = genome
+    ? { ...request.context, uiDnaVersion: genome.version }
+    : request.context;
+
+  // Embed every rule once, exactly as the deployed path does. Pure and offline
+  // with the lexical embedder, so this costs a few milliseconds and no network.
+  const genomeIndex =
+    genome && deps.embedder
+      ? await buildGenomeIndex(genome.version, genome.rules, deps.embedder)
+      : undefined;
+
+  const systemPrompt = reviewSystemPrompt(context);
   const capture = createBrowserCapture(
     { browser: deps.browser, sink: deps.sink, keyPrefix: request.keyPrefix ?? "screenshots" },
     { verifyStability: request.verifyStability === true },
@@ -160,11 +278,11 @@ export async function runLocalReview(
   });
 
   let critique: Critique | null = null;
-  const result = await runReview(
+  const reviewed = await runReview(
     {
       url: request.url,
       depth: request.depth,
-      context: request.context,
+      context,
       captureContext,
       routes,
       ...(request.previewBuildFacts ? { previewBuildFacts: request.previewBuildFacts } : {}),
@@ -184,6 +302,11 @@ export async function runLocalReview(
       // it produced rather than capturing a second time.
       captureInSandbox: async () => captured,
       modelFactory: deps.modelFactory,
+      // Retrieval needs both halves or neither: the orchestrator injects the
+      // per-route rules only when it has an index to rank and an embedder to
+      // embed the query with.
+      ...(genomeIndex ? { genomeIndex } : {}),
+      ...(genomeIndex && deps.embedder ? { embedder: deps.embedder } : {}),
       ...(deps.signal ? { signal: deps.signal } : {}),
       onCritique: (value) => {
         critique = value;
@@ -191,6 +314,7 @@ export async function runLocalReview(
     },
   );
 
+  const result = discloseGrounding(reviewed, grounding);
   const assembled = critique as Critique | null;
   const hallucinationDrops = assembled?.validation.hallucinationDrops ?? 0;
   return {
@@ -198,6 +322,7 @@ export async function runLocalReview(
     critique: assembled,
     capture: captured,
     systemPrompt,
+    grounding,
     hallucinationDrops,
     // The critique now states what entered the validation tail. Reconstructing
     // it as survivors + grounding-gate drops undercounted every run the

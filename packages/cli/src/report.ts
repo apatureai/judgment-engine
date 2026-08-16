@@ -1,5 +1,6 @@
 import type { DeterministicFinding, StabilityCheck } from "@engine/capture";
 import { nothingReviewed, type EngineReviewResult } from "@engine/types";
+import type { LocalGrounding } from "./grounding.js";
 
 /**
  * Terminal rendering. Pure functions over already-computed results so the exact
@@ -34,6 +35,8 @@ export interface RunSummary {
   screenshotCount: number;
   screenshotDir: string;
   geometryCount: number;
+  /** Whether the repository's own design system reached the model. */
+  grounding: LocalGrounding;
   deterministicFindings: DeterministicFinding[];
   /** Where the full measured-fact list was written, for the "and N more" pointer. */
   factsFile: string | null;
@@ -149,6 +152,29 @@ export function renderFacts(summary: RunSummary): string[] {
     lines.push(`  every measurement: ${summary.factsFile}`);
   }
   return lines;
+}
+
+/**
+ * The design-system grounding block.
+ *
+ * The claim this tool is built on is that it critiques a UI against the
+ * repository's own design system, so a run has to show whether it did. A
+ * grounded run names the version, the rule count and the ranking function,
+ * because two embedders retrieve different rules from one genome. An ungrounded
+ * run prints the same sentence the result carries in `notReviewed`, so the
+ * terminal and the file cannot disagree.
+ */
+export function renderGrounding(grounding: LocalGrounding): string[] {
+  if (!grounding.grounded) {
+    return ["Design-system grounding", `  none (${grounding.reason})`, `  ${grounding.disclosure}`];
+  }
+  return [
+    "Design-system grounding",
+    `  ${pad("ui-dna")}${grounding.uiDnaVersion}  (${grounding.ruleCount} rule(s) from ${grounding.source})`,
+    `  ${pad("retrieval")}top rules per route, ranked by ${grounding.embedder}`,
+    `  ${pad("authority")}not checked: no authority service is reachable from a local run, so this`,
+    "              result is advisory and cannot block",
+  ];
 }
 
 /**
@@ -318,6 +344,8 @@ export function renderSummary(summary: RunSummary): string {
     ...renderStability(summary.stability),
     "",
     ...renderFacts(summary),
+    "",
+    ...renderGrounding(summary.grounding),
     "",
     "Grounding gate",
     `  ${summary.modelFindingsSeen} ${parsedFrom}, ${summary.hallucinationDrops} dropped for citing a route or element that was never captured`,

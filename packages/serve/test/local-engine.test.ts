@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, readdir } from "node:fs/promises";
+import { mkdtemp, readFile, readdir, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { signEngineRequest, type ApiRequest } from "@engine/api";
@@ -7,6 +7,8 @@ import {
   parseArgs,
   runCli,
   serveDirectory,
+  UI_DNA_FILENAME,
+  UNGROUNDED_DISCLOSURE_PREFIX,
   type RunIo,
   type StaticSite,
 } from "@engine/cli";
@@ -397,5 +399,99 @@ describe("the route cap says which routes it dropped", () => {
     const result = body.result as EngineReviewResult;
     expect(result.coverage?.routesRequested).toEqual(["/", "/pricing"]);
     expect(result.notReviewed.some((line) => line.includes("max_per_pr"))).toBe(false);
+  });
+});
+
+/**
+ * The local HTTP server had the same gap the CLI did: `runLocalReview` passed no
+ * genome and no embedder, so every job this server ever completed was critiqued
+ * without the repository's own design system, which is the thing the product is
+ * for. Both front doors now resolve one from the operator's `--context-dir`, and
+ * both say so when there is none, which is what keeps the equivalence test above
+ * meaningful rather than an agreement between two ungrounded runs.
+ */
+describe("design-system grounding over the job API", () => {
+  it("discloses on the wire result that nothing grounded a review of a genome-less directory", async () => {
+    // The bundled demo site has tokens and a brand block and no UI-DNA snapshot,
+    // which is the common case and is exactly what the disclosure describes.
+    const { body } = await review("grounding-absent");
+    const result = body.result as EngineReviewResult;
+
+    expect(result.metadata.uiDnaVersion).toBeNull();
+    const disclosure = result.notReviewed.find((line) =>
+      line.startsWith(UNGROUNDED_DISCLOSURE_PREFIX),
+    );
+    expect(disclosure).toBeDefined();
+    expect(disclosure).toContain("no_genome_file");
+    expect(disclosure).toContain(UI_DNA_FILENAME);
+    // It states the loss without overstating it: the tokens and the brand block
+    // this directory does carry still grounded the critique.
+    expect(disclosure).toContain("design token(s)");
+    expect(disclosure).toContain("a brand block");
+  });
+
+  it("grounds a review on a snapshot the operator's directory does carry", async () => {
+    const contextDir = await mkdtemp(join(tmpdir(), "je-serve-dna-"));
+    await writeFile(
+      join(contextDir, UI_DNA_FILENAME),
+      JSON.stringify({
+        snapshot: {
+          id: "snap_1",
+          dna_version: "ui-dna@2026.06.12",
+          approval_state: "approved",
+          authority: {
+            contract_version: "uidna-authority/1",
+            status: "effective",
+            sequence: 1,
+            head_event_hash: `sha256:${"b".repeat(64)}`,
+            checked_at: "2026-06-12T00:00:00.000Z",
+          },
+        },
+        items: [
+          {
+            field_id: "spacing.scale",
+            kind: "spacing",
+            value: { scale: [4, 8, 12, 16] },
+            applicability: { component_kinds: ["card"] },
+          },
+        ],
+      }),
+    );
+    const grounded = await createLocalEngine({
+      secret: SECRET,
+      outRoot: await mkdtemp(join(tmpdir(), "je-serve-out-")),
+      contextDir,
+      model: "canned",
+      env: {},
+      workerPollMs: 600_000,
+      launchBrowser: async () => fakeBrowser(),
+    });
+    try {
+      await grounded.listen(0);
+      const post = await grounded.handle(
+        signed("POST", "/jobs", "local", {
+          idempotencyKey: "grounding-present",
+          depth: "deep",
+          request: reviewRequest(),
+        }),
+      );
+      expect(post.status).toBe(202);
+      const jobId = (post.body as { jobId: string }).jobId;
+      await grounded.drainOnce();
+      const got = await grounded.handle(signed("GET", `/jobs/${jobId}`, "local"));
+      const result = (got.body as { result?: EngineReviewResult }).result as EngineReviewResult;
+
+      expect(result.metadata.uiDnaVersion).toBe("ui-dna@2026.06.12");
+      expect(result.notReviewed.some((line) => line.startsWith(UNGROUNDED_DISCLOSURE_PREFIX))).toBe(
+        false,
+      );
+      // Grounded, and honest about the one check a local run cannot perform.
+      expect(result.notReviewed.join("\n")).toContain(
+        "grounding withheld: authority for UI-DNA version ui-dna@2026.06.12 was unknown at publish",
+      );
+      expect(result.blockingEnabled).toBe(false);
+    } finally {
+      await grounded.close();
+    }
   });
 });

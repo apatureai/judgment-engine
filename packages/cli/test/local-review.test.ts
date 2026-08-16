@@ -10,9 +10,16 @@ import type {
   ModelResponse,
   PassModelConfig,
 } from "@engine/critique";
-import type { ContextBlockInput } from "@engine/context";
+import type { ContextBlockInput, Embedder, GenomeRule } from "@engine/context";
 import { describe, expect, it } from "vitest";
-import { runLocalReview, type LocalReviewOutcome } from "../src/index.js";
+import {
+  lexicalEmbedder,
+  runLocalReview,
+  LEXICAL_EMBEDDER_ID,
+  UNGROUNDED_DISCLOSURE_PREFIX,
+  type LocalGenome,
+  type LocalReviewOutcome,
+} from "../src/index.js";
 
 /**
  * The shipped local pipeline (#2): the same function the terminal CLI and the
@@ -360,5 +367,182 @@ describe("runLocalReview on a run whose findings were all deleted", () => {
     expect(outcome.result.findings).toEqual([]);
     expect(outcome.result.grade).toBe("ship");
     expect(outcome.result).not.toHaveProperty("gradeUnavailableReason");
+  });
+});
+
+/**
+ * The design-system half of the claim, on the path a reader actually runs.
+ *
+ * `runLocalReview` passed neither a genome index nor an embedder, so the deep
+ * prompt's "Design-system rules (UI-DNA; trusted)" block was empty on every
+ * review the CLI and the local HTTP server ever produced, while the deployed
+ * composition filled it. The two compositions therefore disagreed about the one
+ * thing the product is for. These pin both halves of the fix: the rules reach
+ * the model when there is a design system, and the run says so in the result
+ * when there is not.
+ */
+const GENOME_RULES: GenomeRule[] = [
+  { id: "spacing.scale", text: JSON.stringify({ kind: "spacing", value: { scale: [4, 8, 12, 16] } }) },
+  { id: "radius.card", text: JSON.stringify({ kind: "radius", value: { card: "12px" } }), component: "card" },
+  { id: "color.cta", text: JSON.stringify({ kind: "color", value: { cta: "#4f46e5" } }), component: "button" },
+];
+
+const RESOLVED_GENOME: LocalGenome = {
+  available: true,
+  version: "ui-dna@2026.06.12",
+  rules: GENOME_RULES,
+  source: "/repo/ui-dna.json",
+};
+
+/** Every deep-pass user message this run sent, which is where the rules land. */
+function deepPrompts(requests: ModelRequest[]): string[] {
+  return requests
+    .filter(
+      (r) => !(r.messages.find((m) => m.role === "system")?.content ?? "").startsWith("You are triaging"),
+    )
+    .flatMap((r) => r.messages.filter((m) => m.role === "user").map((m) => m.content));
+}
+
+async function groundedReview(options: {
+  genome?: LocalGenome;
+  embedder?: Embedder | null;
+}): Promise<{ outcome: LocalReviewOutcome; requests: ModelRequest[] }> {
+  const requests: ModelRequest[] = [];
+  const inner = deepModel([modelFinding()]);
+  const factory = (config: PassModelConfig): ModelClient => {
+    const client = inner(config);
+    return {
+      backend: client.backend,
+      async complete(request: ModelRequest): Promise<ModelResponse> {
+        requests.push(request);
+        return client.complete(request);
+      },
+    };
+  };
+  const outcome = await runLocalReview(
+    {
+      url: "http://127.0.0.1:5000",
+      routes: ["/pricing"],
+      viewports: ["desktop"],
+      installationId: "test",
+      depth: "deep",
+      context: CONTEXT,
+      ...(options.genome ? { genome: options.genome } : {}),
+    },
+    {
+      browser: fakeBrowser({ overflowing: true }),
+      sink: memorySink(),
+      modelFactory: factory,
+      ...(options.embedder === null
+        ? {}
+        : { embedder: options.embedder ?? lexicalEmbedder, embedderId: LEXICAL_EMBEDDER_ID }),
+    },
+  );
+  return { outcome, requests };
+}
+
+describe("runLocalReview grounds the critique on the repository's design system", () => {
+  it("puts the resolved genome's rules in the deep prompt and stamps the version", async () => {
+    const { outcome, requests } = await groundedReview({ genome: RESOLVED_GENOME });
+
+    const prompt = deepPrompts(requests).join("\n");
+    expect(prompt).toContain("Design-system rules (UI-DNA; trusted):");
+    for (const rule of GENOME_RULES) expect(prompt).toContain(rule.text);
+
+    // The version travels on the context, so it reaches the wire result AND the
+    // context block, which is the prefix-cache key: a review grounded on this
+    // genome must not share a cache entry with one grounded on nothing.
+    expect(outcome.result.metadata.uiDnaVersion).toBe("ui-dna@2026.06.12");
+    expect(outcome.grounding).toMatchObject({
+      grounded: true,
+      uiDnaVersion: "ui-dna@2026.06.12",
+      ruleCount: 3,
+      embedder: LEXICAL_EMBEDDER_ID,
+      authorityChecked: false,
+    });
+    // A grounded review is still a real review.
+    expect(outcome.result.findings).toHaveLength(1);
+  });
+
+  it("treats its own grounding as unverifiable, because no authority service is reachable", async () => {
+    const { outcome } = await groundedReview({ genome: RESOLVED_GENOME });
+
+    // The engine's own vocabulary, not a second one invented for local runs: the
+    // exact note `enforceGroundingAuthority` writes for unknown authority.
+    expect(outcome.result.notReviewed.join("\n")).toContain(
+      "grounding withheld: authority for UI-DNA version ui-dna@2026.06.12 was unknown at publish",
+    );
+    expect(outcome.result.blockingEnabled).toBe(false);
+  });
+
+  it("says so, in the result, when there was no design system to ground against", async () => {
+    const { outcome, requests } = await groundedReview({});
+
+    // The prompt is byte-identical to a run that never had a genome, which is
+    // exactly why the result has to carry the statement.
+    expect(deepPrompts(requests).join("\n")).not.toContain("Design-system rules");
+    expect(outcome.result.metadata.uiDnaVersion).toBeNull();
+    expect(outcome.grounding).toMatchObject({ grounded: false, reason: "no_genome_resolved" });
+
+    const disclosure = outcome.result.notReviewed.find((line) =>
+      line.startsWith(UNGROUNDED_DISCLOSURE_PREFIX),
+    );
+    expect(disclosure).toBeDefined();
+    expect(disclosure).toContain("no_genome_resolved");
+    // And it does not overstate the loss: this run had no tokens and no brand
+    // either, so it says the critique was rubric-only rather than implying some
+    // other grounding carried it.
+    expect(disclosure).toContain("built-in rubric alone");
+  });
+
+  it("carries the caller's own reason through, so a reader knows which file to add", async () => {
+    const { outcome } = await groundedReview({
+      genome: {
+        available: false,
+        reason: "no_genome_file",
+        detail: "no UI-DNA snapshot was found at /repo/ui-dna.json",
+      },
+    });
+
+    const disclosure = outcome.result.notReviewed.join("\n");
+    expect(disclosure).toContain(UNGROUNDED_DISCLOSURE_PREFIX);
+    expect(disclosure).toContain("no_genome_file");
+    expect(disclosure).toContain("/repo/ui-dna.json");
+  });
+
+  it("refuses to report a genome with no rules as grounding", async () => {
+    // A version string is not grounding. Stamping `uiDnaVersion` from a snapshot
+    // that retrieves nothing is precisely the silent overclaim being removed.
+    const { outcome, requests } = await groundedReview({
+      genome: { available: true, version: "ui-dna@empty", rules: [], source: "/repo/ui-dna.json" },
+    });
+
+    expect(deepPrompts(requests).join("\n")).not.toContain("Design-system rules");
+    expect(outcome.result.metadata.uiDnaVersion).toBeNull();
+    expect(outcome.grounding).toMatchObject({ grounded: false, reason: "genome_has_no_rules" });
+  });
+
+  it("fails loudly rather than reviewing without the design system it was given", async () => {
+    // The deployed composition throws on this exact pairing. A local run that
+    // quietly dropped the genome would reintroduce the defect one layer down.
+    await expect(
+      groundedReview({ genome: RESOLVED_GENOME, embedder: null }),
+    ).rejects.toThrow(/no embedder is configured/);
+  });
+
+  it("embeds the rules once and the route query once, and never calls out per rule", async () => {
+    const batches: string[][] = [];
+    const counting: Embedder = async (texts) => {
+      batches.push([...texts]);
+      return lexicalEmbedder(texts);
+    };
+    await groundedReview({ genome: RESOLVED_GENOME, embedder: counting });
+
+    // One call to index the genome, one to embed the route queries. The seam is
+    // the same one the deployed path uses, so a metered embedding service is
+    // charged the same way from here.
+    expect(batches).toHaveLength(2);
+    expect(batches[0]).toEqual(GENOME_RULES.map((rule) => rule.text));
+    expect(batches[1]).toEqual(["/pricing"]);
   });
 });
