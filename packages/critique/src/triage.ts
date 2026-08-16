@@ -140,13 +140,25 @@ export async function runTriage(deps: TriageDeps, routes: TriageRoute[]): Promis
   // Deterministic breakage (#19) always counts, even if the model missed it.
   const obviousBreakage = dedupe([...(parsed?.obviousBreakage ?? []), ...deterministic]);
   const needsDeepReview = parsed?.needsDeepReview ?? true; // fail open: review when unsure
-  const suspectRoutes = parsed?.suspectRoutes ?? routes.map((r) => r.route);
+  // A route with measured breakage is suspect by definition, so it is added to
+  // whatever the model named. Overruling `needsDeepReview` alone was not enough:
+  // a model answering `{"needsDeepReview": false, "suspectRoutes": []}` over a
+  // page with a measured overflow produced a run that demanded a deep review and
+  // then had no route to run it on, which the orchestrator correctly reports as
+  // "triage named no routes" and nothing gets judged. The measurement names the
+  // route; that is the whole point of having measured it.
+  const breakageRoutes = routes.filter((r) => (r.deterministicBreakage ?? []).length > 0).map((r) => r.route);
+  const suspectRoutes = dedupe([...(parsed?.suspectRoutes ?? routes.map((r) => r.route)), ...breakageRoutes]);
 
   return {
     needsDeepReview: needsDeepReview || obviousBreakage.length > 0,
     suspectRoutes,
     obviousBreakage,
     shortCircuited: false,
-    summary: needsDeepReview ? "Deep review warranted." : "Triage found no issues warranting a deep review.",
+    summary: needsDeepReview
+      ? "Deep review warranted."
+      : obviousBreakage.length > 0
+        ? "Deep review warranted: breakage measured on the captured page."
+        : "Triage found no issues warranting a deep review.",
   };
 }

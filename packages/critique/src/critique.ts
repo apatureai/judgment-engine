@@ -10,6 +10,7 @@ import type {
 import type { ModelImage, ModelRequest } from "./model.js";
 import { defaultModelFactory } from "./mock-model.js";
 import { resolvePassModel, type ModelClientFactory, type PassModelOverrides } from "./registry.js";
+import { reconcileNarrative } from "./narrative.js";
 import { parseCritiqueOutput } from "./schema.js";
 import { buildResultMetadata } from "./version-stamp.js";
 import { buildSystemPrompt, SYSTEM_PROMPT_VERSION } from "./prompt.js";
@@ -104,9 +105,22 @@ export async function critique(
     },
   });
 
+  // Same reconciliation as `assembleCritique`: this entry point runs the same
+  // validation tail, so it can publish the same contradiction (a narrative about
+  // findings the grounding gate deleted) and is settled the same way.
+  const narrative = reconcileNarrative({
+    overall: output?.overall ?? `critique via ${config.model}`,
+    modelFindingsSeen: output?.findings.length ?? 0,
+    survivingFindings: tail.findings.length,
+    hallucinationDrops: tail.hallucinationDrops,
+  });
+
   return {
     grade: tail.grade,
-    overall: output?.overall ?? `critique via ${config.model}`,
+    overall: narrative.overall,
+    ...(narrative.ungroundedNarrative !== undefined
+      ? { ungroundedNarrative: narrative.ungroundedNarrative }
+      : {}),
     findings: tail.findings,
     notReviewed: output?.notReviewed ?? [],
     validation: {

@@ -606,6 +606,18 @@ carrying neither stamp. Both fields are additive and optional on schema v1, so a
 still parses a result that has them, and a consumer that reads a missing `coverage` must read it as
 "not stated", never as "everything was reviewed".
 
+Two more fields keep the raw document honest for somebody reading it directly rather than through a
+consumer that knows to check `coverage` first. `gradeUnavailableReason` is the grade's retraction: it
+is present exactly when nothing was reviewed, and it means the `grade` beside it is the value a
+review with no findings defaults to, not a verdict about the page. The `grade` field itself is
+unchanged, because it is a required closed enum in the cross-repo contract and a consumer's parser
+blocks publication on anything else, so the retraction travels beside it rather than inside it.
+`ungroundedNarrative` holds the model's own prose in the two states where that prose is not a
+description of the page: every finding it was written about was deleted by the grounding gate, or
+nothing was reviewed at all. In both cases `overall` states what actually happened, and the model's
+paragraph is preserved rather than deleted, because what the model claimed is worth reading. It just
+must not be mistaken for a conclusion.
+
 That extends to routes the engine drops before it ever captures them. `routes.max_per_pr` is a
 per-PR cost ceiling and it stays one, but the routes over the limit are reported rather than
 discarded: `routesRequested` is the configured list, not the capped one, and each dropped route gets
@@ -705,6 +717,20 @@ welcome on any of them.
   bytes, which is stricter than the designed pHash + tile-diff gate. The pHash path exists in
   `rust/capture-dedup` and `packages/capture/src/stability.ts` and is not connected to the live
   capture path.
+- **A baseline store, so a review can compare against a previous run.** The triage pass can skip a
+  deep review when a route's perceptual hash matches a recorded baseline and a tile-wise sensitive
+  diff confirms the match. Both inputs, `baselinePhash` and `tileScores` on `ReviewRoute`, describe
+  this capture against a previous one, and neither shipped surface has a previous one: nothing in the
+  CLI or the local HTTP server records a per-`(repo, route, viewport)` hash or tile score anywhere it
+  can read back. Nothing invents one, so the consequences are exact rather than hidden. The
+  short-circuit is unreachable in production, so every run pays for a triage model call it could
+  sometimes have skipped. And when the triage model answers that no deep review is needed, the run
+  has no baseline it declined against, which is why the result marks those routes not reviewed
+  instead of clean, and why the "no baseline for the route" line appears on every real triage
+  decline. Closing this needs a store with a retention and invalidation policy, keyed by repo and
+  route, plus the plumbing to populate the two fields from it. The measured-breakage half of triage
+  needs no baseline and is wired: an overflow measured on this capture forces a deep review of that
+  route whatever the triage model answered.
 - **UI-DNA grounding (`GENOME_ENDPOINT`).** The retrieval client and the publication-authority
   recheck exist in `packages/context`; the peer embedding service is not in this repository. Without
   it, reviews run against tokens and brand only.

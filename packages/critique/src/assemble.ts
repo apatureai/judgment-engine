@@ -7,6 +7,7 @@ import type {
 import { ENGINE_VERSION, PROMPT_VERSION, RUBRIC_VERSION } from "./critique.js";
 import type { DeepPassRouteResult } from "./deep-pass.js";
 import { worstGrade } from "./grade.js";
+import { reconcileNarrative } from "./narrative.js";
 import { buildResultMetadata } from "./version-stamp.js";
 import { runValidationTail } from "./validation-tail.js";
 
@@ -74,7 +75,16 @@ export function assembleCritique(routes: DeepPassRouteResult[], deps: AssembleCr
     },
   });
   const { findings, grade, blockingEnabled, calibration } = tail;
-  const overall = dedupeStrings(valid.map((r) => r.output.overall).filter((s) => s.trim().length > 0)).join(" ");
+  // The narrative is settled against what survived the tail, not published
+  // alongside it: the model wrote it before the grounding gate deleted anything,
+  // and a paragraph describing findings this result does not contain is the same
+  // result contradicting itself. See `reconcileNarrative`.
+  const narrative = reconcileNarrative({
+    overall: dedupeStrings(valid.map((r) => r.output.overall).filter((s) => s.trim().length > 0)).join(" "),
+    modelFindingsSeen: merged.length,
+    survivingFindings: findings.length,
+    hallucinationDrops: tail.hallucinationDrops,
+  });
 
   const notReviewed = dedupeStrings([
     ...(deps.notReviewed ?? []),
@@ -84,7 +94,10 @@ export function assembleCritique(routes: DeepPassRouteResult[], deps: AssembleCr
 
   return {
     grade,
-    overall,
+    overall: narrative.overall,
+    ...(narrative.ungroundedNarrative !== undefined
+      ? { ungroundedNarrative: narrative.ungroundedNarrative }
+      : {}),
     findings,
     notReviewed,
     validation: {

@@ -45,6 +45,7 @@ export type {
   WireGrade,
   WireFinding,
   WireViewport,
+  GradeUnavailableReason,
   ReviewCoverage,
   EngineReviewResult,
 } from "./wire.js";

@@ -8,7 +8,7 @@ import {
   type ScreenshotSink,
 } from "./browser-port.js";
 import { runCaptureLifecycle, type CaptureLifecycleOps } from "./capture-lifecycle.js";
-import { deterministicChecks, type DeterministicFinding } from "./checks.js";
+import { deterministicChecks, isBreakage, type DeterministicFinding } from "./checks.js";
 import {
   DOM_EXTRACT_EXPRESSION,
   toInteractiveElements,
@@ -286,6 +286,27 @@ export function factsForRoute(findings: DeterministicFinding[], route: string): 
   return findings
     .filter((f) => f.route === route)
     .map((f) => `- [${f.kind}] ${f.selector} (${f.viewport}): ${f.detail}`);
+}
+
+/**
+ * The measured BREAKAGE for one route, as the triage pass's
+ * `deterministicBreakage` lines (#19).
+ *
+ * Same source as `factsForRoute` and a strict subset of it: these are the
+ * measurements that mean the page came apart (see `BREAKAGE_KINDS`), and the
+ * triage pass treats them as grounds to run a deep review whatever the cheap
+ * model thought. Deduplicated across viewports, because the same overflowing
+ * element measured at three widths is one broken element, and the reason a deep
+ * review has to happen does not get three times truer for being restated.
+ * Deterministic order: first measurement wins.
+ */
+export function breakageForRoute(findings: DeterministicFinding[], route: string): string[] {
+  const lines = new Set<string>();
+  for (const finding of findings) {
+    if (finding.route !== route || !isBreakage(finding)) continue;
+    lines.add(`[${finding.kind}] ${route} ${finding.selector}: ${finding.detail}`);
+  }
+  return [...lines];
 }
 
 /** Viewports captured for a route, for callers building `CaptureContext`. */

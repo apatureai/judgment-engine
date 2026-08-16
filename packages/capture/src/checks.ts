@@ -55,6 +55,31 @@ export interface InteractiveElement {
 
 export type CheckKind = "contrast" | "overflow" | "touch_target";
 
+/**
+ * The check kinds that count as BREAKAGE: measured evidence that the page did
+ * not render the way it was laid out, as opposed to measured evidence that it
+ * rendered exactly as intended and the intent was wrong.
+ *
+ * Only `overflow` qualifies. Content wider than its container is the page coming
+ * apart, and it is the same class of fact the triage pass already collects from
+ * the model under `obviousBreakage` ("overlap, unstyled HTML, broken images, or
+ * overflow"). A contrast failure and an undersized touch target are real
+ * defects, measured just as reliably, but they are properties of a page that
+ * rendered correctly, so they belong in the deep prompt's fact list (where they
+ * already are, via `factsForRoute`) rather than in the signal that overrules a
+ * triage pass declining to look.
+ *
+ * Kept as one named constant because the classification is a judgment call and
+ * has to be reviewable in one place rather than inferred from a filter buried in
+ * a caller.
+ */
+export const BREAKAGE_KINDS: readonly CheckKind[] = ["overflow"];
+
+/** Whether a measured finding is breakage (see `BREAKAGE_KINDS`). */
+export function isBreakage(finding: DeterministicFinding): boolean {
+  return BREAKAGE_KINDS.includes(finding.kind);
+}
+
 export interface DeterministicFinding {
   kind: CheckKind;
   route: string;

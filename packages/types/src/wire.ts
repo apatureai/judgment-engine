@@ -81,6 +81,15 @@ export function nothingReviewed(coverage: ReviewCoverage): boolean {
   return coverage.routesReviewed.length === 0;
 }
 
+/**
+ * Why a result's `grade` is not a verdict about the page.
+ *
+ * `nothing_reviewed` is the only value today, and it is exactly the condition
+ * `nothingReviewed(coverage)` reports: no route reached a judgment, so the grade
+ * is the value a critique over zero routes defaults to.
+ */
+export type GradeUnavailableReason = "nothing_reviewed";
+
 export interface WireFinding {
   id: string;
   /**
@@ -161,11 +170,57 @@ export interface EngineReviewResult {
    * then. ABSENT means the producer does not report drops, never "none were
    * dropped": a consumer must not read a missing field as a clean gate.
    *
-   * It says nothing about `overall`. A narrative written before the gate ran can
-   * still describe a dropped finding under a clean grade; this count is what
-   * lets a consumer notice that and caveat it.
+   * It is a count, not a reconciliation. The narrative that was written before
+   * the gate ran is settled separately, in `overall` itself: see
+   * `ungroundedNarrative`.
    */
   hallucinationDrops?: number;
+  /**
+   * The model's own prose, verbatim, on a result where it is not a description
+   * of the page. Additive + optional on schema v1, like `coverage` and
+   * `hallucinationDrops`. Two conditions produce it, and they are the same
+   * condition: the prose survived something the findings did not.
+   *
+   *   - Every finding the summary was written about was deleted by the
+   *     validation tail, so it describes findings that could not be pointed at.
+   *   - Nothing was reviewed at all (`coverage.routesReviewed` empty), so
+   *     whatever sentence the run produced describes no judgment.
+   *
+   * When it is present, `overall` is NOT the model's prose: it is this engine's
+   * statement of what happened. The prose is kept because knowing what the model
+   * claimed is the most useful thing this engine can say about its own judge,
+   * and it is what an operator debugging a bad capture needs. It is moved out of
+   * `overall` because a reader must not mistake it for a conclusion about their
+   * page.
+   *
+   * ABSENT is the normal case and means only that this reconciliation did not
+   * fire. It never means "the narrative is grounded": a producer that does not
+   * report the field says nothing either way.
+   */
+  ungroundedNarrative?: string;
+  /**
+   * Why the `grade` on this result is not a verdict about the page.
+   *
+   * `grade` is required by this contract and its enum is closed, so a result
+   * that judged nothing still has to carry one of the four values, and a result
+   * with no findings floors to `ship`. That is how a raw `review.json` from a run
+   * that reviewed nothing came to read `"grade": "ship"` to anyone opening the
+   * file. Every consumer in this org checks `coverage` first and withholds the
+   * grade, but the file itself still stated a conclusion it had not reached.
+   *
+   * This is that statement's retraction, in band and machine-readable, on the
+   * same fail-closed pattern as `confidenceUnavailableReason`: present means the
+   * grade is not usable and the reason is given; absent means the producer
+   * asserts nothing beyond the grade itself. A consumer that reads `grade` must
+   * check this field, exactly as a consumer that reads `confidence` must check
+   * `calibration`.
+   *
+   * `grade` is deliberately NOT nulled or omitted instead: the field is a
+   * required closed enum in the cross-repo contract, and Gate's parser rejects a
+   * result that violates it, which would turn today's honest neutral Check Run
+   * into a blocked publish.
+   */
+  gradeUnavailableReason?: GradeUnavailableReason;
   /**
    * Whether anything judged this page, stated in the payload itself. Additive +
    * optional (schema v1, x-schema-version), like `dimension` and

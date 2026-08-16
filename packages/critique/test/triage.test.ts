@@ -96,6 +96,47 @@ describe("runTriage", () => {
     ]);
     expect(result.obviousBreakage).toContain("content overflow on /pricing");
     expect(result.needsDeepReview).toBe(true); // deterministic breakage forces it
+    // ...and names the route, or the forced deep review has nowhere to run.
+    // Forcing `needsDeepReview` while leaving the model's empty suspect list
+    // alone produced a run that demanded a deep review over no routes, which the
+    // orchestrator reports as "triage named no routes" and which judges nothing.
+    expect(result.suspectRoutes).toEqual(["/pricing"]);
+    expect(result.summary).toContain("breakage measured on the captured page");
+  });
+
+  it("adds a breaking route to the model's suspects without displacing them", async () => {
+    const client = clientReturning({
+      needsDeepReview: true,
+      suspectRoutes: ["/home"],
+      obviousBreakage: [],
+    });
+    const result = await runTriage({ client, model: "qwen3-vl-flash" }, [
+      route({ route: "/home", currentPhash: "ffff" }),
+      route({ route: "/pricing", currentPhash: "ffff", deterministicBreakage: ["overflow"] }),
+    ]);
+    expect(result.suspectRoutes).toEqual(["/home", "/pricing"]);
+  });
+
+  it("does not duplicate a route the model already suspected", async () => {
+    const client = clientReturning({
+      needsDeepReview: true,
+      suspectRoutes: ["/pricing"],
+      obviousBreakage: [],
+    });
+    const result = await runTriage({ client, model: "qwen3-vl-flash" }, [
+      route({ currentPhash: "ffff", deterministicBreakage: ["overflow"] }),
+    ]);
+    expect(result.suspectRoutes).toEqual(["/pricing"]);
+  });
+
+  it("leaves the suspect list alone when nothing was measured as broken", async () => {
+    const client = clientReturning({ needsDeepReview: false, suspectRoutes: [], obviousBreakage: [] });
+    const result = await runTriage({ client, model: "qwen3-vl-flash" }, [
+      route({ currentPhash: "ffff" }),
+    ]);
+    expect(result.needsDeepReview).toBe(false);
+    expect(result.suspectRoutes).toEqual([]);
+    expect(result.summary).toBe("Triage found no issues warranting a deep review.");
   });
 
   it("omits json_object on the triage call when structuredOutput is false (#87 qwen3.5 caveat)", async () => {

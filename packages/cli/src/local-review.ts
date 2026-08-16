@@ -1,6 +1,7 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import {
+  breakageForRoute,
   createBrowserCapture,
   factsForRoute,
   type BrowserCaptureResult,
@@ -121,12 +122,39 @@ export async function runLocalReview(
 
   // The deterministic facts are measured DURING capture, so the per-route inputs
   // the deep prompt is grounded on can only be assembled here, after it ran.
+  //
+  // `deterministicBreakage` is the subset of those measurements that means the
+  // page came apart, and it is threaded through separately because it does a
+  // different job: the deep prompt reads `facts`, but TRIAGE reads breakage, and
+  // a route with measured breakage gets a deep review whatever the cheap model
+  // answered. This field existed and was never populated on either shipped
+  // surface, so until now the only thing that could force a deep review was the
+  // triage model agreeing to one; a measured overflow the model failed to notice
+  // was carried to the deep prompt on the routes that happened to be reviewed
+  // and dropped entirely on the routes that were not.
+  //
+  // What is still NOT populated here, deliberately: `baselinePhash` and
+  // `tileScores`. Both describe THIS capture against a PREVIOUS one, and a local
+  // run has no previous one: nothing in this process, and nothing on disk that
+  // it owns, records a per-(repo, route, viewport) hash or tile score from an
+  // earlier run. Inventing a value would be worse than leaving it absent, since
+  // the triage gate treats a confirmed match as grounds to skip the review
+  // entirely. The consequences of the gap are exact and are documented on
+  // `ReviewRoute`: the pHash + tile-diff short-circuit is unreachable on both
+  // shipped surfaces, so every local run pays for a triage model call it could
+  // sometimes have skipped, and when triage declines a deep review the run has
+  // no baseline to have declined against, which is why the orchestrator marks
+  // those routes not-reviewed instead of clean. Closing it needs a baseline
+  // store keyed by repo and route with a retention and invalidation policy,
+  // which is a feature, not a wiring fix.
   const routes: ReviewRoute[] = request.routes.map((route) => {
     const facts = factsForRoute(captured.deterministicFindings, route);
+    const breakage = breakageForRoute(captured.deterministicFindings, route);
     const text = captured.pageText[route];
     return {
       route,
       ...(facts.length > 0 ? { facts } : {}),
+      ...(breakage.length > 0 ? { deterministicBreakage: breakage } : {}),
       ...(text ? { pageText: text } : {}),
     };
   });

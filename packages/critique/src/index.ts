@@ -92,6 +92,8 @@ export {
 } from "./authority.js";
 export type { AuthorityStatus, AuthorityStatusRef, GroundingAuthorization } from "./authority.js";
 export { reconcileGrade, gradeFromFindings, worstGrade } from "./grade.js";
+export { reconcileNarrative } from "./narrative.js";
+export type { NarrativeReconciliationInput, ReconciledNarrative } from "./narrative.js";
 export { cachePrefix, cachedInputTokens, isCacheHit } from "./cache.js";
 export { FREE_TIER_PASS_MODELS, passModelsForTier } from "./tier.js";
 export type { BillingTier } from "./tier.js";

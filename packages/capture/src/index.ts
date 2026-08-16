@@ -5,6 +5,8 @@ export {
   overflowViolations,
   touchTargetViolations,
   deterministicChecks,
+  isBreakage,
+  BREAKAGE_KINDS,
   MIN_TOUCH_TARGET_PX,
 } from "./checks.js";
 export type {
@@ -154,6 +156,7 @@ export {
   createBrowserCapture,
   defaultViewports,
   factsForRoute,
+  breakageForRoute,
   routeSlug,
   routeUrl,
 } from "./browser-capture.js";

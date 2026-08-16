@@ -157,4 +157,12 @@ export interface Critique {
   blockingEnabled?: boolean;
   /** Fail-closed explanation when display confidence is unavailable. */
   confidenceUnavailableReason?: ConfidenceUnavailableReason;
+  /**
+   * The model's own summary, verbatim, when every finding it was written about
+   * was deleted by the validation tail. Present only then: in that state
+   * `overall` is a statement about the run rather than the model's prose, and
+   * this is where the prose is kept so a reader can still see what the model
+   * claimed without mistaking it for a conclusion about the page.
+   */
+  ungroundedNarrative?: string;
 }

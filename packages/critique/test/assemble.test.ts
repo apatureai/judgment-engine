@@ -157,3 +157,67 @@ describe("assembleCritique (#29 → Critique aggregation, hardening)", () => {
     expect(out.metadata.captureVersion).toBe("stub@0");
   });
 });
+
+/**
+ * The narrative and the findings list are two halves of one result, and until
+ * this they could contradict each other: the gate deleted every finding, the
+ * grade floored to `ship`, and the model's paragraph about those findings was
+ * published verbatim as the description of the page.
+ */
+describe("assembleCritique reconciles the narrative with what survived", () => {
+  const ungrounded = (route: string) =>
+    routeResult(route, {
+      grade: "needs_work",
+      overall: "The hero block is misaligned and the CTA is off-grid.",
+      findings: [finding({ route, elementRef: "#ghost" })],
+      notReviewed: [],
+    });
+
+  it("stops publishing a narrative about findings the gate deleted", () => {
+    const out = assembleCritique([ungrounded("/pricing")], baseDeps);
+
+    expect(out.findings).toEqual([]);
+    expect(out.grade).toBe("ship");
+    expect(out.validation.hallucinationDrops).toBe(1);
+    expect(out.overall).not.toContain("hero block is misaligned");
+    expect(out.overall).toContain("No finding in this review survived validation");
+    expect(out.ungroundedNarrative).toBe("The hero block is misaligned and the CTA is off-grid.");
+  });
+
+  it("keeps the merged narrative when every finding survived", () => {
+    const out = assembleCritique(
+      [
+        routeResult("/pricing", {
+          grade: "needs_work",
+          overall: "Spacing is uneven.",
+          findings: [finding()],
+          notReviewed: [],
+        }),
+      ],
+      baseDeps,
+    );
+    expect(out.overall).toBe("Spacing is uneven.");
+    expect(out.ungroundedNarrative).toBeUndefined();
+  });
+
+  it("caveats rather than replaces when only some findings were deleted", () => {
+    const out = assembleCritique(
+      [
+        routeResult("/pricing", {
+          grade: "needs_work",
+          overall: "Two problems, one on each page.",
+          findings: [finding(), finding({ route: "/nowhere" })],
+          notReviewed: [],
+        }),
+      ],
+      baseDeps,
+    );
+    expect(out.findings).toHaveLength(1);
+    expect(out.validation.hallucinationDrops).toBe(1);
+    expect(out.overall).toContain("Two problems, one on each page.");
+    expect(out.overall).toContain("1 of the 2 finding(s) the model reported were deleted");
+    // Partial is not ungrounded: the surviving finding is real and the prose
+    // still describes it, so nothing is moved out of `overall`.
+    expect(out.ungroundedNarrative).toBeUndefined();
+  });
+});

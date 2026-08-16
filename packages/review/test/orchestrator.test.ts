@@ -1050,10 +1050,15 @@ describe("runReview reports the grounding gate's drop count", () => {
     expect(result.grade).toBe("ship");
     expect(result.findings).toHaveLength(0);
     expect(result.hallucinationDrops).toBe(1);
-    // Known limitation, asserted so it cannot change silently: the narrative is
-    // written before the gate runs, so it still describes the dropped problem
-    // under a clean grade. The count is what lets a consumer caveat it.
-    expect(result.overall).toContain("overlaps the nav");
+    // This used to be a documented limitation: the narrative is written before
+    // the gate runs, so a result with zero findings and a `ship` grade still
+    // read "the hero overlaps the nav". It no longer does. `overall` states what
+    // happened, and the model's paragraph is kept verbatim where it cannot be
+    // mistaken for a conclusion about the page.
+    expect(result.overall).not.toContain("overlaps the nav");
+    expect(result.overall).toContain("No finding in this review survived validation");
+    expect(result.overall).toContain("1 for citing a route or element that was never captured");
+    expect(result.ungroundedNarrative).toBe("The /pricing hero overlaps the nav on mobile.");
   });
 
   it("states zero when nothing was dropped, so absent can only mean an older producer", async () => {

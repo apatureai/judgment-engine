@@ -1,10 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
+  BREAKAGE_KINDS,
   contrastRatio,
   contrastViolations,
   deterministicChecks,
+  isBreakage,
   overflowViolations,
   touchTargetViolations,
+  type DeterministicFinding,
   type InteractiveElement,
   type TextNodeStyle,
 } from "../src/index.js";
@@ -111,5 +114,38 @@ describe("deterministicChecks", () => {
     });
     const kinds = findings.map((f) => f.kind).sort();
     expect(kinds).toEqual(["contrast", "overflow", "touch_target"]);
+  });
+});
+
+/**
+ * Which measurements count as BREAKAGE (#2).
+ *
+ * The distinction is load-bearing rather than cosmetic: breakage is what
+ * overrules a triage pass that declined to look, so widening it changes what
+ * gets a deep model call and narrowing it silently loses one.
+ */
+describe("BREAKAGE_KINDS", () => {
+  const measured = (kind: "contrast" | "overflow" | "touch_target"): DeterministicFinding => ({
+    kind,
+    route: "/",
+    viewport: "mobile",
+    selector: "#x",
+    detail: "detail",
+  });
+
+  it("counts overflow: content wider than its container is the page coming apart", () => {
+    expect(isBreakage(measured("overflow"))).toBe(true);
+  });
+
+  it("does NOT count contrast or touch targets", () => {
+    // Both are real, reliably measured defects, and both are already threaded
+    // into the deep prompt as facts. Neither is evidence the page rendered
+    // wrong: they are properties of a page that rendered exactly as laid out.
+    expect(isBreakage(measured("contrast"))).toBe(false);
+    expect(isBreakage(measured("touch_target"))).toBe(false);
+  });
+
+  it("keeps the classification in one reviewable place", () => {
+    expect([...BREAKAGE_KINDS]).toEqual(["overflow"]);
   });
 });

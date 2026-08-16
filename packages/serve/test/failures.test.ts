@@ -238,6 +238,7 @@ describe("the publication guard", () => {
       ...base,
       coverage: { routesRequested: ["/"], routesReviewed: [], viewportsRequested: ["mobile"], viewportsReviewed: [] },
       notReviewed: ["/: triage answered that no deep review was needed, but this run carried no baseline"],
+      gradeUnavailableReason: "nothing_reviewed",
       provenance: {
         model_backed: true,
         source: "model",
@@ -247,5 +248,41 @@ describe("the publication guard", () => {
       },
     };
     expect(assertAttested(explained)).toBe(explained);
+  });
+
+  it("refuses a result that judged no route and still asserts its grade", () => {
+    // The reason above is prose, and a caller is under no obligation to read
+    // prose. `gradeUnavailableReason` is the same statement in the field a
+    // program branches on, and every result this server produces carries it, so
+    // a missing one is a code path that forgot rather than an old payload.
+    expect(() =>
+      assertAttested({
+        ...base,
+        coverage: { routesRequested: ["/"], routesReviewed: [], viewportsRequested: ["mobile"], viewportsReviewed: [] },
+        notReviewed: ["/: nothing was captured"],
+        provenance: {
+          model_backed: true,
+          source: "model",
+          engine: "verdict-http",
+          model: "test-model",
+          detail: "a vision model judged the capture",
+        },
+      }),
+    ).toThrow(/still asserting its grade/);
+  });
+
+  it("does not demand a retraction from a review that actually reviewed something", () => {
+    const real: EngineReviewResult = {
+      ...base,
+      provenance: {
+        model_backed: true,
+        source: "model",
+        engine: "verdict-http",
+        model: "test-model",
+        detail: "a vision model judged the capture",
+      },
+    };
+    expect(real.gradeUnavailableReason).toBeUndefined();
+    expect(assertAttested(real)).toBe(real);
   });
 });

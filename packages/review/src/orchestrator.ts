@@ -61,7 +61,18 @@ import type { Critique, EngineReviewResult, PreviewBuildFact } from "@engine/typ
 export interface ReviewRoute {
   /** Route path, e.g. "/pricing". */
   route: string;
-  /** Cached baseline perceptual hash (#34/#41), if any. */
+  /**
+   * Cached baseline perceptual hash (#34/#41), if any.
+   *
+   * NOT POPULATED ON ANY SHIPPED SURFACE. Both front doors onto this
+   * orchestrator (`@engine/cli` and `@engine/serve`) run one capture in one
+   * process and hold no record of a previous one, so there is no baseline to
+   * pass. The field is real and the code behind it is real and tested; what does
+   * not exist is a baseline store keyed by (repo, route, viewport) with a
+   * retention and invalidation policy. Until that exists, the triage
+   * short-circuit below is unreachable in production and every local run pays
+   * for a triage model call it could sometimes have skipped.
+   */
   baselinePhash?: string;
   /** Current perceptual hash from this capture. */
   currentPhash?: string;
@@ -69,9 +80,20 @@ export interface ReviewRoute {
    * Per-tile change-sensitive scores (#17/#89) used to CONFIRM a pHash match
    * before the triage short-circuit. Absent ⇒ a pHash match alone can't
    * short-circuit (fails open to a deep review).
+   *
+   * NOT POPULATED ON ANY SHIPPED SURFACE either, and for the same reason: a tile
+   * score is a comparison against a baseline image nothing here has kept. See
+   * `baselinePhash`.
    */
   tileScores?: TriageRoute["tileScores"];
-  /** Deterministic breakage facts (#19); forces a deep review when present. */
+  /**
+   * Deterministic breakage facts (#19); forces a deep review when present, and
+   * makes the route suspect so the deep review has somewhere to run.
+   *
+   * Unlike the two fields above this one needs no baseline: it is measured from
+   * THIS capture alone, so both shipped surfaces populate it from the capture's
+   * own deterministic findings (`breakageForRoute`).
+   */
   deterministicBreakage?: string[];
   /** Deterministic facts (contrast/overflow/touch-target, #19) for the deep prompt. */
   facts?: string[];

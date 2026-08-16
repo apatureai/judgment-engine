@@ -69,5 +69,18 @@ export function assertAttested(result: EngineReviewResult): EngineReviewResult {
       "a review that judged no route reached publication with no reason given; refusing to serve a grade nothing earned",
     );
   }
+  // The same fact, in the field a PROGRAM reads. The guard above is satisfied by
+  // prose, and prose is not something a caller can branch on: it can hold a
+  // result whose `grade` says `ship`, whose `routesReviewed` is empty, and whose
+  // reasons are a paragraph it has no obligation to parse. `gradeUnavailableReason`
+  // is the machine-readable retraction of that grade, and everything this server
+  // publishes comes through the projection that emits it, so a path that forgets
+  // it is a bug rather than a legacy shape.
+  if (nothingReviewed(result.coverage) && result.gradeUnavailableReason === undefined) {
+    throw new LocalEngineError(
+      "unattested_result",
+      "a review that judged no route reached publication still asserting its grade; refusing to serve a grade nothing earned",
+    );
+  }
   return result;
 }

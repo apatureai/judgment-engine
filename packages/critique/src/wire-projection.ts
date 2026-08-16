@@ -1,3 +1,4 @@
+import { nothingReviewed } from "@engine/types";
 import type {
   Critique,
   EngineReviewResult,
@@ -118,8 +119,49 @@ function resultConfidence(findings: readonly Finding[]): number {
   return Math.min(...findings.map((finding) => finding.confidence));
 }
 
+/**
+ * What a result says about itself when its coverage reports that no route
+ * reached a judgment (#3).
+ *
+ * Three fields disagreed on that path. `coverage.routesReviewed` was empty,
+ * `grade` was `ship` because a critique with no findings floors there, and
+ * `overall` carried whatever prose the run had produced, which on the commonest
+ * such path is the triage model's "Triage found no issues warranting a deep
+ * review." Every consumer in this org checks coverage first and withholds both,
+ * so the contradiction never reached a Check Run; it reached anyone who opened
+ * `out/review.json`, which is a supported thing to do and the reason the file is
+ * written at all.
+ *
+ * So the payload states it in the payload. `grade` cannot be nulled (see
+ * `GradeUnavailableReason`), but the two prose fields can be made true, and the
+ * model's own sentence is preserved rather than deleted, in the same field and
+ * for the same reason as an ungrounded findings narrative.
+ */
+function nothingReviewedNarrative(critique: Critique, coverage: ReviewCoverage): {
+  overall: string;
+  ungroundedNarrative?: string;
+} {
+  const asked = coverage.routesRequested.length;
+  const statement =
+    `Nothing was reviewed: 0 of ${asked} requested route(s) reached a judgment in this run. ` +
+    `The grade on this result is the value a review with no findings defaults to, not a verdict ` +
+    `about this page.` +
+    (critique.notReviewed.length > 0 ? " What was not reviewed, and why, is listed in notReviewed." : "");
+  const prose = critique.overall.trim();
+  // An existing `ungroundedNarrative` always wins: it was set because every
+  // finding a narrative described was deleted, which is the more specific claim.
+  if (critique.ungroundedNarrative !== undefined) {
+    return { overall: statement, ungroundedNarrative: critique.ungroundedNarrative };
+  }
+  return prose.length === 0 ? { overall: statement } : { overall: statement, ungroundedNarrative: critique.overall };
+}
+
 /** Project the internal critique into the cross-repo wire result Gate consumes. */
 export function toEngineReviewResult(critique: Critique, options: WireProjectionOptions): EngineReviewResult {
+  const unreviewed =
+    options.coverage && nothingReviewed(options.coverage)
+      ? nothingReviewedNarrative(critique, options.coverage)
+      : null;
   const confidenceAvailable = critique.calibration !== undefined && critique.findings.length > 0;
   const findings = critique.findings.map((f, i) => toWireFinding(f, i, options, confidenceAvailable));
 
@@ -132,7 +174,7 @@ export function toEngineReviewResult(critique: Critique, options: WireProjection
 
   return {
     grade: critique.grade,
-    overall: critique.overall,
+    overall: unreviewed ? unreviewed.overall : critique.overall,
     ...(confidenceAvailable ? { confidence: resultConfidence(critique.findings) } : {}),
     ...(critique.calibration ? { calibration: critique.calibration } : {}),
     blockingEnabled: critique.blockingEnabled === true,
@@ -157,8 +199,24 @@ export function toEngineReviewResult(critique: Critique, options: WireProjection
     // a clean page from three findings that could not be pointed at. Emitted even
     // when zero, because zero is the answer to the same question.
     hallucinationDrops: critique.validation.hallucinationDrops,
+    // The model's prose, on a result where it is not a description of the page:
+    // either every finding it was written about was deleted, or nothing was
+    // reviewed at all. `overall` above carries the engine's statement in both
+    // cases, so this is where the prose a reader may still want to see is kept.
+    ...(unreviewed
+      ? unreviewed.ungroundedNarrative !== undefined
+        ? { ungroundedNarrative: unreviewed.ungroundedNarrative }
+        : {}
+      : critique.ungroundedNarrative !== undefined
+        ? { ungroundedNarrative: critique.ungroundedNarrative }
+        : {}),
     // Coverage (#165): emitted verbatim from what the orchestrator observed,
     // omitted entirely when the caller did not state it.
     ...(options.coverage ? { coverage: options.coverage } : {}),
+    // The grade's retraction, for the raw artifact (#3). `grade` is a required
+    // closed enum, so a run that judged nothing still carries `ship`; this says
+    // in band that it is not a verdict. Emitted only from OBSERVED coverage: a
+    // caller that did not state coverage cannot have this asserted on its behalf.
+    ...(unreviewed ? { gradeUnavailableReason: "nothing_reviewed" as const } : {}),
   };
 }

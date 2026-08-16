@@ -238,3 +238,110 @@ describe("deriveTitle / wireFindingId", () => {
     expect([0, 8, 9, 99].map(wireFindingId)).toEqual(["f_001", "f_009", "f_010", "f_100"]);
   });
 });
+
+/**
+ * The raw artifact's own consistency (#3).
+ *
+ * `out/review.json` and the body of `GET /jobs/:id` are the same bytes, and both
+ * outlive the terminal report that refuses to print a grade. On a run that
+ * judged nothing they read `"grade": "ship"`, `"findings": []` and whatever
+ * sentence the run had produced, which on the commonest such path is the triage
+ * model's "Triage found no issues warranting a deep review." Gate, Bastion and
+ * the CLI report all check coverage first and withhold the grade; a fourth party
+ * opening the file got a green verdict nothing had earned.
+ */
+describe("toEngineReviewResult on a run that reviewed nothing", () => {
+  const nothing: ReviewCoverage = {
+    routesRequested: ["/pricing", "/checkout"],
+    routesReviewed: [],
+    viewportsRequested: ["mobile", "desktop"],
+    viewportsReviewed: [],
+  };
+  const something: ReviewCoverage = { ...nothing, routesReviewed: ["/pricing"] };
+
+  const unjudged = critique({
+    grade: "ship",
+    overall: "Triage found no issues warranting a deep review.",
+    findings: [],
+    notReviewed: ["/pricing: no baseline, so nothing was compared against anything"],
+  });
+
+  it("retracts the grade in band rather than leaving `ship` to speak for itself", () => {
+    const result = toEngineReviewResult(unjudged, {
+      screenshotRetentionSeconds: 60,
+      coverage: nothing,
+    });
+    // `grade` itself is unchanged: it is a required closed enum in the
+    // cross-repo contract and Gate's parser blocks publish on anything else.
+    expect(result.grade).toBe("ship");
+    expect(result.gradeUnavailableReason).toBe("nothing_reviewed");
+  });
+
+  it("stops the run's own prose from reading as a verdict, and keeps it verbatim", () => {
+    const result = toEngineReviewResult(unjudged, {
+      screenshotRetentionSeconds: 60,
+      coverage: nothing,
+    });
+    expect(result.overall).toContain("Nothing was reviewed: 0 of 2 requested route(s)");
+    expect(result.overall).toContain("not a verdict");
+    expect(result.overall).toContain("listed in notReviewed");
+    expect(result.overall).not.toContain("Triage found no issues");
+    expect(result.ungroundedNarrative).toBe("Triage found no issues warranting a deep review.");
+  });
+
+  it("does not promise a notReviewed list it does not have", () => {
+    const result = toEngineReviewResult(critique({ findings: [], notReviewed: [] }), {
+      screenshotRetentionSeconds: 60,
+      coverage: nothing,
+    });
+    expect(result.overall).toContain("Nothing was reviewed");
+    expect(result.overall).not.toContain("listed in notReviewed");
+  });
+
+  it("omits ungroundedNarrative when there was no prose to preserve", () => {
+    const result = toEngineReviewResult(critique({ overall: "  ", findings: [], notReviewed: [] }), {
+      screenshotRetentionSeconds: 60,
+      coverage: nothing,
+    });
+    expect(result).not.toHaveProperty("ungroundedNarrative");
+  });
+
+  it("leaves a real review alone, including a partial one", () => {
+    // A partial review is a real verdict about a smaller surface. Nothing here
+    // is retracted, and the result stays byte-identical to before this change.
+    const result = toEngineReviewResult(critique(), {
+      screenshotRetentionSeconds: 60,
+      coverage: something,
+    });
+    expect(result).not.toHaveProperty("gradeUnavailableReason");
+    expect(result).not.toHaveProperty("ungroundedNarrative");
+    expect(result.overall).toBe("Mobile layout breaks the design system.");
+  });
+
+  it("asserts nothing on behalf of a caller that did not state coverage", () => {
+    const result = toEngineReviewResult(unjudged, { screenshotRetentionSeconds: 60 });
+    expect(result).not.toHaveProperty("gradeUnavailableReason");
+    expect(result.overall).toBe("Triage found no issues warranting a deep review.");
+  });
+
+  it("keeps the more specific ungrounded-findings narrative when both conditions hold", () => {
+    const result = toEngineReviewResult(
+      critique({
+        findings: [],
+        overall: "No finding in this review survived validation.",
+        ungroundedNarrative: "The hero block is misaligned.",
+      }),
+      { screenshotRetentionSeconds: 60, coverage: nothing },
+    );
+    expect(result.ungroundedNarrative).toBe("The hero block is misaligned.");
+    expect(result.overall).toContain("Nothing was reviewed");
+  });
+
+  it("carries the ungrounded narrative through on a normally-covered result", () => {
+    const result = toEngineReviewResult(
+      critique({ findings: [], ungroundedNarrative: "The hero block is misaligned." }),
+      { screenshotRetentionSeconds: 60, coverage: something },
+    );
+    expect(result.ungroundedNarrative).toBe("The hero block is misaligned.");
+  });
+});

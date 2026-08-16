@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   BROWSER_CAPTURE_VERSION,
   captureWithBrowser,
+  breakageForRoute,
   factsForRoute,
   routeSlug,
   routeUrl,
@@ -277,6 +278,35 @@ describe("captureWithBrowser", () => {
     ]);
     expect(factsForRoute(capture.deterministicFindings, "/")[0]).toMatch(/^- \[contrast\] #hero-subtitle \(mobile\)/);
     expect(factsForRoute(capture.deterministicFindings, "/missing")).toEqual([]);
+  });
+
+  it("names the measured BREAKAGE separately, as the triage pass's override (#2)", async () => {
+    const { browser } = fakeBrowser();
+    const capture = await captureWithBrowser(
+      "http://127.0.0.1:5000",
+      { ...CONTEXT, routes: ["/"], viewports: ["mobile"] },
+      { browser, sink: memorySink() },
+    );
+
+    // A strict subset of the facts: the contrast and touch-target measurements
+    // on this same page are real defects but are not the page coming apart.
+    expect(breakageForRoute(capture.deterministicFindings, "/")).toEqual([
+      "[overflow] / #hero-subtitle: content width 520px exceeds container 400px (horizontal overflow)",
+    ]);
+    expect(breakageForRoute(capture.deterministicFindings, "/missing")).toEqual([]);
+  });
+
+  it("counts one broken element once, however many viewports measured it", async () => {
+    const { browser } = fakeBrowser();
+    const capture = await captureWithBrowser(
+      "http://127.0.0.1:5000",
+      { ...CONTEXT, routes: ["/"], viewports: ["mobile", "desktop"] },
+      { browser, sink: memorySink() },
+    );
+
+    const overflow = capture.deterministicFindings.filter((f) => f.kind === "overflow");
+    expect(overflow.length).toBeGreaterThan(1); // measured at both viewports
+    expect(breakageForRoute(capture.deterministicFindings, "/")).toHaveLength(1);
   });
 
   it("aggregates page health including silently substituted web fonts", async () => {
