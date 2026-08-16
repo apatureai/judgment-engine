@@ -6,7 +6,7 @@ import {
   type OpenAILikeClient,
 } from "@engine/critique";
 import type { ObjectStore } from "@engine/storage";
-import type { Capture, CaptureContext, CaptureInSandbox } from "@engine/types";
+import type { CaptureContext } from "@engine/types";
 import OpenAI from "openai";
 import { z } from "zod";
 import {
@@ -15,6 +15,23 @@ import {
   type GroundingAuthorityPort,
   type GroundingAuthorityReceipt,
 } from "./authority.js";
+import type { MeasuredCapture, MeasuredCaptureInSandbox } from "./measurement.js";
+
+/**
+ * What a capture service measured while it captured (#19).
+ *
+ * The kinds are the closed `CheckKind` enum from `@engine/capture`, so a service
+ * cannot introduce a measurement class the prompt builders and the breakage
+ * classifier have never heard of. `detail` is the sentence the deep prompt
+ * quotes verbatim, so it crosses as free text; nothing downstream parses it.
+ */
+const deterministicFindingSchema = z.object({
+  kind: z.enum(["contrast", "overflow", "touch_target"]),
+  route: z.string().min(1),
+  viewport: z.enum(["mobile", "tablet", "desktop"]),
+  selector: z.string().min(1),
+  detail: z.string().min(1),
+}).strict();
 
 const captureSchema = z.object({
   images: z.array(z.object({
@@ -38,6 +55,19 @@ const captureSchema = z.object({
     blockedFonts: z.number().int().nonnegative().optional(),
   }).strict(),
   captureVersion: z.string().min(1),
+  // The measured half of the capture. Optional because the engine and the fleet
+  // deploy separately, and because this schema is `.strict()`: before these two
+  // fields existed, a capture service that ran the deterministic checks and
+  // reported them had its whole response REJECTED here, which is why the
+  // deployed engine has never had a measured fact in a deep prompt.
+  //
+  // Absent means "not measured", not "measured nothing"; an empty array is the
+  // positive statement that the checks ran clean. `measurementGap` in
+  // `measurement.ts` is what keeps those two answers apart.
+  deterministicFindings: z.array(deterministicFindingSchema).optional(),
+  // Visible page text per route (#53). UNTRUSTED input: it is quoted into the
+  // deep prompt inside `<untrusted_page_content>` and never followed.
+  pageText: z.record(z.string(), z.string()).optional(),
 }).strict();
 
 const authorityReceiptSchema = z.object({
@@ -70,7 +100,13 @@ const genomeSchema = z.object({
 }).passthrough();
 
 export interface CaptureClient {
-  forJob(jobId: string, signal: AbortSignal): CaptureInSandbox;
+  /**
+   * The capture seam for one job. Returns `MeasuredCaptureInSandbox` rather than
+   * the bare `CaptureInSandbox` so the composition root can read what the service
+   * MEASURED as well as what it captured; the two are structurally compatible,
+   * so anything that only wants a `CaptureInSandbox` still takes this.
+   */
+  forJob(jobId: string, signal: AbortSignal): MeasuredCaptureInSandbox;
   cancel(jobId: string): Promise<void>;
   ready(): Promise<boolean>;
 }
@@ -83,8 +119,8 @@ export class HttpCaptureClient implements CaptureClient {
     private readonly fetchImpl: typeof fetch = fetch,
   ) {}
 
-  forJob(jobId: string, signal: AbortSignal): CaptureInSandbox {
-    return async (url: string, context: CaptureContext): Promise<Capture> => {
+  forJob(jobId: string, signal: AbortSignal): MeasuredCaptureInSandbox {
+    return async (url: string, context: CaptureContext): Promise<MeasuredCapture> => {
       const response = await this.fetchImpl(new URL("/v1/captures", this.endpoint), {
         method: "POST",
         headers: {

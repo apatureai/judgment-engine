@@ -18,6 +18,7 @@
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1091.0",
     "@engine/api": "workspace:*",
+    "@engine/capture": "workspace:*",
     "@engine/context": "workspace:*",
     "@engine/critique": "workspace:*",
     "@engine/db": "workspace:*",

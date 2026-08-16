@@ -231,6 +231,9 @@ importers:
       '@engine/api':
         specifier: workspace:*
         version: link:../api
+      '@engine/capture':
+        specifier: workspace:*
+        version: link:../capture
       '@engine/context':
         specifier: workspace:*
         version: link:../context

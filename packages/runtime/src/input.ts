@@ -161,6 +161,13 @@ export function toReviewInput(job: JobRecord): ReviewInput {
       isFork: true,
       routes,
     },
+    // Bare here on purpose, and NOT left bare. The per-route measurements that
+    // ground the deep prompt (`facts`) and overrule a triage decline
+    // (`deterministicBreakage`) are computed DURING capture, and capture has not
+    // run yet at this point: this function only reads the durable job. The
+    // composition root captures, then rebuilds these routes from what the
+    // capture measured (`applyMeasuredRoutes` in `measurement.ts`). Any other
+    // caller of `toReviewInput` that skips that step reviews unfacted pages.
     routes: routes.map((route) => ({ route })),
     // The ask is the configured list, not the capped one, so coverage reports a
     // truncated run as the partial review it is instead of "5 of 5 reviewed".
@@ -177,6 +184,16 @@ export function toReviewInput(job: JobRecord): ReviewInput {
     ...(request.previewBuildFacts !== undefined
       ? { previewBuildFacts: request.previewBuildFacts as PreviewBuildFact[] }
       : {}),
+    // No `screenshotIdFor` and no `artifactUrlFor`, which is a KNOWN divergence
+    // from the local pipeline and is left visible rather than approximated. The
+    // wire projection resolves both from the captured-image set and the object
+    // store's signed-URL base; without them every finding this service publishes
+    // carries `screenshotId: null` and `artifacts.annotatedScreenshots` is empty,
+    // whatever was captured. Binding them means deciding a delivery policy this
+    // composition does not have: `screenshotRetentionSeconds: 0` currently tells
+    // consumers the screenshots are not retained, and a signed URL has a TTL that
+    // has to agree with that number. Inventing either would be publishing a
+    // retention promise nothing implements.
     wireOptions: { screenshotRetentionSeconds: 0 },
   };
 }

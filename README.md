@@ -718,7 +718,12 @@ welcome on any of them.
 - **A capture service behind `CAPTURE_ENDPOINT`.** `HttpCaptureClient` in
   `packages/runtime/src/adapters.ts` is a complete client for a fleet that does not exist in this
   tree. The local path uses `createBrowserCapture` instead. Implementing the server side against that
-  client's contract is a well-specified project.
+  client's contract is a well-specified project. Note what that contract now includes: alongside the
+  images, the geometry map and the page health, a capture service reports what it MEASURED
+  (`deterministicFindings`) and the page's own visible text (`pageText`). Both are optional on the
+  wire, and a service that omits the measurements produces reviews with no measured facts in the deep
+  prompt and no measured breakage able to overrule a triage pass that declined to look; the service
+  logs that gap per job rather than letting the absence read as a clean page.
 - **Wire rate limiting and fairness.** `packages/redis` implements the global token bucket, per-tenant
   quota, fairness gate and no-eviction guard, and is unit-tested, but no package imports it and
   `packages/runtime` never reads `REDIS_URL`. The service currently runs unthrottled. This is

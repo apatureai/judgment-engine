@@ -29,6 +29,8 @@ export {
   truncatedRouteReason,
 } from "./input.js";
 export type { CappedRoutes, RuntimeReviewRequest } from "./input.js";
+export { applyMeasuredRoutes, measuredRoutes, measurementGap } from "./measurement.js";
+export type { MeasuredCapture, MeasuredCaptureInSandbox } from "./measurement.js";
 export { EngineWorker, PgNotificationSource } from "./worker.js";
 export type { EngineWorkerOptions, NotificationSource, WorkerStore } from "./worker.js";
 

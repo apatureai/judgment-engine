@@ -37,6 +37,7 @@ import {
 import { loadRuntimeConfig, type RuntimeConfig } from "./config.js";
 import { EngineHttpServer } from "./http.js";
 import { repositoryForJob, toReviewInput } from "./input.js";
+import { applyMeasuredRoutes, measurementGap } from "./measurement.js";
 import { EngineWorker, PgNotificationSource, type NotificationSource } from "./worker.js";
 
 export interface EngineRuntimeOptions {
@@ -149,8 +150,32 @@ export function createEngineRuntime(options: EngineRuntimeOptions): EngineRuntim
       const genomeIndex = resolvedGenome && options.embedder
         ? await buildGenomeIndex(resolvedGenome.version, resolvedGenome.rules, options.embedder)
         : undefined;
+
+      // Capture FIRST, then build the per-route inputs from what the capture
+      // MEASURED, then hand the orchestrator the capture it already has. This is
+      // the same order the local pipeline runs in (`runLocalReview` captures,
+      // calls `factsForRoute` / `breakageForRoute`, and passes
+      // `captureInSandbox: async () => captured`), and it is the only order that
+      // can work: the deterministic checks are computed during capture, so the
+      // facts that ground the deep prompt and the breakage that overrules triage
+      // do not exist yet when `toReviewInput` builds the routes.
+      //
+      // Before this, that ordering problem was simply not solved on this path:
+      // `toReviewInput` emitted bare `{ route }` objects and nothing ever filled
+      // them, so the deployed service ran every deep prompt with no measured
+      // facts and every triage pass with nothing that could overrule a model
+      // declining to look. The behaviour documented on `ReviewRoute` -- that
+      // both shipped surfaces populate `deterministicBreakage` -- was true of the
+      // CLI and the local server and false of the thing behind the HTTP API.
+      const captured = await options.capture.forJob(job.id, signal)(input.url, input.captureContext);
+      applyMeasuredRoutes(input, captured);
+      const gap = measurementGap(captured);
+      if (gap) options.logger?.info(`engine job ${job.id}: ${gap}`);
+
       return {
-        captureInSandbox: options.capture.forJob(job.id, signal),
+        // The capture already ran, so the seam hands the orchestrator the result
+        // it produced rather than capturing the same pages a second time.
+        captureInSandbox: async () => captured,
         modelFactory: options.modelFactory,
         ...(options.passModels ? { passModels: options.passModels } : {}),
         ...(calibration.ok
