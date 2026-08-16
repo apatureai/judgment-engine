@@ -791,6 +791,116 @@ describe("runReview coverage (#165)", () => {
       viewportsRequested: ["mobile", "desktop"],
       viewportsReviewed: ["mobile", "desktop"],
     });
+    // Nothing to explain: a real baseline confirmed the page unchanged.
+    expect(result.notReviewed).toEqual([]);
+  });
+
+  it("reviews NOTHING when triage declines a deep review with no baseline to decline it against", async () => {
+    // The other half of the pair above, and the one that shipped a lie. The
+    // route carries NO baselinePhash and NO tileScores, which is every CLI and
+    // server run: `runTriage` cannot confirm anything, falls through to the
+    // model, and the model answers {"needsDeepReview": false}. One model call,
+    // no deep pass, no comparison against anything. Before this branch existed
+    // the run published `grade: ship`, `findings: 0`, `notReviewed: []` and
+    // coverage claiming the route reviewed.
+    const routes = ["/pricing"];
+    const { factory, calls } = scriptedModel(
+      () => critiqueFor("/pricing", "major", "blocked"),
+      () => ({ needsDeepReview: false, suspectRoutes: [], obviousBreakage: [] }),
+    );
+
+    const result = await runReview(baseInput(routes), {
+      captureInSandbox: stubCapture(routes, ["#cta"]),
+      modelFactory: factory,
+    });
+
+    // Field for field the clean result it always was: the grade did not change.
+    expect(result.grade).toBe("ship");
+    expect(result.findings).toHaveLength(0);
+    // Triage ran; the deep pass did not.
+    expect(calls).toHaveLength(1);
+    // Coverage is what refuses to call it a review.
+    expect(result.coverage).toEqual({
+      routesRequested: ["/pricing"],
+      routesReviewed: [],
+      viewportsRequested: ["mobile", "desktop"],
+      viewportsReviewed: [],
+    });
+    // And the reason names the missing input, not just the outcome.
+    expect(result.notReviewed).toHaveLength(1);
+    expect(result.notReviewed[0]).toContain("/pricing: triage answered that no deep review was needed");
+    expect(result.notReviewed[0]).toContain("no baseline");
+    expect(result.notReviewed[0]).toContain("Record a baseline");
+  });
+
+  it("names every captured route when triage declines a deep review with no baseline", async () => {
+    // Per route, not one summary line: a reader has to be able to see WHICH
+    // pages nothing judged, the same way the cap and the coercion paths name
+    // theirs.
+    const routes = ["/pricing", "/home"];
+    const { factory } = scriptedModel(
+      () => critiqueFor("/pricing", "major", "blocked"),
+      () => ({ needsDeepReview: false, suspectRoutes: [], obviousBreakage: [] }),
+    );
+
+    const result = await runReview(baseInput(routes), {
+      captureInSandbox: stubCapture(routes, ["#cta", "#hero"]),
+      modelFactory: factory,
+    });
+
+    expect(result.coverage?.routesReviewed).toEqual([]);
+    expect(result.notReviewed).toHaveLength(2);
+    expect(result.notReviewed.some((line) => line.startsWith("/pricing:"))).toBe(true);
+    expect(result.notReviewed.some((line) => line.startsWith("/home:"))).toBe(true);
+  });
+
+  it("keeps the pre-decided not-reviewed reasons alongside the unbaselined-triage ones", async () => {
+    // The truncated tail (#cap) and the unjudged route are different facts and
+    // both have to survive this exit path.
+    const captured = ["/pricing"];
+    const { factory } = scriptedModel(
+      () => critiqueFor("/pricing", "major", "blocked"),
+      () => ({ needsDeepReview: false, suspectRoutes: [], obviousBreakage: [] }),
+    );
+
+    const result = await runReview(
+      baseInput(captured, {
+        requestedRoutes: ["/pricing", "/legal"],
+        notReviewed: ["route /legal (over the routes.max_per_pr limit of 1)"],
+      }),
+      { captureInSandbox: stubCapture(captured, ["#cta"]), modelFactory: factory },
+    );
+
+    expect(result.coverage?.routesRequested).toEqual(["/pricing", "/legal"]);
+    expect(result.coverage?.routesReviewed).toEqual([]);
+    expect(result.notReviewed).toContain("route /legal (over the routes.max_per_pr limit of 1)");
+    expect(result.notReviewed.some((line) => line.startsWith("/pricing:"))).toBe(true);
+  });
+
+  it("still reviews a baseline-confirmed route when triage never reaches the model", async () => {
+    // The guard must key on the baseline confirmation, not on "was a model
+    // called": here no model call happens at all and the route IS reviewed,
+    // while in the unbaselined test above a model call DOES happen and the
+    // route is not. Call count and judgment are independent.
+    const routes = ["/pricing", "/home"];
+    const { factory, calls } = scriptedModel(() => critiqueFor("/pricing", "major", "blocked"));
+    const input = baseInput(routes, {
+      routes: routes.map((route) => ({
+        route,
+        baselinePhash: "ffff",
+        currentPhash: "ffff",
+        tileScores: [{ ssim: 1, diffRatio: 0 }],
+      })),
+    });
+
+    const result = await runReview(input, {
+      captureInSandbox: stubCapture(routes, ["#cta", "#hero"]),
+      modelFactory: factory,
+    });
+
+    expect(calls).toHaveLength(0);
+    expect(result.coverage?.routesReviewed).toEqual(["/pricing", "/home"]);
+    expect(result.notReviewed).toEqual([]);
   });
 });
 

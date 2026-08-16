@@ -208,4 +208,44 @@ describe("the publication guard", () => {
       }),
     ).toThrow(/without stating what it reviewed/);
   });
+
+  it("refuses a well-attested result that judged no route and gave no reason", () => {
+    // The half of the question provenance cannot answer. A live model WAS
+    // called, so `model_backed: true` is truthful, and the run still judged
+    // nothing: provenance says a model was called, coverage says what it was
+    // called ON. An empty reviewed set with an empty `notReviewed` is a green
+    // grade with nothing behind it and no way for a reader to tell.
+    expect(() =>
+      assertAttested({
+        ...base,
+        coverage: { routesRequested: ["/"], routesReviewed: [], viewportsRequested: ["mobile"], viewportsReviewed: [] },
+        provenance: {
+          model_backed: true,
+          source: "model",
+          engine: "verdict-http",
+          model: "test-model",
+          detail: "a vision model judged the capture",
+        },
+      }),
+    ).toThrow(/judged no route/);
+  });
+
+  it("serves a result that judged no route when it says why", () => {
+    // An empty capture, a triage that named nothing, a route with no baseline
+    // to confirm against: all real, honest results, and all still servable. The
+    // guard is on the missing REASON, never on the empty reviewed set itself.
+    const explained: EngineReviewResult = {
+      ...base,
+      coverage: { routesRequested: ["/"], routesReviewed: [], viewportsRequested: ["mobile"], viewportsReviewed: [] },
+      notReviewed: ["/: triage answered that no deep review was needed, but this run carried no baseline"],
+      provenance: {
+        model_backed: true,
+        source: "model",
+        engine: "verdict-http",
+        model: "test-model",
+        detail: "a vision model judged the capture",
+      },
+    };
+    expect(assertAttested(explained)).toBe(explained);
+  });
 });

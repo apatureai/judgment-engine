@@ -232,6 +232,93 @@ describe("renderSummary", () => {
     const text = renderSummary(summary({ stability: { pagesCompared: 6, unstablePages: 0 } }));
     expect(text).toContain("stability: verified — 6/6 page(s) byte-identical on a repeat capture");
   });
+
+  it("refuses to print a grade when a live run judged no route", () => {
+    // The triage short-circuit shape: a live model WAS called, so the client
+    // check passes it, and coverage is the only field that says it judged
+    // nothing.
+    const text = renderSummary(
+      summary({
+        result: {
+          ...RESULT,
+          grade: "ship",
+          findings: [],
+          notReviewed: ["/: triage answered that no deep review was needed, but this run carried no baseline"],
+          coverage: {
+            routesRequested: ["/", "/pricing"],
+            routesReviewed: [],
+            viewportsRequested: ["mobile", "desktop"],
+            viewportsReviewed: [],
+          },
+        },
+      }),
+    );
+    expect(text).toContain("grade       n/a (nothing was reviewed: 0 of 2 requested route(s) judged)");
+    expect(text).toContain("findings    n/a (no route was judged)");
+    expect(text).toContain("confidence  n/a (no route was judged)");
+    // The stray grade must not reach the reader in any form.
+    expect(text).not.toContain("grade       ship");
+    // And the engine's reason is on screen, not only in the file.
+    expect(text).toContain("Not reviewed");
+    expect(text).toContain("- /: triage answered that no deep review was needed");
+    expect(text).toContain("It is not a grade for this page.");
+  });
+
+  it("still prints the grade when a live run judged at least one route", () => {
+    // The over-correction guard: a partial review is a real review, and its
+    // grade was earned by the routes it did judge.
+    const text = renderSummary(
+      summary({
+        result: {
+          ...RESULT,
+          notReviewed: ["route /pricing (no preview deployment matched the head SHA)"],
+          coverage: {
+            routesRequested: ["/", "/pricing"],
+            routesReviewed: ["/"],
+            viewportsRequested: ["mobile", "desktop"],
+            viewportsReviewed: ["mobile", "desktop"],
+          },
+        },
+      }),
+    );
+    expect(text).toContain("grade       needs_work");
+    expect(text).not.toContain("nothing was reviewed");
+    // The skipped route is still named.
+    expect(text).toContain("Not reviewed");
+    expect(text).toContain("- route /pricing (no preview deployment matched the head SHA)");
+  });
+
+  it("blames the offline client, not the coverage, when both would refuse the grade", () => {
+    // A mock run over an empty capture trips both refusals. "No model saw this
+    // page" is the stronger and more actionable of the two: coverage would be
+    // empty even if a model HAD run, so reporting it instead would point the
+    // reader at the capture when the client is the reason.
+    const text = renderSummary(
+      summary({
+        modelKind: "mock",
+        result: {
+          ...RESULT,
+          coverage: {
+            routesRequested: ["/"],
+            routesReviewed: [],
+            viewportsRequested: ["mobile"],
+            viewportsReviewed: [],
+          },
+        },
+      }),
+    );
+    expect(text).toContain("grade       n/a (mock client, no model saw this page)");
+    expect(text).not.toContain("nothing was reviewed");
+  });
+
+  it("leaves a producer that reports no coverage at all exactly where it was", () => {
+    // Absent coverage means "this producer does not report it", never
+    // "everything was reviewed" and never "nothing was".
+    const text = renderSummary(summary());
+    expect(text).toContain("grade       needs_work");
+    expect(text).not.toContain("nothing was reviewed");
+    expect(text).not.toContain("Not reviewed");
+  });
 });
 
 describe("renderStability", () => {

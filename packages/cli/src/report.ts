@@ -1,5 +1,5 @@
 import type { DeterministicFinding, StabilityCheck } from "@engine/capture";
-import type { EngineReviewResult } from "@engine/types";
+import { nothingReviewed, type EngineReviewResult } from "@engine/types";
 
 /**
  * Terminal rendering. Pure functions over already-computed results so the exact
@@ -11,6 +11,13 @@ import type { EngineReviewResult } from "@engine/types";
  * when nothing had reviewed it. So the report is keyed on which client ran. The
  * measured facts, which are real in every mode, get the numbered list; replayed
  * fixture text is labelled as fixture text and never counted as findings.
+ *
+ * The client is not the whole question, though. A LIVE run can call a model and
+ * still judge no page: a triage pass that declines a deep review with no
+ * baseline to decline it against ends with a real model call, a `grade` of
+ * `ship` and zero routes judged. `modelKind` cannot see that; `coverage` can.
+ * So the same refusal is keyed on coverage as well, and the reasons the engine
+ * recorded in `notReviewed` are printed rather than left in the JSON.
  */
 
 /** Which client produced the critique. Only `live` means a model saw the page. */
@@ -198,9 +205,38 @@ export function renderFixtureCritique(summary: RunSummary): string[] {
   ];
 }
 
+/**
+ * The reasons the engine recorded for work it did not do, printed verbatim.
+ * They are written for a human to act on, and the terminal is where a human is.
+ */
+export function renderNotReviewed(result: EngineReviewResult): string[] {
+  if (result.notReviewed.length === 0) return [];
+  return ["Not reviewed", ...result.notReviewed.map((line) => `  - ${line}`)];
+}
+
 /** The `Review` block: the grade, or the reason there cannot be one. */
 export function renderReview(summary: RunSummary): string[] {
   const { result } = summary;
+  const { coverage } = result;
+  // A live model ran and judged no route. The `grade` in the file is the value
+  // a critique over zero routes defaults to, not a verdict about this page, and
+  // printing it as one is exactly how a triage short-circuit read as a green
+  // light. Coverage is optional on the wire, so this fires only when a producer
+  // actually stated it; absent means "this producer does not report coverage",
+  // never "everything was reviewed".
+  if (!isSynthetic(summary.modelKind) && coverage && nothingReviewed(coverage)) {
+    const asked = coverage.routesRequested.length;
+    return [
+      "Review",
+      `  ${pad("grade")}n/a (nothing was reviewed: 0 of ${asked} requested route(s) judged)`,
+      `  ${pad("findings")}n/a (no route was judged)`,
+      `  ${pad("confidence")}n/a (no route was judged)`,
+      `  ${pad("blocking")}${result.blockingEnabled ? "enabled" : "advisory only"}`,
+      "",
+      ...(result.notReviewed.length > 0 ? [...renderNotReviewed(result), ""] : []),
+      "  review.json carries a grade field for this run. It is not a grade for this page.",
+    ];
+  }
   if (isSynthetic(summary.modelKind)) {
     const client = summary.modelKind === "mock" ? "mock" : "canned";
     return [
@@ -225,6 +261,9 @@ export function renderReview(summary: RunSummary): string[] {
     `  ${pad("blocking")}${result.blockingEnabled ? "enabled" : "advisory only"}`,
     "",
     ...renderFindings(result),
+    // A partial review is still a real review, and the routes it skipped are a
+    // fact about it. They were already in review.json and nowhere on screen.
+    ...(result.notReviewed.length > 0 ? ["", ...renderNotReviewed(result)] : []),
   ];
 }
 

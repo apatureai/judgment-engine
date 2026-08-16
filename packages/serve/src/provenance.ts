@@ -1,4 +1,4 @@
-import { NO_MODEL_DISCLOSURE_PREFIX, type EngineReviewResult } from "@engine/types";
+import { NO_MODEL_DISCLOSURE_PREFIX, nothingReviewed, type EngineReviewResult } from "@engine/types";
 import { LocalEngineError } from "./errors.js";
 
 /**
@@ -45,6 +45,28 @@ export function assertAttested(result: EngineReviewResult): EngineReviewResult {
     throw new LocalEngineError(
       "unattested_result",
       "a review reached publication without stating what it reviewed; refusing to serve a grade of unknown coverage",
+    );
+  }
+  // The check above asks only WHETHER the producer answered, not what the answer
+  // was, so a run that judged nothing passed it as long as it said so. That much
+  // is deliberate: an empty capture is a real, honest result and must stay
+  // servable. What must not be servable is an empty reviewed set with no reason
+  // attached, because `grade: ship` + `findings: []` + `routesReviewed: []` +
+  // `notReviewed: []` reads, field for field, exactly like a clean page. Same
+  // shape as the `model_backed: false` guard above: where the structural fact
+  // says nothing was judged, the prose has to say why, in the field a reader
+  // already reads for skipped work.
+  //
+  // Note what this does and does not catch. It is a backstop on the FIXED
+  // shape, not a detector for the bug that motivated it: the triage
+  // short-circuit used to claim `routesReviewed: ["/"]` for a page nothing had
+  // looked at, and no guard downstream of a coverage block that lies about
+  // itself can tell. The producer has to be honest first; this refuses to
+  // publish the honest-but-unexplained result.
+  if (nothingReviewed(result.coverage) && result.notReviewed.length === 0) {
+    throw new LocalEngineError(
+      "unattested_result",
+      "a review that judged no route reached publication with no reason given; refusing to serve a grade nothing earned",
     );
   }
   return result;

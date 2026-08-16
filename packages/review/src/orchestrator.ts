@@ -318,16 +318,42 @@ export async function runReview(input: ReviewInput, deps: ReviewDeps): Promise<E
 
   const deepConfig = resolvePassModel("deep", deps.passModels);
 
-  // 3a. Short-circuit: no design changes -> emit the triage result, no deep pass.
+  // 3a. Short-circuit: no deep pass. Two different runs exit here and only one
+  //     of them judged anything, so the exit branches on the FACT triage
+  //     reports (`shortCircuited`) rather than on the inference "it declined a
+  //     deep review, so the page must be fine".
+  //
+  //     `shortCircuited: true` is the baseline path: every captured route had a
+  //     recorded baseline, its pHash matched, and a tile-wise sensitive diff
+  //     confirmed the match. Unchanged-since-a-real-baseline is a conclusion
+  //     ABOUT the route, so those routes are reviewed.
+  //
+  //     `shortCircuited: false` is the model path: triage had no baseline to
+  //     compare against (the CLI and the server never populate one) and the
+  //     model simply answered `{"needsDeepReview": false}`. Nothing was compared
+  //     to anything and no pass looked at the page, so no captured route is
+  //     reviewed, and each one says why in `notReviewed`. Without this the run
+  //     published `grade: ship`, `findings: 0` and FULL coverage over zero
+  //     reviews, which is the one shape coverage exists to make impossible.
   if (!triage.needsDeepReview) {
+    const judgedByTriage = triage.shortCircuited;
     return emptyFindingsResult(input, deps, capture.captureVersion, {
       overall: triage.summary,
-      // Every captured route was positively confirmed unchanged against its
-      // baseline, which is a conclusion about the route: reviewed.
+      ...(judgedByTriage
+        ? {}
+        : {
+            extraNotReviewed: capturedRoutes(capture.images).map(
+              (route) =>
+                `${route}: triage answered that no deep review was needed, but this run carried no ` +
+                `baseline for the route, so nothing was compared against anything and no pass judged ` +
+                `this page. Record a baseline for this route so an unchanged answer is a real ` +
+                `comparison, or re-run the review.`,
+            ),
+          }),
       coverage: buildCoverage({
         requestedRoutes: requestedRoutesOf(input),
         requestedViewports: input.captureContext.viewports,
-        reviewedRoutes: capturedRoutes(capture.images),
+        reviewedRoutes: judgedByTriage ? capturedRoutes(capture.images) : [],
         images: capture.images,
       }),
     });
