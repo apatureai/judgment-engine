@@ -418,7 +418,13 @@ export async function runReview(input: ReviewInput, deps: ReviewDeps): Promise<E
   // matters: the run is not partial because a route was skipped or a capture
   // failed, it is empty because the triage answer contradicted itself, and
   // re-running the review is the action.
-  const triageNamedNothing = suspect.size === 0;
+  // Keyed on what triage actually produced, not on whether it said anything. A
+  // suspect list naming routes that match nothing captured (a model answering
+  // "/home" for "/", or a stray space) is the same outcome as naming none: no
+  // deep pass runs. Keying on `suspect.size` let a non-empty but useless list
+  // mark every captured route as cleared by triage, which published a green
+  // check claiming full coverage over a page nothing judged.
+  const triageNamedNothing = routesToReview.length === 0;
   const unnamedByTriage = triageNamedNothing
     ? capturedRoutes(capture.images).map(
         (route) =>

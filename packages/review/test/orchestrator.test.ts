@@ -746,6 +746,32 @@ describe("runReview coverage (#165)", () => {
     );
   });
 
+  it("treats suspects that match nothing captured the same as naming none", async () => {
+    // The shape that survived the first fix. Triage says a deep review IS needed
+    // and then names a route that does not exist in the capture, which a model
+    // does by answering "/home" for "/" or by adding a stray space. No deep pass
+    // runs, so nothing judges the page, but keying on "did triage name anything"
+    // marked every captured route as cleared and published a green check with
+    // full coverage over a page nothing looked at.
+    const routes = ["/pricing"];
+    const { factory, calls } = scriptedModel(
+      () => critiqueFor("/pricing", "minor", "needs_work"),
+      () => ({ needsDeepReview: true, suspectRoutes: ["/does-not-exist"], obviousBreakage: [] }),
+    );
+
+    const result = await runReview(baseInput(routes), {
+      captureInSandbox: stubCapture(routes, ["#cta"]),
+      modelFactory: factory,
+    });
+
+    // Triage ran; no deep pass did.
+    expect(calls.length).toBe(1);
+    expect(result.coverage?.routesReviewed).toEqual([]);
+    expect(result.notReviewed).toContain(
+      "/pricing: triage concluded a deep review was needed but named no routes to review, so no pass judged this page",
+    );
+  });
+
   it("keeps a route triage explicitly did not suspect as reviewed: that IS a judgment", async () => {
     // The near-identical response that means the opposite: triage looked at both
     // routes and named one. /home was considered and cleared, /pricing was
