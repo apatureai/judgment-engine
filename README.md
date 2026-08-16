@@ -604,6 +604,13 @@ carrying neither stamp. Both fields are additive and optional on schema v1, so a
 still parses a result that has them, and a consumer that reads a missing `coverage` must read it as
 "not stated", never as "everything was reviewed".
 
+That extends to routes the engine drops before it ever captures them. `routes.max_per_pr` is a
+per-PR cost ceiling and it stays one, but the routes over the limit are reported rather than
+discarded: `routesRequested` is the configured list, not the capped one, and each dropped route gets
+its own `notReviewed` line naming the setting and the limit, as
+`route /legal (over the routes.max_per_pr limit of 5)`. Eight configured routes under the default cap
+of five used to produce a review of five that read like a review of everything.
+
 Idempotency is exact: `INSERT ... ON CONFLICT DO NOTHING` is the linearization point, and an existing
 job is returned only when its persisted request digest matches. A reused key with a different request
 is a non-enumerating `409` that does not leak the existing job id.

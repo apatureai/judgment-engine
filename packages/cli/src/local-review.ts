@@ -56,6 +56,12 @@ export interface LocalReviewRequest {
   previewBuildFacts?: PreviewBuildFact[];
   /** Not-reviewed reasons decided before the review ran; carried through verbatim. */
   notReviewed?: string[];
+  /**
+   * The routes the CONFIG asked for, when the caller narrowed `routes` before
+   * capture (today: the `routes.max_per_pr` cap). Absent means `routes` IS the
+   * ask, which is true of every caller that narrows nothing.
+   */
+  requestedRoutes?: string[];
   /** Capture each page twice and compare the bytes. */
   verifyStability?: boolean;
   /** Retention advertised on the wire result. Local runs keep files until deleted. */
@@ -134,6 +140,7 @@ export async function runLocalReview(
       routes,
       ...(request.previewBuildFacts ? { previewBuildFacts: request.previewBuildFacts } : {}),
       ...(request.notReviewed ? { notReviewed: request.notReviewed } : {}),
+      ...(request.requestedRoutes ? { requestedRoutes: request.requestedRoutes } : {}),
       wireOptions: {
         screenshotRetentionSeconds: request.screenshotRetentionSeconds ?? 0,
         screenshotIdFor: (finding) =>

@@ -134,6 +134,18 @@ export interface ReviewInput {
    * routes with no preview deployment). Surfaced in the wire result verbatim.
    */
   notReviewed?: string[];
+  /**
+   * The routes the CONFIG asked for, when that differs from the routes capture
+   * was handed. Defaults to `captureContext.routes`.
+   *
+   * The two diverge wherever the runtime narrows the ask before capture, and the
+   * only such place today is the `routes.max_per_pr` cap. Reporting the narrowed
+   * list as the ask made a truncated run read as complete: eight configured
+   * routes, five captured, and a result that stated "5 of 5 routes reviewed".
+   * Coverage exists to say what the pipeline did against what was asked of it,
+   * so the ask has to be the ask.
+   */
+  requestedRoutes?: string[];
   /** Explicit instability supplied by an upstream capture adapter. */
   captureUnstable?: boolean;
   /** Wire-projection seams: screenshot-id/artifact-URL resolution + retention (#51). */
@@ -173,6 +185,17 @@ function geometrySelectors(geometry: GeometryRect[]): Set<string> {
 /** All captured route ids; the hallucination gate (#32) drops findings off these. */
 function capturedRoutes(images: CaptureImage[]): string[] {
   return [...new Set(images.map((i) => i.route))];
+}
+
+/**
+ * The routes the run was ASKED for, which is `requestedRoutes` when the caller
+ * narrowed the ask before capture and `captureContext.routes` otherwise.
+ *
+ * Every caller that does not narrow anything gets the previous behaviour
+ * unchanged, so a coverage claim can only ever widen here, never shrink.
+ */
+function requestedRoutesOf(input: ReviewInput): string[] {
+  return input.requestedRoutes ?? input.captureContext.routes;
 }
 
 /**
@@ -252,7 +275,7 @@ export async function runReview(input: ReviewInput, deps: ReviewDeps): Promise<E
       // still carries is `ship` by construction, and coverage is what tells a
       // consumer not to publish it as one.
       coverage: buildCoverage({
-        requestedRoutes: input.captureContext.routes,
+        requestedRoutes: requestedRoutesOf(input),
         requestedViewports: input.captureContext.viewports,
         reviewedRoutes: [],
         images: [],
@@ -290,7 +313,7 @@ export async function runReview(input: ReviewInput, deps: ReviewDeps): Promise<E
       // Every captured route was positively confirmed unchanged against its
       // baseline, which is a conclusion about the route: reviewed.
       coverage: buildCoverage({
-        requestedRoutes: input.captureContext.routes,
+        requestedRoutes: requestedRoutesOf(input),
         requestedViewports: input.captureContext.viewports,
         reviewedRoutes: capturedRoutes(capture.images),
         images: capture.images,
@@ -381,7 +404,7 @@ export async function runReview(input: ReviewInput, deps: ReviewDeps): Promise<E
     deepResults.filter((r) => r.output === null).map((r) => r.route),
   );
   const coverage = buildCoverage({
-    requestedRoutes: input.captureContext.routes,
+    requestedRoutes: requestedRoutesOf(input),
     requestedViewports: input.captureContext.viewports,
     reviewedRoutes: capturedRoutes(capture.images).filter((route) => !noValidCritique.has(route)),
     images: capture.images,

@@ -351,3 +351,51 @@ describe("health", () => {
     });
   });
 });
+
+/**
+ * `routes.max_per_pr` is the per-PR cost ceiling and it stays. What it used to
+ * do besides capping was disappear: `routes.always.slice(0, maxPerPr)` was the
+ * whole implementation, so the dropped tail was not in `notReviewed`, not in
+ * coverage, and not in the comment. A config asking for eight routes got a
+ * review of the first three that read like a review of everything.
+ *
+ * This is the assertion over the REAL HTTP cycle: a signed submission, the real
+ * job store, the real orchestrator, and the served `review.json` a consumer
+ * actually reads.
+ */
+describe("the route cap says which routes it dropped", () => {
+  const EIGHT = ["/", "/pricing", "/checkout", "/docs", "/blog", "/about", "/careers", "/legal"];
+
+  function cappedRequest(maxPerPr: number): Record<string, unknown> {
+    const base = reviewRequest();
+    const config = base.config as Record<string, unknown>;
+    return {
+      ...base,
+      config: { ...config, routes: { always: EIGHT, maxPerPr, map: {} } },
+    };
+  }
+
+  it("names every truncated route on the wire result, and reports partial coverage", async () => {
+    const { body } = await review("gate:local:pr_review:capped", cappedRequest(3));
+    expect(body.state).toBe("completed");
+    const result = body.result as EngineReviewResult;
+
+    // The ask is the configured eight, not the capped three, so a consumer sees
+    // a partial review rather than "3 of 3 routes reviewed".
+    expect(result.coverage?.routesRequested).toEqual(EIGHT);
+    expect(result.coverage?.routesReviewed).toEqual(["/", "/pricing", "/checkout"]);
+
+    for (const route of ["/docs", "/blog", "/about", "/careers", "/legal"]) {
+      expect(result.notReviewed).toContain(
+        `route ${route} (over the routes.max_per_pr limit of 3)`,
+      );
+    }
+  });
+
+  it("says nothing extra when the config fits under the cap", async () => {
+    const { body } = await review("gate:local:pr_review:uncapped");
+    const result = body.result as EngineReviewResult;
+    expect(result.coverage?.routesRequested).toEqual(["/", "/pricing"]);
+    expect(result.notReviewed.some((line) => line.includes("max_per_pr"))).toBe(false);
+  });
+});

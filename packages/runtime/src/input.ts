@@ -78,6 +78,50 @@ export function repositoryForJob(job: JobRecord): string {
   return `${request.repository.owner}/${request.repository.name}`;
 }
 
+/** The route cap applied to one request: what was asked, what runs, what was dropped. */
+export interface CappedRoutes {
+  /** Every configured route, in order, before the cap. The ask. */
+  requested: string[];
+  /** The routes this run will actually capture. */
+  routes: string[];
+  /** The dropped tail, empty when nothing was dropped. */
+  truncated: string[];
+}
+
+/**
+ * Apply `routes.max_per_pr`, and keep the tail it drops.
+ *
+ * The cap itself is deliberate: it is the per-PR cost ceiling. What was not
+ * deliberate is that the dropped routes disappeared. `routes.always.slice(0,
+ * maxPerPr)` was the whole implementation, so with the default `max_per_pr: 5`
+ * and eight configured routes, three were not captured, not in `notReviewed`,
+ * not in coverage, and not in the comment: the review reported on five routes
+ * and read as though five were all you had asked for.
+ *
+ * The empty-config fallback to `["/"]` is unchanged and is NOT truncation: no
+ * route was configured, so none was dropped, and the ask is the default too.
+ */
+export function capRoutes(config: { always: string[]; maxPerPr: number }): CappedRoutes {
+  const configured = config.always;
+  if (configured.length === 0) return { requested: ["/"], routes: ["/"], truncated: [] };
+  return {
+    requested: [...configured],
+    routes: configured.slice(0, config.maxPerPr),
+    truncated: configured.slice(config.maxPerPr),
+  };
+}
+
+/**
+ * Why a route the config asked for was never looked at, in the same
+ * "<what> (<why>)" shape the rest of `notReviewed` uses.
+ *
+ * It names the setting, not just the number, because the reader's next question
+ * is where to change it: `max_per_pr` under `routes` in `.gate.yml`.
+ */
+export function truncatedRouteReason(route: string, maxPerPr: number): string {
+  return `route ${route} (over the routes.max_per_pr limit of ${maxPerPr})`;
+}
+
 /**
  * Parse Gate's durable request into the real orchestrator input. Tenant and
  * depth are verified against the HMAC-scoped durable job instead of trusted
@@ -94,8 +138,7 @@ export function toReviewInput(job: JobRecord): ReviewInput {
     throw new Error("request depth does not match the durable job depth");
   }
 
-  const configuredRoutes = request.config.routes.always.slice(0, request.config.routes.maxPerPr);
-  const routes = configuredRoutes.length > 0 ? configuredRoutes : ["/"];
+  const { requested, routes, truncated } = capRoutes(request.config.routes);
   const brand = request.config.brand === null
     ? null
     : { description: request.config.brand, tone: null, audience: null, do: [], dont: [] };
@@ -119,6 +162,18 @@ export function toReviewInput(job: JobRecord): ReviewInput {
       routes,
     },
     routes: routes.map((route) => ({ route })),
+    // The ask is the configured list, not the capped one, so coverage reports a
+    // truncated run as the partial review it is instead of "5 of 5 reviewed".
+    requestedRoutes: requested,
+    // And the reason each dropped route was dropped, named individually, because
+    // "3 routes skipped" does not tell anyone which three.
+    ...(truncated.length > 0
+      ? {
+          notReviewed: truncated.map((route) =>
+            truncatedRouteReason(route, request.config.routes.maxPerPr),
+          ),
+        }
+      : {}),
     ...(request.previewBuildFacts !== undefined
       ? { previewBuildFacts: request.previewBuildFacts as PreviewBuildFact[] }
       : {}),

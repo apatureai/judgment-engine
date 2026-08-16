@@ -79,6 +79,13 @@ export function toLocalReviewRequest(
     depth: input.depth,
     context: mergeContext(input.context, options.repoContext),
     ...(input.previewBuildFacts ? { previewBuildFacts: input.previewBuildFacts } : {}),
+    // Everything `toReviewInput` decided BEFORE the review ran has to survive
+    // this projection or the local path silently reviews a different request
+    // than the production one. `notReviewed` was already declared on
+    // `LocalReviewRequest` and was never forwarded; nothing populated it until
+    // the route cap did, and the first thing it carried would have been lost.
+    ...(input.notReviewed ? { notReviewed: input.notReviewed } : {}),
+    ...(input.requestedRoutes ? { requestedRoutes: input.requestedRoutes } : {}),
     ...(options.verifyStability !== undefined ? { verifyStability: options.verifyStability } : {}),
     screenshotRetentionSeconds: options.screenshotRetentionSeconds ?? 0,
     keyPrefix: options.keyPrefix,

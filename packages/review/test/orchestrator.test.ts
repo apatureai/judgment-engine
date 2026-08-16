@@ -715,3 +715,82 @@ describe("runReview coverage (#165)", () => {
     });
   });
 });
+
+// ---------------------------------------------------------------------------
+// The route cap: a narrowed ask is still the full ask, on the wire
+// ---------------------------------------------------------------------------
+describe("runReview when the caller narrowed the ask before capture", () => {
+  /**
+   * `routes.max_per_pr` caps what is captured, and `requestedRoutes` is how the
+   * runtime says what was asked for anyway. Without it the capped list was BOTH
+   * the ask and the answer, so a truncated run reported full coverage: the one
+   * shape coverage exists to make impossible.
+   */
+  it("reports the untruncated ask against what it actually reviewed", async () => {
+    const captured = ["/pricing", "/home"];
+    const configured = ["/pricing", "/home", "/checkout", "/legal"];
+    const { factory } = scriptedModel((route) =>
+      route === "/pricing"
+        ? critiqueFor("/pricing", "minor", "needs_work", { dimension: "color_contrast", elementRef: "#cta" })
+        : critiqueFor("/home", "nit", "ship_with_nits", { dimension: "spacing", elementRef: "#hero" }),
+    );
+
+    const input = baseInput(captured, {
+      requestedRoutes: configured,
+      notReviewed: [
+        "route /checkout (over the routes.max_per_pr limit of 2)",
+        "route /legal (over the routes.max_per_pr limit of 2)",
+      ],
+    });
+
+    const result = await runReview(input, {
+      captureInSandbox: stubCapture(captured, ["#cta", "#hero"]),
+      modelFactory: factory,
+    });
+
+    expect(result.coverage?.routesRequested).toEqual(configured);
+    expect(result.coverage?.routesReviewed).toEqual(captured);
+    // Named, not counted: a reader has to be able to see WHICH routes.
+    expect(result.notReviewed).toContain("route /checkout (over the routes.max_per_pr limit of 2)");
+    expect(result.notReviewed).toContain("route /legal (over the routes.max_per_pr limit of 2)");
+  });
+
+  it("carries the truncated tail through the triage short-circuit too", async () => {
+    // The short-circuit is a separate exit path, and an unchanged-since-baseline
+    // run over a truncated route list is exactly as partial as a deep one.
+    const captured = ["/pricing"];
+    const { factory, calls } = scriptedModel(() => critiqueFor("/pricing", "major", "blocked"));
+    const input = baseInput(captured, {
+      requestedRoutes: ["/pricing", "/legal"],
+      notReviewed: ["route /legal (over the routes.max_per_pr limit of 1)"],
+      routes: [
+        {
+          route: "/pricing",
+          baselinePhash: "ffff",
+          currentPhash: "ffff",
+          tileScores: [{ ssim: 1, diffRatio: 0 }],
+        },
+      ],
+    });
+
+    const result = await runReview(input, {
+      captureInSandbox: stubCapture(captured, ["#cta"]),
+      modelFactory: factory,
+    });
+
+    expect(calls).toHaveLength(0);
+    expect(result.coverage?.routesRequested).toEqual(["/pricing", "/legal"]);
+    expect(result.coverage?.routesReviewed).toEqual(["/pricing"]);
+    expect(result.notReviewed).toContain("route /legal (over the routes.max_per_pr limit of 1)");
+  });
+
+  it("leaves every caller that narrows nothing exactly where it was", async () => {
+    const routes = ["/pricing"];
+    const { factory } = scriptedModel(() => critiqueFor("/pricing", "minor", "needs_work"));
+    const result = await runReview(baseInput(routes), {
+      captureInSandbox: stubCapture(routes, ["#cta"]),
+      modelFactory: factory,
+    });
+    expect(result.coverage?.routesRequested).toEqual(routes);
+  });
+});
