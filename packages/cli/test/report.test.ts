@@ -311,6 +311,114 @@ describe("renderSummary", () => {
     expect(text).not.toContain("nothing was reviewed");
   });
 
+  it("refuses the grade when the route WAS reviewed and every finding was deleted", () => {
+    // Coverage is full and truthful, so the nothing-was-reviewed branch above
+    // cannot see this run. `grade` still floors to `ship` on the empty findings
+    // list that deletion leaves behind, and printing that as a verdict is the
+    // terminal telling a developer their page passed a review that established
+    // nothing about it.
+    const text = renderSummary(
+      summary({
+        modelFindingsSeen: 2,
+        hallucinationDrops: 2,
+        result: {
+          ...RESULT,
+          grade: "ship",
+          findings: [],
+          overall:
+            "No finding in this review survived validation, so this run reports nothing about the page.",
+          hallucinationDrops: 2,
+          gradeUnavailableReason: "nothing_survived_validation",
+          coverage: {
+            routesRequested: ["/"],
+            routesReviewed: ["/"],
+            viewportsRequested: ["mobile"],
+            viewportsReviewed: ["mobile"],
+          },
+        },
+      }),
+    );
+    expect(text).toContain("grade       n/a (no finding survived validation: all 2 were deleted)");
+    expect(text).toContain("findings    0 of 2 (2 for citing a route or element that was never captured)");
+    expect(text).toContain("confidence  n/a (no finding survived to carry one)");
+    expect(text).not.toContain("grade       ship");
+    expect(text).toContain("It is not a grade for this page.");
+  });
+
+  it("names the trust budget when it, and not the grounding gate, did the deleting", () => {
+    const text = renderSummary(
+      summary({
+        modelFindingsSeen: 3,
+        hallucinationDrops: 0,
+        result: {
+          ...RESULT,
+          grade: "ship",
+          findings: [],
+          hallucinationDrops: 0,
+          gradeUnavailableReason: "nothing_survived_validation",
+          coverage: {
+            routesRequested: ["/"],
+            routesReviewed: ["/"],
+            viewportsRequested: ["mobile"],
+            viewportsReviewed: ["mobile"],
+          },
+        },
+      }),
+    );
+    expect(text).toContain("grade       n/a (no finding survived validation: all 3 were deleted)");
+    expect(text).toContain("findings    0 of 3 (by the confidence floor and trust budget)");
+  });
+
+  it("REGRESSION GUARD: a clean page and a partial deletion both keep their grade", () => {
+    const full = {
+      routesRequested: ["/"],
+      routesReviewed: ["/"],
+      viewportsRequested: ["mobile"] as const,
+      viewportsReviewed: ["mobile"] as const,
+    };
+    // Nothing entered validation, nothing was deleted: an earned `ship`.
+    const clean = renderSummary(
+      summary({
+        modelFindingsSeen: 0,
+        hallucinationDrops: 0,
+        result: {
+          ...RESULT,
+          grade: "ship",
+          findings: [],
+          hallucinationDrops: 0,
+          coverage: {
+            routesRequested: [...full.routesRequested],
+            routesReviewed: [...full.routesReviewed],
+            viewportsRequested: [...full.viewportsRequested],
+            viewportsReviewed: [...full.viewportsReviewed],
+          },
+        },
+      }),
+    );
+    expect(clean).toContain("grade       ship");
+    expect(clean).not.toContain("survived validation");
+
+    // One of three survived: a real verdict about a real page.
+    const partial = renderSummary(
+      summary({
+        modelFindingsSeen: 3,
+        hallucinationDrops: 2,
+        result: {
+          ...RESULT,
+          hallucinationDrops: 2,
+          coverage: {
+            routesRequested: [...full.routesRequested],
+            routesReviewed: [...full.routesReviewed],
+            viewportsRequested: [...full.viewportsRequested],
+            viewportsReviewed: [...full.viewportsReviewed],
+          },
+        },
+      }),
+    );
+    expect(partial).toContain("grade       needs_work");
+    expect(partial).not.toContain("survived validation");
+  });
+
   it("leaves a producer that reports no coverage at all exactly where it was", () => {
     // Absent coverage means "this producer does not report it", never
     // "everything was reviewed" and never "nothing was".

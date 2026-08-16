@@ -250,3 +250,115 @@ describe("runLocalReview threads the measured breakage into triage", () => {
     expect(outcome.result.coverage?.routesReviewed).toEqual([]);
   });
 });
+
+/** A deep pass that emits exactly the findings given, over a page triage cannot decline. */
+function deepModel(findings: unknown[]): (config: PassModelConfig) => ModelClient {
+  const client: ModelClient = {
+    backend: "mock",
+    async complete(request: ModelRequest): Promise<ModelResponse> {
+      const system = request.messages.find((m) => m.role === "system")?.content ?? "";
+      const text = system.startsWith("You are triaging")
+        ? JSON.stringify({ needsDeepReview: true, suspectRoutes: ["/pricing"], obviousBreakage: [] })
+        : JSON.stringify({
+            grade: "needs_work",
+            overall: "The hero block is misaligned and the CTA is off-grid.",
+            findings,
+            notReviewed: [],
+          });
+      return {
+        text,
+        usage: { inputTokens: 0, outputTokens: 0, cachedTokens: 0 },
+        finishReason: "stop",
+      };
+    },
+  };
+  return () => client;
+}
+
+function modelFinding(over: Record<string, unknown> = {}): Record<string, unknown> {
+  return {
+    dimension: "spacing",
+    severity: "major",
+    confidence: 0.9,
+    route: "/pricing",
+    viewport: "desktop",
+    elementRef: "#hero-title",
+    title: "Uneven gap",
+    description: "The gap above the CTA is off the spacing scale.",
+    suggestion: "Snap to the scale.",
+    introducedByThisPr: true,
+    ...over,
+  };
+}
+
+async function reviewWith(findings: unknown[]): Promise<LocalReviewOutcome> {
+  return runLocalReview(
+    {
+      url: "http://127.0.0.1:5000",
+      routes: ["/pricing"],
+      viewports: ["desktop"],
+      installationId: "test",
+      depth: "deep",
+      context: CONTEXT,
+    },
+    {
+      browser: fakeBrowser({ overflowing: true }),
+      sink: memorySink(),
+      modelFactory: deepModel(findings),
+    },
+  );
+}
+
+/**
+ * The shipped pipeline, end to end, on a run that reviewed a route and then
+ * deleted everything it found there. This is the run whose `review.json` read
+ * `grade: "ship"`, `findings: []`, `hallucinationDrops: 2` and an `overall`
+ * saying the review reported nothing about the page.
+ */
+describe("runLocalReview on a run whose findings were all deleted", () => {
+  it("reports what the model produced and refuses to grade the page", async () => {
+    // Both findings cite an element that is not in the geometry map, so the
+    // grounding gate deletes both. The route was still reviewed.
+    const outcome = await reviewWith([
+      modelFinding({ elementRef: "#ghost" }),
+      modelFinding({ elementRef: "#phantom", dimension: "typography" }),
+    ]);
+
+    expect(outcome.result.coverage?.routesReviewed).toEqual(["/pricing"]);
+    expect(outcome.result.findings).toEqual([]);
+    expect(outcome.result.hallucinationDrops).toBe(2);
+    expect(outcome.modelFindingsSeen).toBe(2);
+    // The grade in the file is what an empty findings list floors to, and the
+    // file now says so in the field a program reads.
+    expect(outcome.result.grade).toBe("ship");
+    expect(outcome.result.gradeUnavailableReason).toBe("nothing_survived_validation");
+    expect(outcome.result.overall).toContain("No finding in this review survived validation");
+  });
+
+  it("counts what the model produced, not what survived, when the cap did the deleting", async () => {
+    // Two grounded blockers on different elements: the grounding gate drops
+    // nothing and the trust-budget cap (1 blocker) deletes one. The old count,
+    // survivors plus grounding-gate drops, reported 1 finding parsed for a model
+    // that emitted 2, which understated the model on every capped run.
+    const outcome = await reviewWith([
+      modelFinding({ severity: "blocker", elementRef: "#hero-title" }),
+      modelFinding({ severity: "blocker", elementRef: "#icon-close", dimension: "accessibility" }),
+    ]);
+
+    expect(outcome.hallucinationDrops).toBe(0);
+    expect(outcome.result.findings).toHaveLength(1);
+    expect(outcome.modelFindingsSeen).toBe(2);
+    // REGRESSION GUARD: one finding survived, so this is a real verdict.
+    expect(outcome.result).not.toHaveProperty("gradeUnavailableReason");
+  });
+
+  it("REGRESSION GUARD: a page the model found nothing wrong with keeps its grade", async () => {
+    const outcome = await reviewWith([]);
+
+    expect(outcome.result.coverage?.routesReviewed).toEqual(["/pricing"]);
+    expect(outcome.modelFindingsSeen).toBe(0);
+    expect(outcome.result.findings).toEqual([]);
+    expect(outcome.result.grade).toBe("ship");
+    expect(outcome.result).not.toHaveProperty("gradeUnavailableReason");
+  });
+});

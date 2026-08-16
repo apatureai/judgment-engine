@@ -84,11 +84,31 @@ export function nothingReviewed(coverage: ReviewCoverage): boolean {
 /**
  * Why a result's `grade` is not a verdict about the page.
  *
- * `nothing_reviewed` is the only value today, and it is exactly the condition
- * `nothingReviewed(coverage)` reports: no route reached a judgment, so the grade
- * is the value a critique over zero routes defaults to.
+ * Two ways a run reaches publication having assessed nothing, and they are
+ * different failures that a consumer may well want to word differently:
+ *
+ *   - `nothing_reviewed` is exactly the condition `nothingReviewed(coverage)`
+ *     reports: no route reached a judgment, so the grade is the value a critique
+ *     over zero routes defaults to. Nothing was looked at.
+ *   - `nothing_survived_validation` is the route that WAS looked at and whose
+ *     every finding the validation tail then deleted. Coverage is full and
+ *     truthful, the model did produce findings, and not one of them could be
+ *     pointed at the capture or cleared the trust budget. `findings: []` here is
+ *     the residue of deletion, not the description of a clean page, and the
+ *     `ship` that an empty findings list floors to is not something this run
+ *     established.
+ *
+ * The second value is why this field is not derivable from `coverage`: coverage
+ * reports what the pipeline looked at, which on that path is everything asked
+ * for. Only the producer knows how many findings entered validation, so only the
+ * producer can state it, and it states it here.
+ *
+ * A consumer must treat any value as "the grade beside this is not usable", and
+ * must treat an unrecognized value the same way rather than falling through to
+ * the grade: this enum is open to new reasons, and every reason means the same
+ * thing about the grade.
  */
-export type GradeUnavailableReason = "nothing_reviewed";
+export type GradeUnavailableReason = "nothing_reviewed" | "nothing_survived_validation";
 
 export interface WireFinding {
   id: string;
@@ -219,6 +239,14 @@ export interface EngineReviewResult {
    * required closed enum in the cross-repo contract, and Gate's parser rejects a
    * result that violates it, which would turn today's honest neutral Check Run
    * into a blocked publish.
+   *
+   * It is NOT a restatement of `coverage`. `nothing_survived_validation` is
+   * emitted on results whose coverage is full and truthful: the route was
+   * reviewed, the model produced findings, and the validation tail deleted every
+   * one of them. `overall` has said so in prose since the narrative
+   * reconciliation, while `grade` still read `ship`, which is the same result
+   * contradicting itself in the field a program branches on. A consumer keying
+   * only on empty `coverage.routesReviewed` will not see that run.
    */
   gradeUnavailableReason?: GradeUnavailableReason;
   /**

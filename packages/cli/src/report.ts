@@ -237,6 +237,36 @@ export function renderReview(summary: RunSummary): string[] {
       "  review.json carries a grade field for this run. It is not a grade for this page.",
     ];
   }
+  // A live model ran, the route WAS judged, and the validation tail then deleted
+  // every finding it produced. Coverage is full and truthful here, so the branch
+  // above cannot see this run, and `grade` floors to `ship` on an empty findings
+  // list exactly as it does for a page nobody found anything wrong with. The
+  // difference is `modelFindingsSeen`: findings entered validation and none came
+  // out, so this run established nothing about the page and does not print a
+  // grade for it. The payload says the same in `gradeUnavailableReason`.
+  if (
+    !isSynthetic(summary.modelKind) &&
+    result.gradeUnavailableReason === "nothing_survived_validation"
+  ) {
+    const seen = summary.modelFindingsSeen;
+    const drops = summary.hallucinationDrops;
+    const attributed =
+      drops > 0
+        ? `${drops} for citing a route or element that was never captured` +
+          (seen > drops ? `, ${seen - drops} by the confidence floor and trust budget` : "")
+        : "by the confidence floor and trust budget";
+    return [
+      "Review",
+      `  ${pad("grade")}n/a (no finding survived validation: all ${seen} were deleted)`,
+      `  ${pad("findings")}0 of ${seen} (${attributed})`,
+      `  ${pad("confidence")}n/a (no finding survived to carry one)`,
+      `  ${pad("blocking")}${result.blockingEnabled ? "enabled" : "advisory only"}`,
+      "",
+      ...(result.notReviewed.length > 0 ? [...renderNotReviewed(result), ""] : []),
+      "  The page was reviewed; nothing this run said about it could be grounded or trusted.",
+      "  review.json carries a grade field for this run. It is not a grade for this page.",
+    ];
+  }
   if (isSynthetic(summary.modelKind)) {
     const client = summary.modelKind === "mock" ? "mock" : "canned";
     return [

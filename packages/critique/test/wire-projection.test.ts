@@ -17,12 +17,26 @@ const finding = (over: Partial<Finding> = {}): Finding => ({
   ...over,
 });
 
-const critique = (over: Partial<Critique> = {}): Critique => ({
+// `modelFindingsSeen` defaults to the finding count the fixture ends up with, so
+// a test that overrides `findings` describes a review that FOUND that many, not
+// one that had findings deleted. A test about deletion states the mismatch by
+// overriding `validation` itself.
+const critique = (over: Partial<Critique> = {}): Critique => {
+  const base = baseCritique(over);
+  return over.validation
+    ? base
+    : {
+        ...base,
+        validation: { ...base.validation, modelFindingsSeen: base.findings.length },
+      };
+};
+
+const baseCritique = (over: Partial<Critique> = {}): Critique => ({
   grade: "needs_work",
   overall: "Mobile layout breaks the design system.",
   findings: [finding()],
   notReviewed: ["route /checkout (no preview)"],
-  validation: { hallucinationDrops: 0, captureUnstable: false },
+  validation: { hallucinationDrops: 0, captureUnstable: false, modelFindingsSeen: 1 },
   metadata: {
     engineVersion: "2026.06.0",
     model: "qwen3-vl",
@@ -89,11 +103,17 @@ describe("toEngineReviewResult (wire projection — cross-repo contract)", () =>
 
   it("#32: carries the grounding gate's drop count, so a clean page differs from a fully dropped one", () => {
     const cleanPage = toEngineReviewResult(
-      critique({ findings: [], validation: { hallucinationDrops: 0, captureUnstable: false } }),
+      critique({
+        findings: [],
+        validation: { hallucinationDrops: 0, captureUnstable: false, modelFindingsSeen: 0 },
+      }),
       { screenshotRetentionSeconds: 60 },
     );
     const allDropped = toEngineReviewResult(
-      critique({ findings: [], validation: { hallucinationDrops: 3, captureUnstable: false } }),
+      critique({
+        findings: [],
+        validation: { hallucinationDrops: 3, captureUnstable: false, modelFindingsSeen: 3 },
+      }),
       { screenshotRetentionSeconds: 60 },
     );
 
@@ -102,7 +122,15 @@ describe("toEngineReviewResult (wire projection — cross-repo contract)", () =>
     // The count is load-bearing: without it these two payloads are the same
     // bytes, and "the page is clean" reads identically to "three findings
     // entered and none of them could be grounded".
-    expect({ ...cleanPage, hallucinationDrops: 0 }).toEqual({ ...allDropped, hallucinationDrops: 0 });
+    //
+    // The retraction is the other half of the same statement, and the half a
+    // program branches on: the fully dropped run does not get to keep a grade.
+    expect(cleanPage).not.toHaveProperty("gradeUnavailableReason");
+    expect(allDropped.gradeUnavailableReason).toBe("nothing_survived_validation");
+    // Everything else about the two is identical, which is exactly why both
+    // fields have to be there.
+    const { gradeUnavailableReason: _dropped, ...allDroppedRest } = allDropped;
+    expect({ ...cleanPage, hallucinationDrops: 0 }).toEqual({ ...allDroppedRest, hallucinationDrops: 0 });
   });
 
   it("passes title/description/confidence/dimension through and DROPS only internal-only introducedByThisPr", () => {
@@ -339,9 +367,145 @@ describe("toEngineReviewResult on a run that reviewed nothing", () => {
 
   it("carries the ungrounded narrative through on a normally-covered result", () => {
     const result = toEngineReviewResult(
-      critique({ findings: [], ungroundedNarrative: "The hero block is misaligned." }),
+      critique({
+        findings: [],
+        ungroundedNarrative: "The hero block is misaligned.",
+        validation: { hallucinationDrops: 1, captureUnstable: false, modelFindingsSeen: 1 },
+      }),
       { screenshotRetentionSeconds: 60, coverage: something },
     );
     expect(result.ungroundedNarrative).toBe("The hero block is misaligned.");
+  });
+});
+
+/**
+ * The other run that assessed nothing, and the one an empty `routesReviewed`
+ * cannot see: the route WAS reviewed, the model produced findings, and the
+ * validation tail deleted every one of them.
+ *
+ * Round 8 made that run's prose honest. `overall` reads "No finding in this
+ * review survived validation, so this run reports nothing about the page" and
+ * `ungroundedNarrative` keeps what the model actually claimed. The machine
+ * -readable half went on saying the opposite: `grade: "ship"`, because a critique
+ * with no surviving findings floors there, and no `gradeUnavailableReason`,
+ * because that field fired only on empty coverage and coverage here is full and
+ * truthful. The field a PR author and an agent read first still said the page
+ * passed.
+ *
+ * The three cases below are the whole boundary, and the last two are why the fix
+ * is not "retract the grade whenever findings is empty":
+ *
+ *   - every finding deleted, none survived  -> retracted. Nothing was verified.
+ *   - some deleted, some survived           -> a real review with a caveat. It
+ *                                              keeps its grade.
+ *   - nothing produced, nothing deleted     -> a genuinely clean page. It keeps
+ *                                              `ship`, which it earned.
+ *
+ * A fix that suppressed the grade on the third case would be a worse bug than
+ * the one it closed: every passing review in the org would start reporting that
+ * it had assessed nothing.
+ */
+describe("toEngineReviewResult on a run whose findings were all deleted", () => {
+  const full: ReviewCoverage = {
+    routesRequested: ["/pricing"],
+    routesReviewed: ["/pricing"],
+    viewportsRequested: ["mobile"],
+    viewportsReviewed: ["mobile"],
+  };
+  const opts = { screenshotRetentionSeconds: 60, coverage: full };
+
+  /** The round-8 shape: 2 findings entered validation, 0 came out. */
+  const allDeleted = (over: Partial<Critique> = {}) =>
+    critique({
+      grade: "ship",
+      overall:
+        "No finding in this review survived validation, so this run reports nothing about the page.",
+      findings: [],
+      ungroundedNarrative: "The hero block is misaligned and the CTA is off-grid.",
+      validation: { hallucinationDrops: 2, captureUnstable: false, modelFindingsSeen: 2 },
+      ...over,
+    });
+
+  it("retracts the grade when every finding the model produced was deleted", () => {
+    const result = toEngineReviewResult(allDeleted(), opts);
+
+    // Coverage is full and truthful: the route was reviewed. This is exactly why
+    // the coverage-keyed retraction cannot see this run.
+    expect(result.coverage).toEqual(full);
+    expect(result.grade).toBe("ship");
+    expect(result.gradeUnavailableReason).toBe("nothing_survived_validation");
+    // The prose said this already; now the field a program branches on says it too.
+    expect(result.overall).toContain("No finding in this review survived validation");
+  });
+
+  it("retracts it however the findings were deleted, not only by the grounding gate", () => {
+    // Zero grounding-gate drops: the confidence floor and trust budget removed
+    // all three. `hallucinationDrops` alone reads as a clean page here, which is
+    // why the decision is made from what ENTERED validation instead.
+    const result = toEngineReviewResult(
+      allDeleted({
+        validation: { hallucinationDrops: 0, captureUnstable: false, modelFindingsSeen: 3 },
+      }),
+      opts,
+    );
+    expect(result.hallucinationDrops).toBe(0);
+    expect(result.gradeUnavailableReason).toBe("nothing_survived_validation");
+  });
+
+  it("REGRESSION GUARD: a partial deletion keeps its grade", () => {
+    // 3 findings entered, 1 survived. That survivor is a real, grounded finding
+    // about a real page, so this run reached a verdict and keeps it. The caveat
+    // about the other two belongs in `overall`, where reconcileNarrative puts it.
+    const result = toEngineReviewResult(
+      critique({
+        grade: "needs_work",
+        findings: [finding()],
+        validation: { hallucinationDrops: 2, captureUnstable: false, modelFindingsSeen: 3 },
+      }),
+      opts,
+    );
+    expect(result.grade).toBe("needs_work");
+    expect(result.findings).toHaveLength(1);
+    expect(result.hallucinationDrops).toBe(2);
+    expect(result).not.toHaveProperty("gradeUnavailableReason");
+  });
+
+  it("REGRESSION GUARD: a genuinely clean page keeps `ship`", () => {
+    // No finding entered validation and none was deleted. The model looked and
+    // found nothing wrong, which is the single most common real result and the
+    // one this fix must not touch.
+    const result = toEngineReviewResult(
+      critique({
+        grade: "ship",
+        overall: "No issues found on this page.",
+        findings: [],
+        validation: { hallucinationDrops: 0, captureUnstable: false, modelFindingsSeen: 0 },
+      }),
+      opts,
+    );
+    expect(result.grade).toBe("ship");
+    expect(result.findings).toEqual([]);
+    expect(result).not.toHaveProperty("gradeUnavailableReason");
+    expect(result.overall).toBe("No issues found on this page.");
+  });
+
+  it("states it even when the caller reported no coverage at all", () => {
+    // Unlike `nothing_reviewed`, this one is not an inference from coverage: the
+    // critique itself knows how many findings entered validation, so the
+    // projection can say it without anyone stating coverage on its behalf.
+    const result = toEngineReviewResult(allDeleted(), { screenshotRetentionSeconds: 60 });
+    expect(result).not.toHaveProperty("coverage");
+    expect(result.gradeUnavailableReason).toBe("nothing_survived_validation");
+  });
+
+  it("prefers `nothing_reviewed` when nothing was reviewed either", () => {
+    // Both conditions can hold on a pathological run. Nothing-was-looked-at is
+    // the earlier and larger failure, and it is the one every consumer in the org
+    // already words for a reader, so it wins.
+    const result = toEngineReviewResult(allDeleted(), {
+      screenshotRetentionSeconds: 60,
+      coverage: { ...full, routesReviewed: [], viewportsReviewed: [] },
+    });
+    expect(result.gradeUnavailableReason).toBe("nothing_reviewed");
   });
 });

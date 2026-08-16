@@ -285,4 +285,76 @@ describe("the publication guard", () => {
     expect(real.gradeUnavailableReason).toBeUndefined();
     expect(assertAttested(real)).toBe(real);
   });
+  // The run that assessed nothing while reporting full coverage: the route was
+  // reviewed, the model produced findings, and the grounding gate deleted every
+  // one of them. Both guards above pass it, because both are keyed on coverage
+  // and coverage here is honest.
+  const modelBacked = {
+    model_backed: true,
+    source: "model",
+    engine: "verdict-http",
+    model: "test-model",
+    detail: "a vision model judged the capture",
+  } as const;
+
+  it("refuses a result whose every finding was deleted and still asserts its grade", () => {
+    expect(() =>
+      assertAttested({
+        ...base,
+        findings: [],
+        hallucinationDrops: 2,
+        notReviewed: [],
+        provenance: modelBacked,
+      }),
+    ).toThrow(/every finding was deleted/);
+  });
+
+  it("serves that result once it retracts the grade", () => {
+    const retracted: EngineReviewResult = {
+      ...base,
+      findings: [],
+      hallucinationDrops: 2,
+      gradeUnavailableReason: "nothing_survived_validation",
+      provenance: modelBacked,
+    };
+    expect(assertAttested(retracted)).toBe(retracted);
+  });
+
+  it("does not demand a retraction from a clean page", () => {
+    // Zero findings and zero drops: nothing entered validation, so nothing was
+    // deleted, and the `ship` grade beside it is one the review earned. This is
+    // the guard's blast radius, and it has to stay empty.
+    const clean: EngineReviewResult = {
+      ...base,
+      findings: [],
+      hallucinationDrops: 0,
+      provenance: modelBacked,
+    };
+    expect(clean.gradeUnavailableReason).toBeUndefined();
+    expect(assertAttested(clean)).toBe(clean);
+  });
+
+  it("does not demand a retraction from a review that only lost some findings", () => {
+    const partial: EngineReviewResult = {
+      ...base,
+      grade: "needs_work",
+      findings: [
+        {
+          id: "f_001",
+          severity: "major",
+          title: "Uneven gap",
+          description: "uneven gap above the CTA",
+          route: "/",
+          viewport: "mobile",
+          element: "#cta",
+          screenshotId: null,
+          suggestion: null,
+        },
+      ],
+      hallucinationDrops: 2,
+      provenance: modelBacked,
+    };
+    expect(partial.gradeUnavailableReason).toBeUndefined();
+    expect(assertAttested(partial)).toBe(partial);
+  });
 });

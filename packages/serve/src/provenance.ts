@@ -82,5 +82,29 @@ export function assertAttested(result: EngineReviewResult): EngineReviewResult {
       "a review that judged no route reached publication still asserting its grade; refusing to serve a grade nothing earned",
     );
   }
+  // The other run that assessed nothing, and the one the two guards above cannot
+  // see: coverage is full and truthful because the route WAS reviewed, and the
+  // validation tail then deleted every finding the model produced. `grade`
+  // floors to `ship` on the empty list that deletion leaves behind.
+  //
+  // Note the reach of this check, which is narrower than the projection's. The
+  // wire result does not carry how many findings entered validation, so the only
+  // full deletion visible from here is one the GROUNDING GATE performed: a
+  // positive `hallucinationDrops` beside an empty findings list means findings
+  // existed and none of them are here. A run whose findings were all removed by
+  // the confidence floor instead reports zero drops and is indistinguishable, at
+  // this layer, from a clean page. The projection decides both correctly from
+  // `validation.modelFindingsSeen`; this is a backstop on the subset a published
+  // payload can prove, in the same spirit as the guard above it.
+  if (
+    result.findings.length === 0 &&
+    (result.hallucinationDrops ?? 0) > 0 &&
+    result.gradeUnavailableReason === undefined
+  ) {
+    throw new LocalEngineError(
+      "unattested_result",
+      "a review whose every finding was deleted reached publication still asserting its grade; refusing to serve a grade nothing earned",
+    );
+  }
   return result;
 }

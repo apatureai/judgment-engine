@@ -618,15 +618,26 @@ still parses a result that has them, and a consumer that reads a missing `covera
 
 Two more fields keep the raw document honest for somebody reading it directly rather than through a
 consumer that knows to check `coverage` first. `gradeUnavailableReason` is the grade's retraction: it
-is present exactly when nothing was reviewed, and it means the `grade` beside it is the value a
-review with no findings defaults to, not a verdict about the page. The `grade` field itself is
-unchanged, because it is a required closed enum in the cross-repo contract and a consumer's parser
-blocks publication on anything else, so the retraction travels beside it rather than inside it.
-`ungroundedNarrative` holds the model's own prose in the two states where that prose is not a
-description of the page: every finding it was written about was deleted by the grounding gate, or
-nothing was reviewed at all. In both cases `overall` states what actually happened, and the model's
-paragraph is preserved rather than deleted, because what the model claimed is worth reading. It just
-must not be mistaken for a conclusion.
+means the `grade` beside it is the value a review with no findings defaults to, not a verdict about
+the page. The `grade` field itself is unchanged, because it is a required closed enum in the
+cross-repo contract and a consumer's parser blocks publication on anything else, so the retraction
+travels beside it rather than inside it. `ungroundedNarrative` holds the model's own prose in the two
+states where that prose is not a description of the page: every finding it was written about was
+deleted by the grounding gate, or nothing was reviewed at all. In both cases `overall` states what
+actually happened, and the model's paragraph is preserved rather than deleted, because what the model
+claimed is worth reading. It just must not be mistaken for a conclusion.
+
+Those two fields fire on the same two runs, and for a while only one of them knew it.
+`gradeUnavailableReason` was emitted from `coverage` alone, so it caught the run that judged no route
+(`nothing_reviewed`) and missed the run that judged a route and then deleted everything it found
+there. On that second run coverage is full and truthful, `findings` is empty because deletion emptied
+it, and `grade` floors to `ship`. The prose said so and the verdict field said the opposite. It now
+carries `nothing_survived_validation`, decided from how many findings ENTERED validation rather than
+from how many came out, so a page nobody found anything wrong with keeps the `ship` it earned and a
+run where one of three findings survived keeps the verdict those survivors support. A consumer that
+reads `grade` must check this field, exactly as a consumer that reads `confidence` must check
+`calibration`, and must treat a value it does not recognize the same way: the enum is open to new
+reasons and every reason means the same thing about the grade.
 
 That extends to routes the engine drops before it ever captures them. `routes.max_per_pr` is a
 per-PR cost ceiling and it stays one, but the routes over the limit are reported rather than

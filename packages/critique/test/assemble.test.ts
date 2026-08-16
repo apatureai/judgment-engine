@@ -1,6 +1,6 @@
 import type { CalibrationRuntimeBinding, Finding } from "@engine/types";
 import { describe, expect, it } from "vitest";
-import { assembleCritique, type DeepPassRouteResult } from "../src/index.js";
+import { assembleCritique, toEngineReviewResult, type DeepPassRouteResult } from "../src/index.js";
 
 const finding = (over: Partial<Finding> = {}): Finding => ({
   dimension: "spacing",
@@ -219,5 +219,101 @@ describe("assembleCritique reconciles the narrative with what survived", () => {
     // Partial is not ungrounded: the surviving finding is real and the prose
     // still describes it, so nothing is moved out of `overall`.
     expect(out.ungroundedNarrative).toBeUndefined();
+  });
+});
+
+/**
+ * The same three runs, end to end through the real producer and the real
+ * projection, checked at the field a consumer branches on rather than at the
+ * prose. `assembleCritique` records how many findings entered the validation
+ * tail; `toEngineReviewResult` turns "some entered, none survived" into the
+ * grade's retraction. The point of running both here is that the prose and the
+ * verdict field are decided from the SAME count, so they cannot drift apart the
+ * way they did when the narrative was reconciled and the grade was not.
+ */
+describe("assembleCritique -> wire: a run that verified nothing does not grade ship", () => {
+  const coverage = {
+    routesRequested: ["/pricing"],
+    routesReviewed: ["/pricing"],
+    viewportsRequested: ["desktop"] as const,
+    viewportsReviewed: ["desktop"] as const,
+  };
+  const wire = (critique: ReturnType<typeof assembleCritique>) =>
+    toEngineReviewResult(critique, {
+      screenshotRetentionSeconds: 60,
+      coverage: {
+        routesRequested: [...coverage.routesRequested],
+        routesReviewed: [...coverage.routesReviewed],
+        viewportsRequested: [...coverage.viewportsRequested],
+        viewportsReviewed: [...coverage.viewportsReviewed],
+      },
+    });
+
+  it("every finding deleted: the payload retracts the grade the prose already disowned", () => {
+    const critique = assembleCritique(
+      [
+        routeResult("/pricing", {
+          grade: "needs_work",
+          overall: "The hero block is misaligned and the CTA is off-grid.",
+          // Both cite an element that is not in the geometry map, so the
+          // grounding gate deletes both.
+          findings: [finding({ elementRef: "#ghost" }), finding({ elementRef: "#phantom" })],
+          notReviewed: [],
+        }),
+      ],
+      baseDeps,
+    );
+    expect(critique.validation.modelFindingsSeen).toBe(2);
+    expect(critique.findings).toEqual([]);
+
+    const result = wire(critique);
+    expect(result.grade).toBe("ship");
+    expect(result.gradeUnavailableReason).toBe("nothing_survived_validation");
+    expect(result.hallucinationDrops).toBe(2);
+    // Prose and field now say the same thing about the same run.
+    expect(result.overall).toContain("No finding in this review survived validation");
+    expect(result.ungroundedNarrative).toBe("The hero block is misaligned and the CTA is off-grid.");
+  });
+
+  it("REGRESSION GUARD: some deleted, some survived -> a real review that keeps its grade", () => {
+    const critique = assembleCritique(
+      [
+        routeResult("/pricing", {
+          grade: "needs_work",
+          overall: "Two problems, one on each page.",
+          findings: [finding(), finding({ route: "/nowhere" })],
+          notReviewed: [],
+        }),
+      ],
+      baseDeps,
+    );
+    expect(critique.validation.modelFindingsSeen).toBe(2);
+    expect(critique.findings).toHaveLength(1);
+
+    const result = wire(critique);
+    expect(result.grade).toBe("needs_work");
+    expect(result).not.toHaveProperty("gradeUnavailableReason");
+    expect(result.overall).toContain("1 of the 2 finding(s) the model reported were deleted");
+  });
+
+  it("REGRESSION GUARD: nothing produced, nothing deleted -> a clean page keeps ship", () => {
+    const critique = assembleCritique(
+      [
+        routeResult("/pricing", {
+          grade: "ship",
+          overall: "No issues found on this page.",
+          findings: [],
+          notReviewed: [],
+        }),
+      ],
+      baseDeps,
+    );
+    expect(critique.validation.modelFindingsSeen).toBe(0);
+
+    const result = wire(critique);
+    expect(result.grade).toBe("ship");
+    expect(result.hallucinationDrops).toBe(0);
+    expect(result).not.toHaveProperty("gradeUnavailableReason");
+    expect(result.overall).toBe("No issues found on this page.");
   });
 });

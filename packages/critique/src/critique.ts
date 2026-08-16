@@ -126,6 +126,9 @@ export async function critique(
     validation: {
       hallucinationDrops: tail.hallucinationDrops,
       captureUnstable: options.captureUnstable === true,
+      // Same count the narrative reconciliation above is given: findings that
+      // entered the tail, not findings that survived it.
+      modelFindingsSeen: output?.findings.length ?? 0,
     },
     metadata: buildResultMetadata({
       engineVersion: ENGINE_VERSION,

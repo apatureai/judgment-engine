@@ -15,6 +15,7 @@ export type {
   ConfidenceUnavailableReason,
   CalibrationRuntimeBinding,
 } from "./findings.js";
+export { nothingSurvivedValidation } from "./findings.js";
 export type {
   CaptureContext,
   CaptureImage,

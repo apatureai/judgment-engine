@@ -1,8 +1,9 @@
-import { nothingReviewed } from "@engine/types";
+import { nothingReviewed, nothingSurvivedValidation } from "@engine/types";
 import type {
   Critique,
   EngineReviewResult,
   Finding,
+  GradeUnavailableReason,
   ReviewCoverage,
   WireFinding,
 } from "@engine/types";
@@ -156,6 +157,48 @@ function nothingReviewedNarrative(critique: Critique, coverage: ReviewCoverage):
   return prose.length === 0 ? { overall: statement } : { overall: statement, ungroundedNarrative: critique.overall };
 }
 
+/**
+ * Whether this result's `grade` is a verdict about the page, and when it is not,
+ * why (#3 and its follow-up).
+ *
+ * `grade` is a required closed enum and a result with no findings floors to
+ * `ship`, so three very different runs publish the identical field:
+ *
+ *   1. a page a model looked at and found nothing wrong with. A real `ship`.
+ *   2. a run where no route reached a judgment at all. `nothing_reviewed`,
+ *      stated from OBSERVED coverage, so a caller that did not report coverage
+ *      never has it asserted on its behalf.
+ *   3. a run whose route WAS reviewed and whose every finding the validation
+ *      tail then deleted. `nothing_survived_validation`.
+ *
+ * The third case is the one the coverage check cannot see, and it was published
+ * as `grade: "ship"` with an `overall` reading "No finding in this review
+ * survived validation, so this run reports nothing about the page". Coverage was
+ * full because coverage reports what the pipeline looked at, and the pipeline
+ * did look. Only the count of findings that ENTERED validation separates it from
+ * case 1, which is why the critique carries `validation.modelFindingsSeen` and
+ * why this is decided here rather than from the wire result's own fields.
+ *
+ * `nothing_reviewed` wins when both hold: it is the earlier and larger failure
+ * (a run that judged no route had nothing to delete in the first place), and it
+ * is the one every consumer already words for a reader.
+ *
+ * Case 1 gets nothing. A clean page's `ship` is earned, and retracting it would
+ * be a worse bug than the one this closes: it would turn every genuinely passing
+ * review into a run that says it assessed nothing. A PARTIAL deletion gets
+ * nothing either: findings survived, so the review reached a real verdict about
+ * the page, and its caveat belongs in `overall` where `reconcileNarrative` puts
+ * it.
+ */
+function gradeRetraction(
+  critique: Critique,
+  coverage: ReviewCoverage | undefined,
+): GradeUnavailableReason | undefined {
+  if (coverage && nothingReviewed(coverage)) return "nothing_reviewed";
+  if (nothingSurvivedValidation(critique)) return "nothing_survived_validation";
+  return undefined;
+}
+
 /** Project the internal critique into the cross-repo wire result Gate consumes. */
 export function toEngineReviewResult(critique: Critique, options: WireProjectionOptions): EngineReviewResult {
   const unreviewed =
@@ -163,6 +206,7 @@ export function toEngineReviewResult(critique: Critique, options: WireProjection
       ? nothingReviewedNarrative(critique, options.coverage)
       : null;
   const confidenceAvailable = critique.calibration !== undefined && critique.findings.length > 0;
+  const retraction = gradeRetraction(critique, options.coverage);
   const findings = critique.findings.map((f, i) => toWireFinding(f, i, options, confidenceAvailable));
 
   const annotatedScreenshots = findings
@@ -214,9 +258,9 @@ export function toEngineReviewResult(critique: Critique, options: WireProjection
     // omitted entirely when the caller did not state it.
     ...(options.coverage ? { coverage: options.coverage } : {}),
     // The grade's retraction, for the raw artifact (#3). `grade` is a required
-    // closed enum, so a run that judged nothing still carries `ship`; this says
-    // in band that it is not a verdict. Emitted only from OBSERVED coverage: a
-    // caller that did not state coverage cannot have this asserted on its behalf.
-    ...(unreviewed ? { gradeUnavailableReason: "nothing_reviewed" as const } : {}),
+    // closed enum, so a run that assessed nothing still carries `ship`; this says
+    // in band that it is not a verdict. See `gradeRetraction` for which runs
+    // qualify and, just as load-bearing, which do not.
+    ...(retraction ? { gradeUnavailableReason: retraction } : {}),
   };
 }

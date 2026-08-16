@@ -103,6 +103,10 @@ export function assembleCritique(routes: DeepPassRouteResult[], deps: AssembleCr
     validation: {
       hallucinationDrops: tail.hallucinationDrops,
       captureUnstable: deps.captureUnstable === true,
+      // What entered the tail, beside what came out of it. Same number the
+      // narrative reconciliation above is given, so the prose and the wire
+      // verdict cannot disagree about whether this run deleted everything.
+      modelFindingsSeen: merged.length,
     },
     metadata: buildResultMetadata({
       engineVersion,

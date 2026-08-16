@@ -61,3 +61,65 @@ describe("resolvePassModel", () => {
     });
   });
 });
+
+/**
+ * `critique()` runs the SAME validation tail as `assembleCritique`, so it can
+ * publish the same contradiction and has to record the same fact: how many
+ * findings entered the tail. Pinned from this entry point too, because a fix
+ * that landed in one producer and not the other is exactly how this family of
+ * defect survives a round.
+ */
+describe("critique records what the model produced, not only what survived", () => {
+  const scripted = (findings: unknown[]): ModelClientFactory => () => ({
+    backend: "mock" as const,
+    async complete() {
+      return {
+        text: JSON.stringify({
+          grade: "needs_work",
+          overall: "The hero block is misaligned.",
+          findings,
+          notReviewed: [],
+        }),
+        usage: { inputTokens: 0, outputTokens: 0, cachedTokens: 0 },
+        finishReason: "stop" as const,
+      };
+    },
+  });
+
+  const modelFinding = (over: Record<string, unknown> = {}) => ({
+    dimension: "spacing",
+    severity: "major",
+    confidence: 0.9,
+    route: "/pricing",
+    viewport: "desktop",
+    elementRef: "#hero",
+    title: "Uneven gap",
+    description: "The gap above the CTA is off the spacing scale.",
+    suggestion: null,
+    introducedByThisPr: true,
+    ...over,
+  });
+
+  it("counts the findings that entered the tail when the gate deleted them all", async () => {
+    // No route was captured, so the grounding gate deletes both findings.
+    const result = await critique([], context, { depth: "deep" }, {
+      modelFactory: scripted([modelFinding(), modelFinding({ dimension: "typography" })]),
+    });
+
+    expect(result.findings).toEqual([]);
+    expect(result.validation.hallucinationDrops).toBe(2);
+    expect(result.validation.modelFindingsSeen).toBe(2);
+    expect(result.overall).toContain("No finding in this review survived validation");
+  });
+
+  it("REGRESSION GUARD: a model that produced nothing reports nothing seen", async () => {
+    const result = await critique([], context, { depth: "deep" }, {
+      modelFactory: scripted([]),
+    });
+
+    expect(result.findings).toEqual([]);
+    expect(result.validation.hallucinationDrops).toBe(0);
+    expect(result.validation.modelFindingsSeen).toBe(0);
+    expect(result.overall).toBe("The hero block is misaligned.");
+  });
+});

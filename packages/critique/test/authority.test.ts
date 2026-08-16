@@ -8,7 +8,7 @@ function critique(over: Partial<Critique> = {}): Critique {
     overall: "blocking issues found",
     findings: [],
     notReviewed: [],
-    validation: { hallucinationDrops: 0, captureUnstable: false },
+    validation: { hallucinationDrops: 0, captureUnstable: false, modelFindingsSeen: 0 },
     metadata: {
       engineVersion: "1",
       model: "qwen3-vl",

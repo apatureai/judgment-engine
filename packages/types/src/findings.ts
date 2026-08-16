@@ -140,6 +140,38 @@ export interface ValidationMetadata {
   hallucinationDrops: number;
   /** True when the captured page was visually unstable (confidence-ceiling applied). */
   captureUnstable: boolean;
+  /**
+   * How many findings the model produced BEFORE the validation tail ran.
+   *
+   * `findings.length` is what survived; this is what entered. The pair is the
+   * only way a later stage can tell a page nobody found anything wrong with
+   * (`0` entered, `0` survived) from a page whose every finding was deleted
+   * (`n` entered, `0` survived). `hallucinationDrops` cannot answer it alone:
+   * it counts one deleting stage, so a run whose findings were all removed by
+   * the confidence floor and trust budget reports `0` drops and looks clean.
+   *
+   * Populated by the two producers that run the tail (`critique()` and
+   * `assembleCritique()`) from the count they hand it. It stays internal to the
+   * `Critique`: what crosses the wire is the conclusion drawn from it,
+   * `gradeUnavailableReason`, not the raw count.
+   */
+  modelFindingsSeen: number;
+}
+
+/**
+ * True when the model produced findings and the validation tail deleted every
+ * one of them, so nothing this run says about the page survived validation.
+ *
+ * Deliberately NOT `findings.length === 0`. A review that found nothing wrong
+ * with a page it did look at is a clean review and its `ship` grade is earned.
+ * The condition here is the other one: findings entered the tail, none came out,
+ * and the empty findings list is the residue of deletion rather than of a clean
+ * page. It is the same condition `reconcileNarrative` uses to move the model's
+ * prose into `ungroundedNarrative`, so the payload's prose and its verdict field
+ * always agree about which of those two runs this was.
+ */
+export function nothingSurvivedValidation(critique: Critique): boolean {
+  return critique.validation.modelFindingsSeen > 0 && critique.findings.length === 0;
 }
 
 /** The full critique() output (TRD §2). */

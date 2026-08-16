@@ -199,7 +199,11 @@ export async function runLocalReview(
     capture: captured,
     systemPrompt,
     hallucinationDrops,
-    modelFindingsSeen: (assembled?.findings.length ?? 0) + hallucinationDrops,
+    // The critique now states what entered the validation tail. Reconstructing
+    // it as survivors + grounding-gate drops undercounted every run the
+    // confidence floor or trust budget also deleted from, so the "N model
+    // finding(s) parsed" line under-reported the model's own output.
+    modelFindingsSeen: assembled?.validation.modelFindingsSeen ?? 0,
   };
 }
 

@@ -36,7 +36,7 @@ function critique(findings: Finding[]): Critique {
     overall: "o",
     findings,
     notReviewed: [],
-    validation: { hallucinationDrops: 0, captureUnstable: false },
+    validation: { hallucinationDrops: 0, captureUnstable: false, modelFindingsSeen: findings.length },
     metadata: {
       engineVersion: "2026.06.0",
       model: "qwen3-vl",
