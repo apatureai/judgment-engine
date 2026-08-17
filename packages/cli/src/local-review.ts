@@ -8,6 +8,7 @@ import {
   type BrowserCaptureResult,
   type CaptureBrowser,
   type DeterministicFinding,
+  checksRunFor,
   type ScreenshotSink,
 } from "@engine/capture";
 import { enforceGroundingAuthority, type ModelClientFactory,
@@ -302,7 +303,10 @@ export async function runLocalReview(
       // The measured half, published on the result rather than stopping at the
       // deep prompt. Same `DeterministicFinding[]` the two lines above turn into
       // prompt facts and triage breakage, grouped once for the wire.
-      measurements: toMeasurementReport(captured.deterministicFindings),
+      measurements: toMeasurementReport(
+        captured.deterministicFindings,
+        checksRunFor([...new Set(captured.images.map((image) => image.viewport))]),
+      ),
       ...(request.previewBuildFacts ? { previewBuildFacts: request.previewBuildFacts } : {}),
       ...(request.notReviewed ? { notReviewed: request.notReviewed } : {}),
       ...(request.requestedRoutes ? { requestedRoutes: request.requestedRoutes } : {}),

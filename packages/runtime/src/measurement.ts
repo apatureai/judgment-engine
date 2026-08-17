@@ -2,6 +2,7 @@ import {
   breakageForRoute,
   factsForRoute,
   toMeasurementReport,
+  checksRunFor,
   type DeterministicFinding,
 } from "@engine/capture";
 import type { ReviewInput, ReviewRoute } from "@engine/review";
@@ -110,7 +111,10 @@ export function measuredRoutes(routes: readonly string[], capture: MeasuredCaptu
  */
 export function measurementReportFor(capture: MeasuredCapture): MeasurementReport | undefined {
   if (capture.deterministicFindings === undefined) return undefined;
-  return toMeasurementReport(capture.deterministicFindings);
+  return toMeasurementReport(
+    capture.deterministicFindings,
+    checksRunFor([...new Set(capture.images.map((image) => image.viewport))]),
+  );
 }
 
 /**

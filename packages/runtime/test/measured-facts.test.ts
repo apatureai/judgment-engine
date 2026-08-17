@@ -282,13 +282,25 @@ describe("measurementReportFor", () => {
     expect(overflow).toHaveLength(1);
     expect(overflow?.[0]?.element).toBe("#pricing-table");
     expect(overflow?.[0]?.viewports).toEqual(["mobile", "tablet"]);
+    // The fixture captures desktop only, and the touch-target check is scoped to
+    // touch viewports, so it never ran. Claiming it did told a consumer "touch
+    // targets measured, clean" for a check that structurally refused to execute.
+    expect(report?.checksRun).toEqual(["contrast", "overflow"]);
+  });
+
+  it("reports the touch check as run once a touch viewport was captured", () => {
+    const touch = measuredCapture(["/"]);
+    const report = measurementReportFor({
+      ...touch,
+      images: touch.images.map((image) => ({ ...image, viewport: "mobile" as const })),
+    });
     expect(report?.checksRun).toEqual(["contrast", "overflow", "touch_target"]);
   });
 
   it("reports 'measured, clean' as a positive statement", () => {
     const clean: MeasuredCapture = { ...measuredCapture(), deterministicFindings: [], pageText: {} };
     expect(measurementReportFor(clean)).toEqual({
-      checksRun: ["contrast", "overflow", "touch_target"],
+      checksRun: ["contrast", "overflow"],
       violations: [],
     });
   });

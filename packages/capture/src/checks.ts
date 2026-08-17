@@ -456,6 +456,21 @@ export const ALL_MEASUREMENT_KINDS: readonly MeasurementKind[] = [
  * caller that measured nothing passes an empty list, which is the difference
  * between "measured, clean" and "not measured".
  */
+/**
+ * Which checks a capture could actually run, given the viewports it captured.
+ *
+ * `touch_target` is scoped to touch viewports, so a desktop-only capture never
+ * evaluates it. Reporting it in `checksRun` told a consumer "touch targets were
+ * measured and were clean" for a check that structurally refused to run, and
+ * neither gate nor bastion could tell that apart from a genuine clean result.
+ * The distinction the report exists to carry is "measured, clean" against "not
+ * measured", so it has to be derived from the capture rather than asserted.
+ */
+export function checksRunFor(viewports: readonly Viewport[]): MeasurementKind[] {
+  const touchable = viewports.some((viewport) => TOUCH_VIEWPORTS.includes(viewport));
+  return ALL_MEASUREMENT_KINDS.filter((kind) => kind !== "touch_target" || touchable);
+}
+
 export function toMeasurementReport(
   findings: readonly DeterministicFinding[],
   checksRun: readonly MeasurementKind[] = ALL_MEASUREMENT_KINDS,
