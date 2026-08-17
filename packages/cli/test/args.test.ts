@@ -1,3 +1,4 @@
+import { passModelsFromEnv } from "../src/model-choice.js";
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { ArgError, USAGE, parseArgs } from "../src/index.js";
@@ -94,5 +95,28 @@ describe("USAGE", () => {
     ]) {
       expect(USAGE).toContain(flag);
     }
+  });
+});
+
+describe("naming the models your endpoint actually serves", () => {
+  // MODEL_BASE_URL lets a caller point anywhere, but the request still named the
+  // built-in Qwen ids, so "any OpenAI-compatible endpoint" was only true for an
+  // endpoint that happened to serve qwen3-vl-flash and qwen3-vl-plus. The
+  // deployable runtime has read these two variables since it was written; the
+  // documented quickstart did not.
+  it("reads the same variable names the runtime path reads", () => {
+    expect(passModelsFromEnv({ TRIAGE_MODEL: "gpt-4o-mini", DEEP_MODEL: "gpt-4o" })).toEqual({
+      triage: { model: "gpt-4o-mini" },
+      deep: { model: "gpt-4o" },
+    });
+  });
+
+  it("lets one pass be overridden without the other", () => {
+    expect(passModelsFromEnv({ DEEP_MODEL: "llava" })).toEqual({ deep: { model: "llava" } });
+  });
+
+  it("changes nothing when neither is set, so the defaults stand", () => {
+    expect(passModelsFromEnv({})).toBeUndefined();
+    expect(passModelsFromEnv({ TRIAGE_MODEL: "   " })).toBeUndefined();
   });
 });

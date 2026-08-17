@@ -354,8 +354,17 @@ stops and tells you so.
 ```sh
 export MODEL_BASE_URL=https://your-openai-compatible-endpoint/v1
 export MODEL_API_KEY=<your-key>
+# Name the models that endpoint actually serves. These default to the built-in
+# Qwen ids, which exist on DashScope and on nothing else, so a run against
+# OpenAI, Ollama or a self-hosted vLLM needs them set.
+export TRIAGE_MODEL=<a cheap vision model>
+export DEEP_MODEL=<your best vision model>
 node packages/cli/dist/main.js --model live --routes / --viewports desktop
 ```
+
+Both passes may name the same model. Triage is a cheap look that decides whether the deep pass is
+worth running, so a smaller model there costs less and changes nothing about the review it
+produces.
 
 The banner states which client is live before a single page is captured:
 

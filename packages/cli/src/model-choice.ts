@@ -1,3 +1,4 @@
+import type { PassModelOverrides } from "@engine/critique";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -83,5 +84,25 @@ export async function resolveLocalModel(
     factory: cannedModelFactory(parsed.script),
     description: `CANNED replay client — authored responses, not a live model (${shown})`,
     kind: "canned",
+  };
+}
+
+/**
+ * Per-pass model ids from the environment, matching the names the deployable
+ * runtime has always read.
+ *
+ * `MODEL_BASE_URL` lets a caller point at any OpenAI-compatible endpoint, but
+ * until this existed the request still named the built-in Qwen ids, so the
+ * documented quickstart only worked against an endpoint that happened to serve
+ * `qwen3-vl-flash` and `qwen3-vl-plus`. Returns undefined when neither is set,
+ * so the defaults stay exactly as they were.
+ */
+export function passModelsFromEnv(env: NodeJS.ProcessEnv = process.env): PassModelOverrides | undefined {
+  const triage = (env.TRIAGE_MODEL ?? "").trim();
+  const deep = (env.DEEP_MODEL ?? "").trim();
+  if (triage.length === 0 && deep.length === 0) return undefined;
+  return {
+    ...(triage.length > 0 ? { triage: { model: triage } } : {}),
+    ...(deep.length > 0 ? { deep: { model: deep } } : {}),
   };
 }

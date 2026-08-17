@@ -7,7 +7,7 @@ import { FileScreenshotSink } from "./file-sink.js";
 import { loadRepoGenome } from "./genome-source.js";
 import { lexicalEmbedder, LEXICAL_EMBEDDER_ID } from "./lexical-embedder.js";
 import { runLocalReview, writeReviewArtifacts } from "./local-review.js";
-import { fixturesDir, resolveLocalModel } from "./model-choice.js";
+import { fixturesDir, passModelsFromEnv, resolveLocalModel } from "./model-choice.js";
 import { CLI_ENGINE_NAME, localJudgmentProvenance, stampJudgmentProvenance } from "./provenance.js";
 import { loadRepoContext } from "./repo-context.js";
 import { displayPath, renderSummary, type RunSummary } from "./report.js";
@@ -110,6 +110,7 @@ export async function runCli(options: CliOptions, io: RunIo): Promise<number> {
         browser,
         sink,
         modelFactory: model.factory,
+        ...(passModelsFromEnv() ? { passModels: passModelsFromEnv() } : {}),
         // Offline and deterministic, so genome retrieval costs a local run
         // nothing and works with no credentials. It ranks by word overlap, not
         // by meaning, which the report states next to the grounding it produced.

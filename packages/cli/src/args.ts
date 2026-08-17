@@ -148,6 +148,9 @@ Options:
                             mock   deterministic empty critique, no network
                             canned replay a scripted critique from --script
                             live   MODEL_BASE_URL + MODEL_API_KEY, real calls
+                          TRIAGE_MODEL and DEEP_MODEL name the models to ask
+                          that endpoint for. Default to the built-in Qwen ids,
+                          which only exist on some providers.
   --verify-stability      Capture each page twice and compare the bytes, and
                           report how many pages were byte-identical
   -h, --help              Show this message

@@ -16,6 +16,7 @@ import {
   type LocalGenome,
   type ModelChoice,
   type ResolvedLocalModel,
+  passModelsFromEnv,
 } from "@engine/cli";
 import type { ContextBlockInput } from "@engine/context";
 import { pgliteExecutor, runMigrations } from "@engine/db";
@@ -180,6 +181,7 @@ export async function createLocalEngine(options: LocalEngineOptions): Promise<Lo
       browser: await ensureBrowser(),
       sink,
       modelFactory: model.factory,
+      ...(passModelsFromEnv() ? { passModels: passModelsFromEnv() } : {}),
       // The same offline embedder the CLI injects, so a job served here and a
       // run of `pnpm review` over the same directory retrieve the same rules.
       embedder: lexicalEmbedder,

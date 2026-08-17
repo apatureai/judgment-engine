@@ -9,7 +9,9 @@ import {
   type DeterministicFinding,
   type ScreenshotSink,
 } from "@engine/capture";
-import { enforceGroundingAuthority, type ModelClientFactory } from "@engine/critique";
+import { enforceGroundingAuthority, type ModelClientFactory,
+  type PassModelOverrides,
+} from "@engine/critique";
 import { reviewSystemPrompt, runReview, type ReviewRoute } from "@engine/review";
 import { buildGenomeIndex, type ContextBlockInput, type Embedder } from "@engine/context";
 import type {
@@ -102,6 +104,17 @@ export interface LocalReviewDeps {
   /** Where PNG bytes land. `FileScreenshotSink` writes them to a directory. */
   sink: ScreenshotSink;
   modelFactory: ModelClientFactory;
+  /**
+   * Per-pass model ids, so a caller pointing `MODEL_BASE_URL` at their own
+   * endpoint can name the models it actually serves.
+   *
+   * The runtime path has read `TRIAGE_MODEL` and `DEEP_MODEL` since it was
+   * written; this path did not, so the documented quickstart sent the
+   * built-in Qwen ids to whatever endpoint it was given. "Any
+   * OpenAI-compatible endpoint" was only true for an endpoint that happened
+   * to serve two models with those exact names.
+   */
+  passModels?: PassModelOverrides;
   /**
    * Embeds the genome's rules and each route's retrieval query (#104). Required
    * exactly when `request.genome` carries rules, which is the same invariant the
@@ -302,6 +315,7 @@ export async function runLocalReview(
       // it produced rather than capturing a second time.
       captureInSandbox: async () => captured,
       modelFactory: deps.modelFactory,
+      ...(deps.passModels ? { passModels: deps.passModels } : {}),
       // Retrieval needs both halves or neither: the orchestrator injects the
       // per-route rules only when it has an index to rank and an embedder to
       // embed the query with.
