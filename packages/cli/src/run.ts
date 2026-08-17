@@ -1,6 +1,7 @@
 import { mkdir } from "node:fs/promises";
 import { join, relative, resolve } from "node:path";
 import { pageHealthFootnote, type CaptureBrowser } from "@engine/capture";
+import type { PageHealth } from "@engine/types";
 import type { CliOptions } from "./args.js";
 import { FileScreenshotSink } from "./file-sink.js";
 import { loadRepoGenome } from "./genome-source.js";
@@ -30,6 +31,20 @@ export { fixturesDir };
 /** Render a path relative to the working directory when that stays readable. */
 function show(path: string): string {
   return displayPath(path, relative(process.cwd(), path));
+}
+
+/**
+ * Page health minus the determinism check.
+ *
+ * The check earns its own report line (`renderStability`), with the counts and
+ * the "something is still moving" advice spelled out, so folding it into the
+ * one-line footnote as well would say the same thing twice on the same screen.
+ * The WIRE result keeps it: a consumer reading `review.json` or a Gate comment
+ * has no second line to read it from.
+ */
+function withoutStability(health: PageHealth): PageHealth {
+  const { stability: _stability, ...rest } = health;
+  return rest;
 }
 
 export interface RunIo {
@@ -129,7 +144,7 @@ export async function runCli(options: CliOptions, io: RunIo): Promise<number> {
         grounding: outcome.grounding,
         deterministicFindings: outcome.capture.deterministicFindings,
         factsFile: show(written.factsPath),
-        pageHealthFootnote: pageHealthFootnote(outcome.capture.pageHealth),
+        pageHealthFootnote: pageHealthFootnote(withoutStability(outcome.capture.pageHealth)),
         stability: outcome.capture.stability,
         hallucinationDrops: outcome.hallucinationDrops,
         modelFindingsSeen: outcome.modelFindingsSeen,

@@ -68,10 +68,23 @@ export interface BrowserCaptureOptions {
    * the #70 confidence ceiling). Off by default: every page is screenshotted
    * twice, and the result is reported as `stability` so a clean check is
    * visible rather than merely implied by the absence of a complaint.
+   *
+   * This is the OPERATOR's switch: the CLI's `--verify-stability`, and the same
+   * flag on `judgment-engine-serve`, where it applies to every job that server
+   * runs. `CaptureContext.verifyStability` is the per-REQUEST form of the same
+   * ask, and either one turns the check on for the capture it applies to.
    */
   verifyStability?: boolean;
   /** Max viewport advances during the lazy-load scroll. */
   maxScrollViewports?: number;
+}
+
+/** Did anything ask for the determinism check on this capture: the flag, or the request? */
+export function stabilityRequested(
+  ctx: Pick<CaptureContext, "verifyStability">,
+  options: Pick<BrowserCaptureOptions, "verifyStability">,
+): boolean {
+  return options.verifyStability === true || ctx.verifyStability === true;
 }
 
 /** A capture plus the by-products the orchestrator threads into the prompt. */
@@ -197,6 +210,10 @@ export async function captureWithBrowser(
   options: BrowserCaptureOptions = {},
 ): Promise<BrowserCaptureResult> {
   const prefix = deps.keyPrefix ?? "captures";
+  // The operator's flag and the request's ask are the same instruction, so they
+  // are resolved once, here, and every read below is of the resolved answer.
+  const verifyStability = stabilityRequested(ctx, options);
+  const pageOptions: BrowserCaptureOptions = { ...options, verifyStability };
   const images: CaptureImage[] = [];
   const geometry: GeometryRect[] = [];
   const deterministicFindings: DeterministicFinding[] = [];
@@ -219,7 +236,7 @@ export async function captureWithBrowser(
       });
       try {
         const page = await context.newPage();
-        const outcome = await capturePage(page, routeUrl(baseUrl, route), size.height, options);
+        const outcome = await capturePage(page, routeUrl(baseUrl, route), size.height, pageOptions);
 
         const key = `${prefix}/${routeSlug(route)}/${viewport}.png`;
         await deps.sink.put(key, outcome.png, { contentType: "image/png" });
@@ -257,7 +274,7 @@ export async function captureWithBrowser(
         // Page text is viewport-independent; the first captured viewport wins.
         pageText[route] ??= outcome.extracted.bodyText;
         unstable = unstable || outcome.unstable;
-        if (options.verifyStability === true) {
+        if (verifyStability) {
           pagesCompared += 1;
           if (outcome.unstable) unstablePages += 1;
         }
@@ -267,15 +284,27 @@ export async function captureWithBrowser(
     }
   }
 
+  const stability = verifyStability ? { pagesCompared, unstablePages } : null;
   return {
     images,
     geometry,
-    pageHealth: buildPageHealth({ console: consoleEvents, failedRequests, unstable, fonts }),
+    // The counts go INSIDE page health as well as beside the capture, because
+    // page health is the part of a capture that crosses every wire this engine
+    // has: the capture-service response, and the footnote a consumer reads.
+    // Left only on the result, a check that ran would still be invisible to
+    // anyone who did not capture in this process.
+    pageHealth: buildPageHealth({
+      console: consoleEvents,
+      failedRequests,
+      unstable,
+      fonts,
+      ...(stability ? { stability } : {}),
+    }),
     captureVersion: BROWSER_CAPTURE_VERSION,
     deterministicFindings,
     objectKeys,
     pageText,
-    stability: options.verifyStability === true ? { pagesCompared, unstablePages } : null,
+    stability,
   };
 }
 

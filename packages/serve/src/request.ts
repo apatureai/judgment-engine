@@ -15,9 +15,11 @@ import { LocalEngineError } from "./errors.js";
  * rather than trusted from caller-controlled JSON.
  *
  * Everything Gate cannot send is layered on here from the operator's own
- * configuration: the contract carries design tokens and a brand string, but no
- * component libraries and no `package.json`, so a `--context-dir` fills those in
- * from the repository the operator pointed at.
+ * configuration. That set has shrunk: the contract now carries the component
+ * libraries the caller detected as well as design tokens and a brand string, so
+ * `--context-dir` is the fallback for a caller that did not send them, and the
+ * operator's directory still supplies the one thing no request can (the UI-DNA
+ * genome, which the deployed engine resolves from its own Source of Truth).
  */
 
 export interface LocalRequestOptions {
@@ -95,7 +97,17 @@ export function toLocalReviewRequest(
     // the route cap did, and the first thing it carried would have been lost.
     ...(input.notReviewed ? { notReviewed: input.notReviewed } : {}),
     ...(input.requestedRoutes ? { requestedRoutes: input.requestedRoutes } : {}),
-    ...(options.verifyStability !== undefined ? { verifyStability: options.verifyStability } : {}),
+    // The operator's `--verify-stability` and the request's own ask are the
+    // same instruction, so either one turns the check on for this job: a server
+    // started with the flag runs it on everything, and a caller that asked for
+    // it on one review gets it on that review from a server started without.
+    // Neither can switch the other OFF, because "do not verify" is not
+    // something either side is trying to say.
+    ...(options.verifyStability === true || input.captureContext.verifyStability === true
+      ? { verifyStability: true }
+      : options.verifyStability !== undefined
+        ? { verifyStability: options.verifyStability }
+        : {}),
     screenshotRetentionSeconds: options.screenshotRetentionSeconds ?? 0,
     keyPrefix: options.keyPrefix,
   };

@@ -161,6 +161,7 @@ export {
   breakageForRoute,
   routeSlug,
   routeUrl,
+  stabilityRequested,
 } from "./browser-capture.js";
 export type {
   BrowserCaptureDeps,

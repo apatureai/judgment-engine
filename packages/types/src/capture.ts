@@ -19,6 +19,33 @@ export interface CaptureContext {
   isFork: boolean;
   /** Routes to capture. */
   routes: string[];
+  /**
+   * Capture each page twice and compare the PNG bytes (#15).
+   *
+   * This is the per-request form of the CLI's `--verify-stability`. It travels
+   * on the capture CONTEXT because the context is the capture request body, so
+   * a caller can now ask for the determinism check on one review instead of it
+   * being an operator flag that applies to every job a server runs or to
+   * nothing at all.
+   *
+   * Optional and additive in both directions. A capture service that predates
+   * the field ignores it and reports no `pageHealth.stability`, which reads as
+   * "not checked" rather than "verified stable"; a caller that never sets it
+   * sends the same request body it always sent.
+   */
+  verifyStability?: boolean;
+}
+
+/**
+ * What the repeat-capture determinism check actually compared (#15).
+ *
+ * Counts rather than a boolean, because the boolean already exists: a check
+ * that ran and found nothing has to be distinguishable from a check that never
+ * ran, and `unstable: false` cannot tell those apart on its own.
+ */
+export interface CaptureStability {
+  pagesCompared: number;
+  unstablePages: number;
 }
 
 export interface CaptureImage {
@@ -51,6 +78,18 @@ export interface PageHealth {
    * footnote, not a hallucinated "broken text" finding. Defaults to 0.
    */
   blockedFonts?: number;
+  /**
+   * The repeat-capture determinism check's own counts, or ABSENT when the check
+   * did not run (`ctx.verifyStability` unset, or a capture service that does not
+   * implement it).
+   *
+   * Absent means "not checked", never "checked and clean". `unstable: false`
+   * with no `stability` beside it is only "nothing contradicted this"; the same
+   * flag with `stability: { pagesCompared: 6, unstablePages: 0 }` is the
+   * positive statement that six pages were captured twice and matched byte for
+   * byte.
+   */
+  stability?: CaptureStability;
 }
 
 export interface Capture {

@@ -1,3 +1,4 @@
+import { resolveComponentLibraries } from "@engine/context";
 import type { JobRecord } from "@engine/jobs";
 import type { ReviewInput } from "@engine/review";
 import type { PreviewBuildFact, Viewport } from "@engine/types";
@@ -40,6 +41,16 @@ const normalizedConfigSchema = z.object({
     source: z.string().nullable(),
     values: z.record(z.string(), z.string()),
   }),
+  /**
+   * Capture each page twice and compare the PNG bytes, for this review.
+   *
+   * It sits inside the CONFIG rather than beside it because that is what it is:
+   * a repository's declared review setting, the same kind of thing as
+   * `darkMode` and `viewports`, and it arrives the same way. Optional, so a
+   * caller that predates the field is parsed exactly as before and its captures
+   * run exactly as before.
+   */
+  verifyStability: z.boolean().optional(),
 });
 
 /** Gate's additive POST /jobs request contract. Unknown additive fields are ignored. */
@@ -69,6 +80,21 @@ export const runtimeReviewRequestSchema = z.object({
   publishMode: z.enum(["advisory", "blocking"]),
   depth: z.enum(["triage", "deep"]),
   previewBuildFacts: z.array(buildFactSchema).optional(),
+  /**
+   * Component libraries the CALLER detected in the repository under review.
+   *
+   * The engine cannot detect them itself on this path: the CLI reads the repo's
+   * `package.json` and appends each library's rubric note to the deep prompt,
+   * and the deployed service holds no checkout to read. So the side that has
+   * the repository names the libraries, and the side that owns the rubric
+   * (`resolveComponentLibraries`) writes the addenda. Ids only, never prose:
+   * nothing a caller sends is placed in the prompt verbatim.
+   *
+   * Optional, bounded, and forgiving of names this engine does not know, so a
+   * caller that detects more libraries than this engine has addenda for still
+   * gets a review grounded on the ones it does.
+   */
+  componentLibraries: z.array(z.string().min(1).max(64)).max(32).optional(),
 });
 
 export type RuntimeReviewRequest = z.infer<typeof runtimeReviewRequestSchema>;
@@ -160,7 +186,14 @@ export function toReviewInput(
     context: {
       tokens: request.config.tokens.values,
       brand,
-      componentLibraries: [],
+      // Was hardcoded empty, which made the deployed service the ONE surface
+      // that reviewed without the component-library half of the rubric: the CLI
+      // read `package.json` and appended shadcn's or MUI's note to the deep
+      // prompt, and a review that came back from the service quietly did not.
+      // The request now carries what the caller detected, and the addenda are
+      // resolved from this engine's own detector table, so the two surfaces
+      // ground the same review the same way.
+      componentLibraries: resolveComponentLibraries(request.componentLibraries ?? []),
       // The production resolver stamps the latest approved repository genome.
       uiDnaVersion: null,
       routes,
@@ -171,6 +204,11 @@ export function toReviewInput(
       darkMode: request.config.darkMode,
       isFork: true,
       routes,
+      // Omitted rather than sent as `false`, so a request that never asked for
+      // the determinism check produces the same capture request body it always
+      // produced, and a capture fleet that has never heard of the field sees no
+      // change at all.
+      ...(request.config.verifyStability === true ? { verifyStability: true } : {}),
     },
     // Bare here on purpose, and NOT left bare. The per-route measurements that
     // ground the deep prompt (`facts`) and overrule a triage decline

@@ -53,6 +53,19 @@ const captureSchema = z.object({
     failedRequests: z.number().int().nonnegative(),
     unstable: z.boolean(),
     blockedFonts: z.number().int().nonnegative().optional(),
+    // What the repeat-capture determinism check compared, when it ran (#15).
+    // Optional for the same reason `deterministicFindings` is: this schema is
+    // `.strict()` and the fleet deploys separately, so a service that answers a
+    // `verifyStability` request with counts must not have its whole response
+    // rejected by an engine that predates the field, and a service that ignores
+    // the request must not be forced to invent one.
+    //
+    // Absent is "not checked". `unstable: false` on its own stays the weaker
+    // claim it has always been: nothing contradicted this capture.
+    stability: z.object({
+      pagesCompared: z.number().int().nonnegative(),
+      unstablePages: z.number().int().nonnegative(),
+    }).strict().optional(),
   }).strict(),
   captureVersion: z.string().min(1),
   // The measured half of the capture. Optional because the engine and the fleet

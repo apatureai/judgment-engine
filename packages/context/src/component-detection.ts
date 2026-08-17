@@ -77,3 +77,37 @@ export function detectComponentLibraries(pkg: PackageJsonLike): ComponentLibrary
     rubricAddendum: d.rubricAddendum,
   }));
 }
+
+/**
+ * Every library id this engine has a rubric addendum for.
+ *
+ * Published because it is the vocabulary of a contract: a caller that inspects
+ * a repository it holds and this engine that writes the rubric have to agree on
+ * the names, and the agreement should be readable from here rather than
+ * rediscovered from a review that came back ungrounded.
+ */
+export const COMPONENT_LIBRARY_IDS: readonly string[] = DETECTORS.map((d) => d.id);
+
+/**
+ * Resolve library ids a CALLER detected into this engine's own rubric addenda.
+ *
+ * The deployed service holds no checkout, so it cannot run
+ * `detectComponentLibraries` itself: the only thing that can see the repository
+ * is whatever asked for the review. This is the other half of that split. The
+ * caller sends ids; the rubric TEXT stays owned by the engine and is never
+ * accepted over the wire, so a request cannot write into the deep prompt.
+ *
+ * Unknown ids are dropped rather than rejected, and the result is in DETECTOR
+ * order rather than caller order. Both are deliberate: a newer caller naming a
+ * library this engine has no addendum for should produce a review grounded on
+ * the libraries it does know, not a failed request, and the context block is a
+ * prefix-cache key, so the same repository has to serialize the same way
+ * whatever order the caller listed things in.
+ */
+export function resolveComponentLibraries(ids: readonly string[]): ComponentLibrary[] {
+  const named = new Set(ids);
+  return DETECTORS.filter((d) => named.has(d.id)).map((d) => ({
+    id: d.id,
+    rubricAddendum: d.rubricAddendum,
+  }));
+}

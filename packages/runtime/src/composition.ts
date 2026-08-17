@@ -42,7 +42,7 @@ import {
 } from "./evidence.js";
 import { EngineHttpServer } from "./http.js";
 import { repositoryForJob, toReviewInput } from "./input.js";
-import { applyMeasuredRoutes, measurementGap } from "./measurement.js";
+import { applyMeasuredRoutes, measurementGap, stabilityGap } from "./measurement.js";
 import {
   assertAttested,
   stampJudgmentProvenance,
@@ -203,6 +203,11 @@ export function createEngineRuntime(options: EngineRuntimeOptions): EngineRuntim
       applyCaptureEvidence(input, captured);
       const gap = measurementGap(captured);
       if (gap) options.logger?.info(`engine job ${job.id}: ${gap}`);
+      // The same shape of honesty for the other thing a capture service may not
+      // implement: a review that ASKED for the determinism check and got no
+      // counts back verified nothing, and must not read as though it did.
+      const stabilityMissing = stabilityGap(input.captureContext, captured);
+      if (stabilityMissing) options.logger?.info(`engine job ${job.id}: ${stabilityMissing}`);
 
       return {
         // The capture already ran, so the seam hands the orchestrator the result

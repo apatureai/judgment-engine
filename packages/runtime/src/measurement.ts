@@ -107,6 +107,29 @@ export function measurementGap(capture: MeasuredCapture): string | null {
 }
 
 /**
+ * Why this run asked for the determinism check and got no answer, or `null`
+ * when it either did not ask or was answered.
+ *
+ * The check is per-request now (`captureContext.verifyStability`), and the
+ * capture fleet deploys separately from this engine, so "the caller asked and
+ * the service does not implement it" is a real state a review must not report
+ * as a passing check. It cannot be inferred from `pageHealth.unstable`: that
+ * flag is `false` both when nothing moved and when nothing looked.
+ *
+ * Said as a sentence, like `measurementGap`, because the only useful thing to
+ * do with it is say it, and the operator's next question is which side to fix.
+ */
+export function stabilityGap(context: CaptureContext, capture: Capture): string | null {
+  if (context.verifyStability !== true) return null;
+  if (capture.pageHealth.stability !== undefined) return null;
+  return (
+    "this review asked the capture service for the repeat-capture determinism check and the response " +
+    "carried no stability counts, so nothing was verified: read pageHealth.unstable as 'nothing " +
+    "contradicted this capture' rather than 'every page was compared and matched'"
+  );
+}
+
+/**
  * Put the capture's measurements on the input the orchestrator is about to run.
  *
  * Mutates, because `createReviewProcessor` hands the same `ReviewInput` object

@@ -19,6 +19,7 @@ export { nothingSurvivedValidation } from "./findings.js";
 export type {
   CaptureContext,
   CaptureImage,
+  CaptureStability,
   GeometryRect,
   PageHealth,
   Capture,

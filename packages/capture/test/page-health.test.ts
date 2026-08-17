@@ -35,6 +35,43 @@ describe("pageHealthFootnote", () => {
   });
 });
 
+describe("the determinism check on the health summary (#15)", () => {
+  it("omits stability entirely when the check did not run", () => {
+    // Absent is "not checked". A zeroed `{ pagesCompared: 0 }` would claim a
+    // check happened over nothing, which is the confusion this field removes.
+    const health = buildPageHealth({ console: [], failedRequests: [] });
+    expect(health.stability).toBeUndefined();
+    expect(pageHealthFootnote(health)).toBeNull();
+  });
+
+  it("states a check that ran and passed, because silence cannot say that", () => {
+    const health = buildPageHealth({
+      console: [],
+      failedRequests: [],
+      stability: { pagesCompared: 6, unstablePages: 0 },
+    });
+    expect(health.stability).toEqual({ pagesCompared: 6, unstablePages: 0 });
+    // The one clause here that is GOOD news, and the only reason a clean page
+    // now produces a footnote at all: "verified stable" has to be readable as
+    // something other than "nobody looked".
+    expect(pageHealthFootnote(health)).toBe(
+      "Page health: determinism check: 6 page(s) captured twice, all byte-identical.",
+    );
+  });
+
+  it("names the pages that differed, beside the unstable flag they set", () => {
+    const health = buildPageHealth({
+      console: [],
+      failedRequests: [],
+      unstable: true,
+      stability: { pagesCompared: 6, unstablePages: 2 },
+    });
+    const note = pageHealthFootnote(health);
+    expect(note).toContain("visually unstable");
+    expect(note).toContain("determinism check: 2 of 6 page(s) differed on a repeat capture");
+  });
+});
+
 describe("blocked web-font detection (#83)", () => {
   it("flags any document.fonts entry not 'loaded' after fonts.ready", () => {
     const blocked = blockedFonts([

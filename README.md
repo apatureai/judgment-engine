@@ -726,6 +726,19 @@ its own `notReviewed` line naming the setting and the limit, as
 `route /legal (over the routes.max_per_pr limit of 5)`. Eight configured routes under the default cap
 of five used to produce a review of five that read like a review of everything.
 
+The request has additive fields of its own, for the two things the service cannot work out by
+itself. It holds no checkout of your repository, so `componentLibraries` carries the library ids the
+caller detected there (`shadcn/ui`, `radix`, `mui`, `chakra`, `mantine`) and this engine appends its
+own rubric addendum for each, which is what the CLI does after reading your `package.json`. Ids
+only: the rubric text is the engine's, so nothing a caller sends is written into the prompt
+verbatim, and an id the engine has no addendum for is dropped rather than rejected. And
+`config.verifyStability` asks for the repeat-capture determinism check on this review, the
+per-request form of the CLI's `--verify-stability`; it reaches the capture fleet as
+`context.verifyStability` and comes back as `pageHealth.stability`. Every one of these is optional
+in both directions. An older caller omits them and is reviewed exactly as it was yesterday, and an
+unknown additive field is ignored rather than refused, which is what lets a newer caller talk to an
+older engine.
+
 Idempotency is exact: `INSERT ... ON CONFLICT DO NOTHING` is the linearization point, and an existing
 job is returned only when its persisted request digest matches. A reused key with a different request
 is a non-enumerating `409` that does not leak the existing job id.
@@ -743,13 +756,13 @@ reports database, capture fleet and worker capacity separately. Migrations run v
 pnpm lint       # eslint, --max-warnings=0
 pnpm typecheck  # tsc -b across the project references
 pnpm build      # tsc -b, emits dist/
-pnpm test       # tsc -b && vitest run  ->  751 passed (112 files), 32s to 70s
+pnpm test       # tsc -b && vitest run  ->  1043 passed (128 files), 32s to 70s
 ```
 
 One test file:
 
 ```sh
-npx vitest run packages/capture/test/browser-capture.test.ts    # 13 passed
+npx vitest run packages/capture/test/browser-capture.test.ts    # 19 passed
 ```
 
 The non-TypeScript components:
@@ -798,32 +811,27 @@ behaves the way it was designed to behave, each one has already surprised somebo
 is closed by a patch to this repository alone. They are written down here so that nobody has to
 rediscover them from a result that did not say what they expected.
 
-- **A review run through the deployed service is not told which component library you build with.**
-  The CLI reads your repository's `package.json`, detects shadcn/ui, Radix, MUI, Chakra or Mantine,
-  and appends that library's rubric note to the deep prompt, so the model is told to judge spacing
-  against MUI's 8px scale, or to expect Radix's ARIA semantics and app-owned styling. The deployable
-  composition in `packages/runtime` sends an empty list instead (`componentLibraries: []` in
-  `packages/runtime/src/input.ts`), and it is not skipping a step it could have taken: the request
-  contract it parses carries design tokens and a brand string and has no field for component
-  libraries, and the service holds no checkout of your repository to detect them from. So a review
-  that comes back from the service is grounded on tokens and brand only, and the library-specific
-  part of the rubric is missing from it without the result saying so. If those addenda matter to
-  you, run the CLI, or run `judgment-engine-serve` with `--context-dir` pointed at the repository:
-  that server fills in from your checkout exactly what the request could not carry. Closing it for
-  the production service means adding a field to the request contract, which is an agreement with
-  the caller rather than a change here.
-- **The repeat-capture determinism check cannot be requested over the wire.** `--verify-stability`
-  captures each page twice and compares the PNG bytes, and it is a flag on the CLI and an operator
-  flag on `judgment-engine-serve`, where it applies to every job that server runs. A caller cannot
-  ask for it per review: the job request has no field for it, and neither does the capture request
-  the service sends to a capture fleet, whose body is the job id, the URL and the capture context.
-  Two consequences are worth knowing before you read a result. `pageHealth.unstable` is `false` on
-  every run where the check did not run, so read it as "nothing contradicted this" rather than
-  "verified stable", and note that the counts behind it (`pagesCompared`, `unstablePages`) do not
-  cross the capture wire at all. And the confidence ceiling that exists for unstable captures caps
-  confidence only when a capture was measured unstable, so it cannot fire on a run that compared
-  nothing. When you need the guarantee, capture through the CLI with `--verify-stability`, or run
-  your own server with the flag on.
+- **A deep prompt is only as grounded as the caller's request.** Two of the things a hosted review
+  used to be missing are now fields on the job contract, and both are optional, so what you get
+  depends on what the caller sends. `componentLibraries` is a list of ids the caller detected in the
+  repository it is reviewing (`shadcn/ui`, `radix`, `mui`, `chakra`, `mantine`), which this engine
+  turns into its own rubric addenda, the same ones the CLI appends after reading your
+  `package.json`. A caller that sends none gets a review grounded on tokens and brand, exactly as
+  before, and nothing in the result distinguishes "you use no component library" from "the caller
+  did not look". The ids are a closed vocabulary (`COMPONENT_LIBRARY_IDS` in `packages/context`);
+  an id this engine has no addendum for is dropped rather than rejected, so a newer caller cannot
+  break an older engine. The rubric text is never accepted over the wire, only chosen by it.
+- **The determinism check is opt-in, and a silent capture is not a verified one.**
+  `verify_stability` on the job's config captures each page twice and compares the PNG bytes, and it
+  reaches a capture fleet as `verifyStability` on the capture context. It is off unless something
+  asks. So on a run that did not ask, `pageHealth.unstable` is `false` because nothing contradicted
+  the capture, not because anything was compared, and the confidence ceiling for unstable captures
+  cannot fire on a comparison that never happened. Read the counts, not the flag: a run that
+  verified reports `pageHealth.stability` (`pagesCompared`, `unstablePages`) and says so in the
+  page-health footnote; a run that did not omits the field entirely. The engine and the capture
+  fleet also deploy separately, so a fleet that predates the field will ignore the ask and answer
+  without counts. That is not reported as a passing check: the service logs that the review asked
+  and nothing was verified, and the result claims nothing.
 - **Nothing on any path has a baseline to compare this capture against.** `baselinePhash` and
   `tileScores` describe this capture against a previous one, and no composition here records a
   previous one, so both stay empty on the CLI, on the local HTTP server and on the deployed service.
@@ -883,7 +891,12 @@ welcome on any of them.
   (`deterministicFindings`) and the page's own visible text (`pageText`). Both are optional on the
   wire, and a service that omits the measurements produces reviews with no measured facts in the deep
   prompt and no measured breakage able to overrule a triage pass that declined to look; the service
-  logs that gap per job rather than letting the absence read as a clean page.
+  logs that gap per job rather than letting the absence read as a clean page. The request half has
+  one addition too: `context.verifyStability` asks the fleet to capture each page twice and compare
+  the bytes, and a fleet that implements it answers with `pageHealth.stability`
+  (`pagesCompared`, `unstablePages`). Both halves are optional in both directions, so a fleet that
+  ignores the ask still serves reviews; it just cannot claim the check passed, and the engine says
+  so per job.
 - **Wire rate limiting and fairness.** `packages/redis` implements the global token bucket, per-tenant
   quota, fairness gate and no-eviction guard, and is unit-tested, but no package imports it and
   `packages/runtime` never reads `REDIS_URL`. The service currently runs unthrottled. This is

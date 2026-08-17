@@ -6,6 +6,7 @@ import {
   factsForRoute,
   routeSlug,
   routeUrl,
+  stabilityRequested,
   type CaptureBrowser,
   type CapturePage,
   type ExtractedPage,
@@ -410,6 +411,46 @@ describe("captureWithBrowser", () => {
       { browser, sink: memorySink() },
     );
     expect(capture.stability).toBeNull();
+    // And page health says nothing about a check that never ran, rather than
+    // reporting zero comparisons as though something had been verified.
+    expect(capture.pageHealth.stability).toBeUndefined();
+  });
+
+  it("runs the determinism check when the REQUEST asks for it and no operator flag is set", async () => {
+    // The per-request form of `--verify-stability`. Until now the check was a
+    // flag on the process, so a caller of a running service could not ask for
+    // it on one review at all.
+    const { browser } = fakeBrowser();
+    const capture = await captureWithBrowser(
+      "http://127.0.0.1:5000",
+      { ...CONTEXT, routes: ["/", "/pricing"], viewports: ["mobile"], verifyStability: true },
+      { browser, sink: memorySink() },
+    );
+    expect(capture.stability).toEqual({ pagesCompared: 2, unstablePages: 0 });
+    expect(capture.pageHealth.stability).toEqual({ pagesCompared: 2, unstablePages: 0 });
+  });
+
+  it("carries a failed determinism check into page health, where the wire can read it", async () => {
+    const moving = fakeBrowser({ unstable: true });
+    const capture = await captureWithBrowser(
+      "http://127.0.0.1:5000",
+      { ...CONTEXT, routes: ["/"], viewports: ["mobile"], verifyStability: true },
+      { browser: moving.browser, sink: memorySink() },
+    );
+    expect(capture.pageHealth.unstable).toBe(true);
+    expect(capture.pageHealth.stability).toEqual({ pagesCompared: 1, unstablePages: 1 });
+  });
+
+  it("treats the operator flag and the request's ask as the same instruction", () => {
+    // Either one alone turns it on, and neither turns the other off: "do not
+    // verify" is not something either side is trying to say.
+    expect(stabilityRequested({}, {})).toBe(false);
+    expect(stabilityRequested({ verifyStability: true }, {})).toBe(true);
+    expect(stabilityRequested({}, { verifyStability: true })).toBe(true);
+    expect(stabilityRequested({ verifyStability: true }, { verifyStability: true })).toBe(true);
+    // An older caller that never heard of the field asks for nothing, and a
+    // server started without the flag runs exactly as it always did.
+    expect(stabilityRequested({ verifyStability: undefined }, { verifyStability: false })).toBe(false);
   });
 
   it("awaits a ready selector when one is configured", async () => {
