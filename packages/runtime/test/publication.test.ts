@@ -404,7 +404,24 @@ describe("witnessModelCalls", () => {
       source: "model",
       model: "qwen3-vl-plus",
     });
-    expect(witness.provenance().detail).toContain("2 captures");
+    // Counted per model, not as one running total. Triage and the deep pass are
+    // different models here: flash saw one capture and plus saw one. Attributing
+    // both to plus was an overclaim inside the field whose whole job is to stop
+    // the engine overclaiming.
+    const detail = witness.provenance().detail;
+    expect(detail).toContain("qwen3-vl-plus judged 1 capture of it");
+    expect(detail).toContain("after 1 earlier triage capture");
+    expect(detail).not.toContain("2 captures");
+  });
+
+  it("says nothing about other models when only one saw a capture", async () => {
+    const witness = witnessModelCalls(factory);
+    const deep = witness.factory({ model: "qwen3-vl-plus", backend: "dashscope", thinking: true });
+    await deep.complete(request("qwen3-vl-plus", true));
+    await deep.complete(request("qwen3-vl-plus", true));
+    const detail = witness.provenance().detail;
+    expect(detail).toContain("qwen3-vl-plus judged 2 captures of it");
+    expect(detail).not.toContain("earlier triage");
   });
 });
 

@@ -76,7 +76,11 @@ export interface JudgmentWitness {
  */
 export function witnessModelCalls(factory: ModelClientFactory): JudgmentWitness {
   let judgedByModel: string | null = null;
-  let imageCalls = 0;
+  // Per model, not a single running total. Triage and the deep pass are usually
+  // different models, and attributing every image-bearing call to whichever ran
+  // last overstates what that model saw. This field exists to stop overclaiming,
+  // so it must not overclaim.
+  const imageCallsByModel = new Map<string, number>();
   let textOnlyCalls = 0;
 
   return {
@@ -88,7 +92,7 @@ export function witnessModelCalls(factory: ModelClientFactory): JudgmentWitness 
           const response = await client.complete(request, options);
           const sawImages = request.messages.some((message) => (message.images?.length ?? 0) > 0);
           if (sawImages) {
-            imageCalls++;
+            imageCallsByModel.set(request.model, (imageCallsByModel.get(request.model) ?? 0) + 1);
             judgedByModel = request.model;
           } else {
             textOnlyCalls++;
@@ -105,9 +109,15 @@ export function witnessModelCalls(factory: ModelClientFactory): JudgmentWitness 
           source: "model",
           engine: RUNTIME_ENGINE_NAME,
           model: judgedByModel,
-          detail:
-            `verdict reviewed this page over the job API: the capture fleet rendered the target and ` +
-            `${judgedByModel} judged ${imageCalls} capture${imageCalls === 1 ? "" : "s"} of it`,
+          detail: (() => {
+            const own = imageCallsByModel.get(judgedByModel) ?? 0;
+            const others = [...imageCallsByModel]
+              .filter(([model]) => model !== judgedByModel)
+              .reduce((sum, [, count]) => sum + count, 0);
+            const mine = `${judgedByModel} judged ${own} capture${own === 1 ? "" : "s"} of it`;
+            const rest = others > 0 ? `, after ${others} earlier triage capture${others === 1 ? "" : "s"}` : "";
+            return `verdict reviewed this page over the job API: the capture fleet rendered the target and ${mine}${rest}`;
+          })(),
         };
       }
       return {

@@ -126,7 +126,7 @@ export function createEngineRuntime(options: EngineRuntimeOptions): EngineRuntim
   const witnessByJob = new Map<string, JudgmentWitness>();
   const coordinator = new CancellationCoordinator((jobId) => options.capture.cancel(jobId));
   const coreProcessor = createJobReviewProcessor(
-    toReviewInput,
+    (job: JobRecord) => toReviewInput(job, evidenceUrlTtlSeconds),
     async (job: JobRecord, input) => {
       const signal = coordinator.register(job.id);
       const witness = witnessModelCalls(options.modelFactory);

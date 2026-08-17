@@ -425,3 +425,19 @@ describe("toReviewInput leaves the routes for the capture to fill", () => {
     expect(toReviewInput(job()).routes).toEqual([{ route: "/" }]);
   });
 });
+
+describe("published retention agrees with the signature that enforces it", () => {
+  // A zero here is not "no promise", it is "already expired". Gate computes
+  // expiresAt = receivedAt + retention and refuses its own screenshot proxy once
+  // that passes, so every review the deployed service published arrived with
+  // evidence records born expired. The number a consumer reads has to be the
+  // number the signed URL is issued with.
+  it("reports the evidence URL TTL as the retention", () => {
+    expect(toReviewInput(job(), 900).wireOptions?.screenshotRetentionSeconds).toBe(900);
+    expect(toReviewInput(job(), 3_600).wireOptions?.screenshotRetentionSeconds).toBe(3_600);
+  });
+
+  it("never publishes a zero, which downstream reads as already expired", () => {
+    expect(toReviewInput(job()).wireOptions?.screenshotRetentionSeconds).toBeGreaterThan(0);
+  });
+});

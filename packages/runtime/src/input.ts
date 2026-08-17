@@ -129,7 +129,18 @@ export function truncatedRouteReason(route: string, maxPerPr: number): string {
  * trustworthy fork bit, so production capture fails closed to fork-safe mode:
  * no storage-state or protection-bypass secret is released to the sandbox.
  */
-export function toReviewInput(job: JobRecord): ReviewInput {
+export function toReviewInput(
+  job: JobRecord,
+  /**
+   * Seconds the evidence URLs this run publishes stay fetchable. It is the
+   * same number the object store signs them with, because a consumer that
+   * caches a screenshot past its signature gets a 403, and one told the
+   * screenshots are not retained at all treats every record as already
+   * expired. Gate does exactly that: it computes `expiresAt` from this field
+   * and refuses its own proxy on a zero.
+   */
+  evidenceUrlTtlSeconds = 3_600,
+): ReviewInput {
   const request = runtimeReviewRequestSchema.parse(job.input);
   if (request.installationId !== job.installationId) {
     throw new Error("request installation does not match the verified job tenant");
@@ -185,15 +196,14 @@ export function toReviewInput(job: JobRecord): ReviewInput {
       ? { previewBuildFacts: request.previewBuildFacts as PreviewBuildFact[] }
       : {}),
     // No `screenshotIdFor` and no `artifactUrlFor`, which is a KNOWN divergence
-    // from the local pipeline and is left visible rather than approximated. The
-    // wire projection resolves both from the captured-image set and the object
-    // store's signed-URL base; without them every finding this service publishes
-    // carries `screenshotId: null` and `artifacts.annotatedScreenshots` is empty,
-    // whatever was captured. Binding them means deciding a delivery policy this
-    // composition does not have: `screenshotRetentionSeconds: 0` currently tells
-    // consumers the screenshots are not retained, and a signed URL has a TTL that
-    // has to agree with that number. Inventing either would be publishing a
-    // retention promise nothing implements.
-    wireOptions: { screenshotRetentionSeconds: 0 },
+    // The wire projection resolves the screenshot id and the annotated-screenshot
+    // URL from the captured-image set and the object store's signed-URL base.
+    // Retention is the TTL those URLs are signed with, so the number a consumer
+    // reads and the number the signature enforces are the same number. A zero
+    // here does not mean "no promise", it means "already expired": gate computes
+    // `expiresAt = receivedAt + retention` and refuses its own screenshot proxy
+    // once that passes, so a zero silently disabled evidence on every review the
+    // deployed service published.
+    wireOptions: { screenshotRetentionSeconds: evidenceUrlTtlSeconds },
   };
 }
