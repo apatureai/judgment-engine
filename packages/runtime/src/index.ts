@@ -37,7 +37,13 @@ export {
   UnresolvedEvidenceError,
 } from "./evidence.js";
 export type { EvidenceUrlSigner } from "./evidence.js";
-export { applyMeasuredRoutes, measuredRoutes, measurementGap, stabilityGap } from "./measurement.js";
+export {
+  applyMeasuredRoutes,
+  measuredRoutes,
+  measurementGap,
+  measurementReportFor,
+  stabilityGap,
+} from "./measurement.js";
 export type { MeasuredCapture, MeasuredCaptureInSandbox } from "./measurement.js";
 export {
   assertAttested,

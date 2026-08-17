@@ -70,6 +70,19 @@ export interface EngineRuntimeOptions {
     EngineMetrics,
     "recordAuthorityLookupLatency" | "recordAuthorityLookupFailure"
   >;
+  /**
+   * Where the measured half's own instruments are recorded. Separate from
+   * `authorityMetrics` only because they are recorded at a different point in
+   * the run; in the composition root both are the same `EngineMetrics`.
+   *
+   * These two counters are the reversal signals for the measurement decision:
+   * how often a measured page drew no judgment at all, and how often a result
+   * carries no measurement, so nobody downstream infers "clean" from silence.
+   */
+  reviewMetrics?: Pick<
+    EngineMetrics,
+    "recordMeasuredFactsUnjudged" | "recordMeasurementsAbsent"
+  >;
   embedder?: Embedder;
   /**
    * How long a published review's evidence links stay openable, in seconds
@@ -227,7 +240,18 @@ export function createEngineRuntime(options: EngineRuntimeOptions): EngineRuntim
       };
     },
   );
-  const processor = async (job: JobRecord) => coreProcessor(job);
+  const processor = async (job: JobRecord) => {
+    const result = await coreProcessor(job);
+    // Recorded from the published result, so the counter and the payload a
+    // consumer reads can never disagree about which run this was.
+    if (result.gradeUnavailableReason === "measured_facts_unjudged") {
+      options.reviewMetrics?.recordMeasuredFactsUnjudged({ model: result.metadata.model });
+    }
+    if (result.measurements === undefined) {
+      options.reviewMetrics?.recordMeasurementsAbsent({ model: result.metadata.model });
+    }
+    return result;
+  };
   const applyGroundingAuthority = async (
     job: JobRecord,
     assembled: EngineReviewResult,
@@ -414,7 +438,7 @@ export async function buildProductionRuntime(env: NodeJS.ProcessEnv = process.en
     ? new HttpGenomeResolver(config.genomeEndpoint, config.genomeToken, fetch, config.authorityTimeoutMs)
     : undefined;
   const telemetry = initTelemetry({ serviceName: "judgment-engine", serviceVersion: "0.0.0" });
-  const authorityMetrics = new EngineMetrics(telemetry.meterProvider.getMeter(METER_NAME));
+  const engineMetrics = new EngineMetrics(telemetry.meterProvider.getMeter(METER_NAME));
   const runtime = createEngineRuntime({
     store,
     objectStore,
@@ -426,7 +450,8 @@ export async function buildProductionRuntime(env: NodeJS.ProcessEnv = process.en
     ...(genomeResolver ? { genomeResolver } : {}),
     ...(genomeResolver ? { groundingAuthority: genomeResolver } : {}),
     authorityMaxAgeMs: config.authorityMaxAgeMs,
-    authorityMetrics,
+    authorityMetrics: engineMetrics,
+    reviewMetrics: engineMetrics,
     ...(openai.embedder ? { embedder: openai.embedder } : {}),
     evidenceUrlTtlSeconds: config.evidenceUrlTtlSeconds,
     notificationSource: new PgNotificationSource(config.databaseUrl),

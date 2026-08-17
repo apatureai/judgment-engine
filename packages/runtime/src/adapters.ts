@@ -31,6 +31,13 @@ const deterministicFindingSchema = z.object({
   viewport: z.enum(["mobile", "tablet", "desktop"]),
   selector: z.string().min(1),
   detail: z.string().min(1),
+  // Whether the fleet judged this measurement precise enough for a consumer to
+  // gate a merge on. It has to be NAMED here even though it is optional: this
+  // schema is `.strict()`, so a fleet that sends the field would otherwise have
+  // its whole response REJECTED, which is exactly the trap `deterministicFindings`
+  // itself fell into. Absent is UNKNOWN, and every reader treats unknown as not
+  // gateable.
+  blockEligible: z.boolean().optional(),
 }).strict();
 
 const captureSchema = z.object({

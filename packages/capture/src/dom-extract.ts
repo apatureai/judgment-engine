@@ -45,11 +45,22 @@ export const DOM_EXTRACT_EXPRESSION = `(() => {
   // of one pre-resolved color keeps every judgement (is this layer opaque? what
   // does a translucent one composite to?) in the pure, unit-tested normalizer
   // below, where it can be tested without a browser.
+  //
+  // It also reports whether anything in that stack paints something a flattened
+  // COLOR cannot represent: a background-image or a backdrop-filter. White text
+  // on a photo over a white base flattens to a 1:1 ratio nobody experiences, so
+  // the contrast measurement is still emitted and marked as not gateable.
   const backgroundStack = (el) => {
     const stack = [];
+    let obscured = false;
     let node = el;
     while (node && stack.length < 32) {
-      const bg = getComputedStyle(node).backgroundColor;
+      const style = getComputedStyle(node);
+      const image = style.backgroundImage;
+      if (image && image !== "none") obscured = true;
+      const filter = style.backdropFilter || style.webkitBackdropFilter;
+      if (filter && filter !== "none") obscured = true;
+      const bg = style.backgroundColor;
       if (bg) {
         stack.push(bg);
         const alpha = /^rgba\\(\\s*\\d+\\s*,\\s*\\d+\\s*,\\s*\\d+\\s*,\\s*([\\d.]+)\\s*\\)$/.exec(bg);
@@ -57,7 +68,7 @@ export const DOM_EXTRACT_EXPRESSION = `(() => {
       }
       node = node.parentElement;
     }
-    return stack;
+    return { stack: stack, obscured: obscured };
   };
   const isAnimated = (el) => {
     const s = getComputedStyle(el);
@@ -96,12 +107,18 @@ export const DOM_EXTRACT_EXPRESSION = `(() => {
       text: null,
     };
     if (hasOwnText(el)) {
+      const backdrop = backgroundStack(el);
       record.text = {
         fontSizePx: parseFloat(style.fontSize) || 0,
         fontWeight: parseInt(style.fontWeight, 10) || 400,
         color: style.color,
-        backgroundStack: backgroundStack(el),
+        backgroundStack: backdrop.stack,
+        backdropObscured: backdrop.obscured,
         contentWidthPx: el.scrollWidth,
+        // Reported so the overflow check can tell breakage from a deliberate
+        // scroll container: a scrollWidth wider than the box is true of every
+        // pre element with a scrollbar and every carousel, and those work.
+        overflowX: style.overflowX,
       };
     }
     out.push(record);
@@ -201,6 +218,13 @@ export function toTextNodeStyles(
         height: round(el.rect.height),
       },
       contentWidthPx: round(el.text.contentWidthPx),
+      // Both carried verbatim, both omitted when the extractor did not report
+      // them: absent has to stay UNKNOWN all the way to the check, which is the
+      // only place that decides what unknown costs.
+      ...(el.text.overflowX !== undefined ? { overflowX: el.text.overflowX } : {}),
+      ...(el.text.backdropObscured !== undefined
+        ? { backdropObscured: el.text.backdropObscured }
+        : {}),
     });
   }
   return out;

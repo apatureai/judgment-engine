@@ -15,6 +15,25 @@ export const METRIC_NAMES = {
   critiqueLatency: "engine.critique.latency_ms",
   /** Findings dropped by the post-parse hallucination gate (#32/#72 SLO). */
   hallucinationDrops: "engine.critique.hallucination_drops",
+  /**
+   * Runs where the engine measured a violation on a route it reviewed and the
+   * judge returned nothing at all, so the grade was retracted.
+   *
+   * The reversal signal for the retraction itself. A rate above roughly 2% of
+   * graded runs against a strong judge, or above 20% within any single repo,
+   * means zero findings on a measured page is a NORMAL outcome of a competent
+   * model on a mature design system rather than a judge failure, and the
+   * retraction should be demoted to a rendered caveat. A value that tracks model
+   * SIZE rather than page CONTENT means it is a model-capability detector rather
+   * than a page review, and belongs in the eval harness instead.
+   */
+  measuredFactsUnjudged: "engine.critique.measured_facts_unjudged",
+  /**
+   * Results published with no `measurements` field at all, so nobody downstream
+   * can infer "clean" from silence. Absence of a measurement is not a
+   * measurement of absence, and this counts how often the distinction is live.
+   */
+  measurementsAbsent: "engine.critique.measurements_absent",
   /** Capture-instability ratio (0..1) feeding the confidence ceiling (#70/#72). */
   captureInstability: "engine.capture.instability",
   queueDepth: "engine.queue.depth",
@@ -50,6 +69,8 @@ export class EngineMetrics {
   private readonly captureLatency: Histogram;
   private readonly critiqueLatency: Histogram;
   private readonly hallucinationDrops: Counter;
+  private readonly measuredFactsUnjudged: Counter;
+  private readonly measurementsAbsent: Counter;
   private readonly captureInstability: Histogram;
   private readonly modelRateLimited: Counter;
   private readonly cacheHit: Histogram;
@@ -71,6 +92,12 @@ export class EngineMetrics {
     this.critiqueLatency = meter.createHistogram(METRIC_NAMES.critiqueLatency, { unit: "ms" });
     this.hallucinationDrops = meter.createCounter(METRIC_NAMES.hallucinationDrops, {
       description: "Findings dropped by the post-parse hallucination gate.",
+    });
+    this.measuredFactsUnjudged = meter.createCounter(METRIC_NAMES.measuredFactsUnjudged, {
+      description: "Runs whose grade was retracted because a measured page drew no finding at all.",
+    });
+    this.measurementsAbsent = meter.createCounter(METRIC_NAMES.measurementsAbsent, {
+      description: "Results published with no measurements field, so 'clean' cannot be inferred.",
     });
     this.captureInstability = meter.createHistogram(METRIC_NAMES.captureInstability, {
       description: "Capture-instability ratio (0..1).",
@@ -158,6 +185,16 @@ export class EngineMetrics {
 
   recordHallucinationDrops(count: number, attributes?: Attributes): void {
     this.hallucinationDrops.add(count, attributes);
+  }
+
+  /** The `measured_facts_unjudged` retraction fired on this run. */
+  recordMeasuredFactsUnjudged(attributes?: Attributes): void {
+    this.measuredFactsUnjudged.add(1, attributes);
+  }
+
+  /** This result carried no measurements at all, so silence is not cleanliness. */
+  recordMeasurementsAbsent(attributes?: Attributes): void {
+    this.measurementsAbsent.add(1, attributes);
   }
 
   recordCaptureInstability(ratio: number, attributes?: Attributes): void {

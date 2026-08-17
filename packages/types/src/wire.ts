@@ -97,6 +97,21 @@ export function nothingReviewed(coverage: ReviewCoverage): boolean {
  *     the residue of deletion, not the description of a clean page, and the
  *     `ship` that an empty findings list floors to is not something this run
  *     established.
+ *   - `measured_facts_unjudged` is the third, and unlike the other two it is a
+ *     statement about the JUDGE rather than about the pipeline. The run reviewed
+ *     a route, the engine measured at least one violation on a route it
+ *     reviewed, handed those measurements to the judge as facts it was told to
+ *     trust, and the judge returned no findings at all with none entering
+ *     validation. A judge that is given measured facts about a page and says
+ *     nothing at all has not reviewed that page, whatever value an empty
+ *     findings list floors the grade to.
+ *
+ *     It is deliberately sound even when a measurement is imprecise. The claim
+ *     is not "your page is defective", which would inherit every false-positive
+ *     class the checks have; it is "nothing judged this", which is true whether
+ *     or not the measured overflow was a deliberate scroll container. That is
+ *     why it reads no `blockEligible` flag and needs no capture-precision work
+ *     ahead of it.
  *
  * The second value is why this field is not derivable from `coverage`: coverage
  * reports what the pipeline looked at, which on that path is everything asked
@@ -108,7 +123,63 @@ export function nothingReviewed(coverage: ReviewCoverage): boolean {
  * the grade: this enum is open to new reasons, and every reason means the same
  * thing about the grade.
  */
-export type GradeUnavailableReason = "nothing_reviewed" | "nothing_survived_validation";
+export type GradeUnavailableReason =
+  | "nothing_reviewed"
+  | "nothing_survived_validation"
+  | "measured_facts_unjudged";
+
+/** The deterministic check kinds on the wire; mirrors `CheckKind` in `@engine/capture`. */
+export type MeasurementKind = "contrast" | "overflow" | "touch_target";
+
+/**
+ * One violation the engine COMPUTED from the captured DOM, on the wire.
+ *
+ * Not a finding, and never convertible into one. It carries no severity, no
+ * confidence and no dimension, because no model produced it and nothing
+ * calibrated it: it is a `getComputedStyle` call and a rectangle. It never
+ * enters `findings[]`, never reaches the grade function, and the only field on a
+ * result it can influence is `gradeUnavailableReason` (see
+ * `measured_facts_unjudged`), which RETRACTS a grade rather than computing one.
+ */
+export interface WireMeasurement {
+  kind: MeasurementKind;
+  route: string;
+  /** Every viewport this exact violation was measured at, first-encounter order. */
+  viewports: WireViewport[];
+  /** Stable selector, identical vocabulary to `WireFinding.element`. */
+  element: string;
+  /** The engine's factual sentence verbatim, e.g. "text contrast 3.23:1 is below WCAG AA 4.5:1". */
+  detail: string;
+  /**
+   * Whether this measurement is precise enough for a repo to gate a merge on.
+   * The ENGINE owns precision; the CONSUMER owns policy. `false` does NOT mean
+   * the measurement is wrong, only that it may be intentional (a deliberate
+   * scroll container, a desktop pointer target) or may fall in a known
+   * false-positive class (text over a background image), so nothing may fail a
+   * build on it.
+   */
+  blockEligible: boolean;
+}
+
+/**
+ * The measured half of a review, published end to end.
+ *
+ * Computed from the captured DOM with no model involved. It NEVER enters the
+ * grade. ABSENT means this producer does not report measurements, NEVER "the
+ * page is clean": the same rule `hallucinationDrops` states, for the same
+ * reason.
+ *
+ * `checksRun` is what separates the two readings of an empty `violations`
+ * array. An empty `checksRun` means nothing was measured, so `violations: []`
+ * proves nothing; a non-empty `checksRun` with `violations: []` is the positive
+ * statement "these checks ran on this capture and found no violation".
+ */
+export interface MeasurementReport {
+  /** Which checks ran on this capture. Empty ⇒ nothing measured. */
+  checksRun: MeasurementKind[];
+  /** Deduped per (kind, route, element, detail), with viewports accumulated. */
+  violations: WireMeasurement[];
+}
 
 export interface WireFinding {
   id: string;
@@ -175,6 +246,29 @@ export interface EngineReviewResult {
    * reviewed". See `ReviewCoverage`.
    */
   coverage?: ReviewCoverage;
+  /**
+   * What this run MEASURED: contrast ratios, horizontal overflow and touch
+   * target sizes computed from the captured DOM, with no model involved.
+   * Additive + optional on schema v1, alongside `coverage`.
+   *
+   * It exists because the engine's best-grounded output used to stop at the
+   * prompt. The checks ran, their sentences were handed to the judge as facts,
+   * the CLI printed them, and then the wire result dropped them: a consumer
+   * holding this payload could not see a single one, while Gate's own Check Run
+   * prose told a reader "the capture and the measured facts are real". That
+   * sentence had nothing behind it, because there was no field for a measured
+   * fact to arrive in.
+   *
+   * It does NOT vote. The grade stays a pure function of the surviving model
+   * findings, and no value here is ever converted into a `WireFinding`, given a
+   * severity, or given a confidence. The one thing it participates in is
+   * `gradeUnavailableReason`, which withholds a grade rather than computing one.
+   *
+   * ABSENT means "this producer does not report measurements". It never means
+   * "nothing was measured" and never means "the page is clean"; that positive
+   * statement is `{ checksRun: [...], violations: [] }`.
+   */
+  measurements?: MeasurementReport;
   /**
    * How many findings the grounding gate deleted for citing a route that was
    * never captured or an element that is not in the geometry map (#32).

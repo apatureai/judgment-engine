@@ -1,6 +1,11 @@
-import { breakageForRoute, factsForRoute, type DeterministicFinding } from "@engine/capture";
+import {
+  breakageForRoute,
+  factsForRoute,
+  toMeasurementReport,
+  type DeterministicFinding,
+} from "@engine/capture";
 import type { ReviewInput, ReviewRoute } from "@engine/review";
-import type { Capture, CaptureContext } from "@engine/types";
+import type { Capture, CaptureContext, MeasurementReport } from "@engine/types";
 
 /**
  * The measured half of a review, on the deployable path.
@@ -88,6 +93,27 @@ export function measuredRoutes(routes: readonly string[], capture: MeasuredCaptu
 }
 
 /**
+ * The capture's measurements as the wire reports them, or `undefined` when the
+ * capture service sent none.
+ *
+ * `undefined` is the whole point and is not the same as an empty report. This
+ * process has no DOM: it holds a capture service's answer, and a service that
+ * measured nothing at all is not a page that measured clean. Synthesizing
+ * `{ checksRun: [...], violations: [] }` from a fleet that never ran a check
+ * would publish "measured, nothing found" to Gate and to an agent, which is the
+ * exact false claim `measurementGap` exists to prevent one layer up.
+ *
+ * `checksRun` is left at the module default, which is every check
+ * `deterministicChecks` runs: a fleet that reports measurements at all runs the
+ * whole set, and the capture contract has no field for a subset. If one ever
+ * gains one, this is the line that carries it.
+ */
+export function measurementReportFor(capture: MeasuredCapture): MeasurementReport | undefined {
+  if (capture.deterministicFindings === undefined) return undefined;
+  return toMeasurementReport(capture.deterministicFindings);
+}
+
+/**
  * Why this run has no measurements to ground itself on, or `null` when the
  * capture service reported some -- including when it reported that it measured
  * and found nothing.
@@ -141,4 +167,11 @@ export function stabilityGap(context: CaptureContext, capture: Capture): string 
  */
 export function applyMeasuredRoutes(input: ReviewInput, capture: MeasuredCapture): void {
   input.routes = measuredRoutes(input.captureContext.routes, capture);
+  // The same measurements, on the other end of the review: the routes carry them
+  // into the prompt, this carries them onto the result a consumer reads. Both
+  // come from the one `deterministicFindings` array, so the fact a model was
+  // shown and the fact Gate renders cannot be phrased differently. Assigned only
+  // when the fleet sent measurements at all, so a silent fleet stays silent.
+  const report = measurementReportFor(capture);
+  if (report) input.measurements = report;
 }

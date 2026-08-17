@@ -1,4 +1,4 @@
-import type { DeterministicFinding, StabilityCheck } from "@engine/capture";
+import { toMeasurementReport, type DeterministicFinding, type StabilityCheck } from "@engine/capture";
 import { nothingReviewed, type EngineReviewResult } from "@engine/types";
 import type { LocalGrounding } from "./grounding.js";
 
@@ -96,24 +96,17 @@ export interface FactGroup {
  * problems. Order is first encounter, which keeps routes together.
  */
 export function groupFacts(findings: DeterministicFinding[]): FactGroup[] {
-  const groups = new Map<string, FactGroup>();
-  for (const finding of findings) {
-    // JSON, so no separator character can collide with a selector or detail.
-    const key = JSON.stringify([finding.kind, finding.route, finding.selector, finding.detail]);
-    const existing = groups.get(key);
-    if (existing) {
-      if (!existing.viewports.includes(finding.viewport)) existing.viewports.push(finding.viewport);
-      continue;
-    }
-    groups.set(key, {
-      kind: finding.kind,
-      route: finding.route,
-      selector: finding.selector,
-      detail: finding.detail,
-      viewports: [finding.viewport],
-    });
-  }
-  return [...groups.values()];
+  // Delegated, not reimplemented. The identical grouping now also builds the
+  // `measurements` block on the wire result, and a terminal that phrased a
+  // measurement differently from the payload beside it would be the same
+  // two-surfaces-disagree bug the coverage work closed. One rule, one place.
+  return toMeasurementReport(findings).violations.map((violation) => ({
+    kind: violation.kind,
+    route: violation.route,
+    selector: violation.element,
+    detail: violation.detail,
+    viewports: [...violation.viewports],
+  }));
 }
 
 /**
@@ -290,6 +283,33 @@ export function renderReview(summary: RunSummary): string[] {
       "",
       ...(result.notReviewed.length > 0 ? [...renderNotReviewed(result), ""] : []),
       "  The page was reviewed; nothing this run said about it could be grounded or trusted.",
+      "  review.json carries a grade field for this run. It is not a grade for this page.",
+    ];
+  }
+  // A live model ran, the route WAS judged, the engine measured violations on
+  // it and handed them to the model as facts, and the model returned nothing at
+  // all. Coverage is full, nothing was deleted, and `grade` floors to `ship`
+  // exactly as it does for a genuinely clean page. The difference is that this
+  // run's own capture had something to say about the page and its judge did not,
+  // which is a statement about the judge. The payload says the same in
+  // `gradeUnavailableReason`.
+  if (
+    !isSynthetic(summary.modelKind) &&
+    result.gradeUnavailableReason === "measured_facts_unjudged"
+  ) {
+    const reviewed = new Set(coverage?.routesReviewed ?? []);
+    const measured = (result.measurements?.violations ?? []).filter((violation) =>
+      reviewed.has(violation.route),
+    ).length;
+    return [
+      "Review",
+      `  ${pad("grade")}n/a (${measured} measured violation(s) on a reviewed route, and the review returned no findings)`,
+      `  ${pad("findings")}0 of 0 (the model produced none)`,
+      `  ${pad("confidence")}n/a (no finding survived to carry one)`,
+      `  ${pad("blocking")}${result.blockingEnabled ? "enabled" : "advisory only"}`,
+      "",
+      ...(result.notReviewed.length > 0 ? [...renderNotReviewed(result), ""] : []),
+      "  The page was captured and measured. Nothing judged it, whatever the grade field says.",
       "  review.json carries a grade field for this run. It is not a grade for this page.",
     ];
   }

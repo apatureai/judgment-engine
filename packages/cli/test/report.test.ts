@@ -446,6 +446,67 @@ describe("renderSummary", () => {
     expect(text).toContain("findings    0 of 3 (by the confidence floor and trust budget)");
   });
 
+  it("refuses the grade when the engine measured the page and the model said nothing", () => {
+    // The audit's run. Coverage is full, nothing was deleted, and `grade` floors
+    // to `ship` exactly as it does for a genuinely clean page. What separates
+    // them is that this run's own capture had something to say and its judge did
+    // not, which is a statement about the judge.
+    const text = renderSummary(
+      summary({
+        modelFindingsSeen: 0,
+        hallucinationDrops: 0,
+        result: {
+          ...RESULT,
+          grade: "ship",
+          findings: [],
+          hallucinationDrops: 0,
+          gradeUnavailableReason: "measured_facts_unjudged",
+          measurements: {
+            checksRun: ["contrast", "overflow", "touch_target"],
+            violations: [
+              {
+                kind: "contrast",
+                route: "/",
+                viewports: ["mobile"],
+                element: "#hero-subtitle",
+                detail: "text contrast 3.23:1 is below WCAG AA 4.5:1",
+                blockEligible: true,
+              },
+              {
+                kind: "overflow",
+                route: "/",
+                viewports: ["mobile"],
+                element: "#promo-code",
+                detail: "content width 345px exceeds container 140px (horizontal overflow)",
+                blockEligible: true,
+              },
+              {
+                kind: "touch_target",
+                route: "/",
+                viewports: ["mobile"],
+                element: "#icon-close",
+                detail: "touch target 28x28px is below 44x44px",
+                blockEligible: false,
+              },
+            ],
+          },
+          coverage: {
+            routesRequested: ["/"],
+            routesReviewed: ["/"],
+            viewportsRequested: ["mobile"],
+            viewportsReviewed: ["mobile"],
+          },
+        },
+      }),
+    );
+    expect(text).toContain(
+      "grade       n/a (3 measured violation(s) on a reviewed route, and the review returned no findings)",
+    );
+    expect(text).toContain("findings    0 of 0 (the model produced none)");
+    expect(text).not.toContain("grade       ship");
+    expect(text).toContain("The page was captured and measured. Nothing judged it");
+  });
+
   it("REGRESSION GUARD: a clean page and a partial deletion both keep their grade", () => {
     const full = {
       routesRequested: ["/"],

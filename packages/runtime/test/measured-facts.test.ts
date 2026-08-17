@@ -11,6 +11,7 @@ import {
   HttpCaptureClient,
   measuredRoutes,
   measurementGap,
+  measurementReportFor,
   toReviewInput,
   type CaptureClient,
   type EngineRuntime,
@@ -269,6 +270,56 @@ describe("measurementGap", () => {
     expect(gap).toContain("no deterministic measurements");
     expect(gap).toContain("deep prompt");
     expect(gap).toContain("triage");
+  });
+});
+
+describe("measurementReportFor", () => {
+  it("groups a capture's measurements into the report a consumer receives", () => {
+    const report = measurementReportFor(measuredCapture(["/", "/pricing"]));
+
+    // One broken element measured at two widths is ONE row a reader fixes once.
+    const overflow = report?.violations.filter((violation) => violation.kind === "overflow");
+    expect(overflow).toHaveLength(1);
+    expect(overflow?.[0]?.element).toBe("#pricing-table");
+    expect(overflow?.[0]?.viewports).toEqual(["mobile", "tablet"]);
+    expect(report?.checksRun).toEqual(["contrast", "overflow", "touch_target"]);
+  });
+
+  it("reports 'measured, clean' as a positive statement", () => {
+    const clean: MeasuredCapture = { ...measuredCapture(), deterministicFindings: [], pageText: {} };
+    expect(measurementReportFor(clean)).toEqual({
+      checksRun: ["contrast", "overflow", "touch_target"],
+      violations: [],
+    });
+  });
+
+  it("stays undefined when the capture service measured nothing at all", () => {
+    // This process has no DOM. Synthesizing an empty report from a fleet that
+    // never ran a check would publish "measured, nothing found" to Gate and to
+    // an agent, which is the exact false claim `measurementGap` exists to stop.
+    const unmeasured: MeasuredCapture = {
+      images: [],
+      geometry: [],
+      pageHealth: { consoleErrors: 0, failedRequests: 0, unstable: false },
+      captureVersion: "capture-http@1",
+    };
+    expect(measurementReportFor(unmeasured)).toBeUndefined();
+  });
+
+  it("carries a fleet-supplied blockEligible flag through, and reads absence as not gateable", () => {
+    const capture = measuredCapture();
+    const withFlag: MeasuredCapture = {
+      ...capture,
+      deterministicFindings: (capture.deterministicFindings ?? []).map((finding) =>
+        finding.kind === "contrast" ? { ...finding, blockEligible: true } : finding,
+      ),
+    };
+    const report = measurementReportFor(withFlag);
+    const byKind = new Map(report?.violations.map((v) => [v.kind, v.blockEligible]));
+    expect(byKind.get("contrast")).toBe(true);
+    // The fleet said nothing about these two, and unknown is never gateable.
+    expect(byKind.get("overflow")).toBe(false);
+    expect(byKind.get("touch_target")).toBe(false);
   });
 });
 

@@ -6,8 +6,11 @@ export {
   touchTargetViolations,
   deterministicChecks,
   isBreakage,
+  toMeasurementReport,
+  ALL_MEASUREMENT_KINDS,
   BREAKAGE_KINDS,
   MIN_TOUCH_TARGET_PX,
+  AA_TOUCH_TARGET_PX,
 } from "./checks.js";
 export type {
   Rect,

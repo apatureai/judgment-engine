@@ -4,6 +4,7 @@ import {
   breakageForRoute,
   createBrowserCapture,
   factsForRoute,
+  toMeasurementReport,
   type BrowserCaptureResult,
   type CaptureBrowser,
   type DeterministicFinding,
@@ -298,6 +299,10 @@ export async function runLocalReview(
       context,
       captureContext,
       routes,
+      // The measured half, published on the result rather than stopping at the
+      // deep prompt. Same `DeterministicFinding[]` the two lines above turn into
+      // prompt facts and triage breakage, grouped once for the wire.
+      measurements: toMeasurementReport(captured.deterministicFindings),
       ...(request.previewBuildFacts ? { previewBuildFacts: request.previewBuildFacts } : {}),
       ...(request.notReviewed ? { notReviewed: request.notReviewed } : {}),
       ...(request.requestedRoutes ? { requestedRoutes: request.requestedRoutes } : {}),

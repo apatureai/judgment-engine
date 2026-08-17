@@ -728,6 +728,46 @@ reads `grade` must check this field, exactly as a consumer that reads `confidenc
 `calibration`, and must treat a value it does not recognize the same way: the enum is open to new
 reasons and every reason means the same thing about the grade.
 
+The measured half of a review travels with the result too, in `measurements`. The engine computes
+text contrast against WCAG AA, horizontal overflow and touch-target sizes from the captured DOM with
+no model involved, hands those sentences to the judge as facts it is told to trust, and prints them
+in the terminal report. Until now that was where they stopped: nothing on the wire carried one, so a
+consumer holding a result could not see a single measurement the engine had taken. `measurements` is
+`{ checksRun, violations }`, where each violation names its kind, route, element, the viewports it
+was measured at, the engine's sentence verbatim, and `blockEligible`. `checksRun` is what makes an
+empty `violations` mean anything: empty `checksRun` is "nothing was measured", and a non-empty one
+with no violations is the positive statement "these checks ran and found nothing". The field being
+ABSENT means this producer does not report measurements, and never means the page is clean.
+
+`blockEligible` is the engine's claim that a measurement is precise enough for a consumer to gate a
+merge on, and it is `false` far more often than a measurement is wrong. A `<pre>` with
+`overflow-x: auto` has content wider than its box on purpose, so overflow is block-eligible only when
+the computed `overflow-x` is `visible`. 44px is WCAG 2.5.5, which is level **AAA**; the AA line is
+2.5.8 at 24px, so a touch target is block-eligible only below 24px and only on the mobile viewport,
+where a finger is the pointer. A flattened background *colour* cannot see a `background-image`, so
+white text on a photo over a white base is measured and reported and never block-eligible. The
+violation is emitted in all three cases, because a flagged element is worth a human look; what
+`blockEligible` withholds is permission to fail somebody's build automatically. The engine owns
+precision; a consumer owns policy.
+
+`measurements` never enters the grade. No measurement is converted into a finding, given a severity
+or given a confidence, and `gradeFromFindings` and `reconcileGrade` are untouched by any of this: the
+grade is still a pure function of the surviving model findings. The one field the measured half
+touches is `gradeUnavailableReason`, and it withholds a grade rather than computing one.
+
+That is the third retraction, `measured_facts_unjudged`, and unlike the other two it is a statement
+about the JUDGE rather than about the pipeline. It fires when a run reviewed a route, the engine
+measured at least one violation on a route it reviewed, and the model returned **zero** findings with
+**zero** entering validation. A judge that is handed measured facts about a page it is looking at and
+says nothing at all has not reviewed that page. One finding anywhere on the page, surviving or
+deleted, suppresses it entirely: the rule is "did the judge speak", not "did the judge cover what was
+measured", because a competent model that correctly declines to flag an intentional design choice on
+a measured element has earned its grade. The predicate deliberately does not read `blockEligible`,
+because the claim is "nothing judged this" rather than "your page is defective", and that claim stays
+true whether or not the measured overflow turns out to be a deliberate scroll container. Nothing can
+switch it off: no engine flag, no repository configuration. A key that could silence the one signal
+an injected page cannot reach would itself be a second injection channel.
+
 That extends to routes the engine drops before it ever captures them. `routes.max_per_pr` is a
 per-PR cost ceiling and it stays one, but the routes over the limit are reported rather than
 discarded: `routesRequested` is the configured list, not the capped one, and each dropped route gets
@@ -820,6 +860,32 @@ behaves the way it was designed to behave, each one has already surprised somebo
 is closed by a patch to this repository alone. They are written down here so that nobody has to
 rediscover them from a result that did not say what they expected.
 
+- **A green tick can still sit over a measured violation.** The grade is a pure function of the
+  surviving model findings, deliberately, and a measurement never votes. So a judge that returns one
+  unrelated nit while saying nothing about a measured 3.23:1 contrast failure grades
+  `ship_with_nits`, and a consumer maps that to a passing check with the violation printed
+  underneath it. The `measured_facts_unjudged` retraction cannot catch that run, because the judge
+  did speak. This is a chosen trade, not an oversight: closing it means asserting a severity for
+  "3.23:1" that no threshold in WCAG supplies, and a floored grade is byte-indistinguishable from a
+  review that found two real minor problems, which would destroy the exact contradiction that
+  exposed the gap. It is counted instead, and a materially non-zero rate over real repositories is
+  the evidence that flooring was the right call after all.
+- **The retraction can only speak when something was measured.** On a page with no contrast,
+  overflow or touch-target violation, a judge that returns nothing produces a clean-looking `ship`
+  with nothing in the payload to contradict it. The measured channel is structurally incapable of
+  covering that case, and nothing else in this repository covers it either.
+- **The measured checks are unaudited on real repositories.** The only corpus with known ground
+  truth is a fixture site built to contain planted defects. `blockEligible` narrows each check to the
+  cases believed sound (see the wire section above), and reporting is deliberately wider than
+  gating, so the *reported* set may well be noisy on a large legacy codebase. If a kind turns out to
+  have a high false-positive rate the answer is to stop emitting that kind, not to add another
+  setting. Note also that `overflow` is the only member of `BREAKAGE_KINDS`, so the check with the
+  strongest claim on a triage pass is the one whose measurement is least sound; `blockEligible`
+  narrows what may GATE on it and deliberately does not narrow what forces a deep look, because
+  forcing a deep look is free.
+- **There is no baseline store, so nothing here is scoped to what a PR introduced.** Every
+  measurement is of the page as it is now, not of what this change did to it. A repository that
+  turns measurements into a merge blocker gets its pre-existing debt on the first run.
 - **A deep prompt is only as grounded as the caller's request.** Two of the things a hosted review
   used to be missing are now fields on the job contract, and both are optional, so what you get
   depends on what the caller sends. `componentLibraries` is a list of ids the caller detected in the

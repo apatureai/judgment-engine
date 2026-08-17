@@ -6,6 +6,7 @@ import type {
   CaptureInSandbox,
   ConfidenceUnavailableReason,
   GeometryRect,
+  MeasurementReport,
   ReviewCoverage,
   WireViewport,
 } from "@engine/types";
@@ -151,6 +152,20 @@ export interface ReviewInput {
   captureContext: CaptureContext;
   /** Per-route triage/deep inputs (baseline hashes, facts, page text). */
   routes: ReviewRoute[];
+  /**
+   * What the capture MEASURED, grouped for the wire (`toMeasurementReport`).
+   *
+   * Supplied by the caller and never derived here: the deterministic checks run
+   * during capture, and this stage holds only their output. Absent means this
+   * caller does not report measurements, which is why it is threaded rather than
+   * defaulted to an empty report; an empty report is the positive claim that the
+   * checks ran and found nothing.
+   *
+   * It never touches the grade. It is published on the result, and it is one
+   * input to `gradeUnavailableReason`, which WITHHOLDS a grade rather than
+   * computing one.
+   */
+  measurements?: MeasurementReport;
   /** PR-level build/runtime facts from Gate's preview supervisor (#98). */
   previewBuildFacts?: PreviewBuildFact[];
   /**
@@ -305,6 +320,11 @@ export async function runReview(input: ReviewInput, deps: ReviewDeps): Promise<E
   if (capture.images.length === 0) {
     return emptyFindingsResult(input, deps, capture.captureVersion, {
       extraNotReviewed: ["no captured routes"],
+      // Nothing was captured, so no check ran on anything. A caller that
+      // reports measurements at all still says so, with the empty `checksRun`
+      // that means "nothing measured" rather than "measured, clean". A caller
+      // that reports none keeps saying nothing.
+      ...(input.measurements ? { measurements: { checksRun: [], violations: [] } } : {}),
       // Nothing was captured, so nothing was reviewed. The grade this result
       // still carries is `ship` by construction, and coverage is what tells a
       // consumer not to publish it as one.
@@ -378,6 +398,10 @@ export async function runReview(input: ReviewInput, deps: ReviewDeps): Promise<E
         reviewedRoutes: judgedByTriage ? capturedRoutes(capture.images) : [],
         images: capture.images,
       }),
+      // Unlike the empty-capture branch above, the pages here WERE captured and
+      // the checks did run on them, so what they measured is reported as it is.
+      // A short-circuit skips the deep model, not the DOM.
+      ...(input.measurements ? { measurements: input.measurements } : {}),
     });
   }
 
@@ -500,6 +524,9 @@ export async function runReview(input: ReviewInput, deps: ReviewDeps): Promise<E
     ...input.wireOptions,
     pageHealthFootnote: input.wireOptions.pageHealthFootnote ?? pageHealthFootnote(capture.pageHealth),
     coverage,
+    // What this capture measured, published beside the judgment rather than
+    // stopping at the prompt. Omitted when the caller measured nothing.
+    ...(input.measurements ? { measurements: input.measurements } : {}),
   });
 }
 
@@ -544,7 +571,13 @@ function emptyFindingsResult(
   input: ReviewInput,
   deps: ReviewDeps,
   captureVersion: string,
-  options: { overall?: string; extraNotReviewed?: string[]; coverage: ReviewCoverage },
+  options: {
+    overall?: string;
+    extraNotReviewed?: string[];
+    coverage: ReviewCoverage;
+    /** What was measured on this path; see the two call sites for why they differ. */
+    measurements?: MeasurementReport;
+  },
 ): EngineReviewResult {
   const deepConfig = resolvePassModel("deep", deps.passModels);
   const critique = assembleCritique([], {
@@ -562,5 +595,9 @@ function emptyFindingsResult(
   // short-circuit we carry the triage summary through verbatim.
   const stamped = options.overall !== undefined ? { ...critique, overall: options.overall } : critique;
   deps.onCritique?.(stamped);
-  return toEngineReviewResult(stamped, { ...input.wireOptions, coverage: options.coverage });
+  return toEngineReviewResult(stamped, {
+    ...input.wireOptions,
+    coverage: options.coverage,
+    ...(options.measurements ? { measurements: options.measurements } : {}),
+  });
 }

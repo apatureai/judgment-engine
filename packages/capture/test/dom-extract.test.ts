@@ -128,6 +128,45 @@ describe("toTextNodeStyles", () => {
   });
 });
 
+describe("toTextNodeStyles precision fields", () => {
+  const withText = (text: Partial<NonNullable<ExtractedElement["text"]>>) =>
+    element({
+      id: "promo-code",
+      text: {
+        fontSizePx: 16,
+        fontWeight: 400,
+        color: "rgb(0, 0, 0)",
+        backgroundStack: ["rgb(255, 255, 255)"],
+        contentWidthPx: 345,
+        ...text,
+      },
+    });
+
+  it("carries overflow-x and the obscured-backdrop flag through verbatim", () => {
+    const [node] = toTextNodeStyles(
+      page([withText({ overflowX: "auto", backdropObscured: true })]),
+      "/",
+      "desktop",
+    );
+    expect(node?.overflowX).toBe("auto");
+    expect(node?.backdropObscured).toBe(true);
+  });
+
+  it("omits both when the extractor did not report them", () => {
+    // Absent has to stay UNKNOWN all the way to the check, which is the only
+    // place entitled to decide what unknown costs. A default of `visible` here
+    // would make every pre-upgrade capture's scroll container gateable.
+    const [node] = toTextNodeStyles(page([withText({})]), "/", "desktop");
+    expect(node).not.toHaveProperty("overflowX");
+    expect(node).not.toHaveProperty("backdropObscured");
+  });
+
+  it("keeps a false flag, which is a real answer and not an absence", () => {
+    const [node] = toTextNodeStyles(page([withText({ backdropObscured: false })]), "/", "desktop");
+    expect(node?.backdropObscured).toBe(false);
+  });
+});
+
 describe("toInteractiveElements", () => {
   it("only includes pointer targets", () => {
     const button = element({ tag: "button", id: "icon-close", interactive: true, role: "button" });

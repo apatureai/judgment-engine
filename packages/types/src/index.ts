@@ -50,6 +50,9 @@ export type {
   GradeUnavailableReason,
   ReviewCoverage,
   EngineReviewResult,
+  MeasurementKind,
+  MeasurementReport,
+  WireMeasurement,
 } from "./wire.js";
 export {
   NO_MODEL_DISCLOSURE_PREFIX,

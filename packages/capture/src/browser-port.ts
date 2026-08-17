@@ -41,7 +41,21 @@ export interface ExtractedElement {
      * flattening it is a pure decision made in `toTextNodeStyles`.
      */
     backgroundStack: string[];
+    /**
+     * True when anything in that stack paints a `background-image` or a
+     * `backdrop-filter`, which a flattened colour cannot represent. Optional
+     * because the capture fleet deploys separately from the engine; absent is
+     * UNKNOWN, and the contrast check reads unknown as obscured for the
+     * purposes of block-eligibility only. The measurement is still emitted.
+     */
+    backdropObscured?: boolean;
     contentWidthPx: number;
+    /**
+     * Computed `overflow-x`. Optional for the same reason, and absent is
+     * UNKNOWN, never `visible`: a deliberate scroll container must not become
+     * gateable just because an older capture did not say what it was.
+     */
+    overflowX?: string;
   } | null;
   /** True for elements a pointer can target (button/a/input/[role=button]…). */
   interactive: boolean;

@@ -46,8 +46,14 @@ function fakePng(): Uint8Array {
  * One landmark the model can cite, one paragraph whose content is wider than its
  * box (measured overflow: breakage) and one undersized button (measured
  * touch-target: a real defect that is deliberately NOT breakage).
+ *
+ * `undersizedButton: false` grows the button past the reporting threshold and
+ * `overflowing: false` narrows the paragraph, so the pair produces a page on
+ * which every check runs and measures NOTHING. That page is the control for
+ * every rule about measurements: an earned `ship` has to survive it.
  */
-function extracted(options: { overflowing: boolean }): ExtractedPage {
+function extracted(options: { overflowing: boolean; undersizedButton?: boolean }): ExtractedPage {
+  const buttonSide = options.undersizedButton === false ? 48 : 28;
   return {
     bodyText: "pricing",
     documentHeight: 1400,
@@ -71,7 +77,7 @@ function extracted(options: { overflowing: boolean }): ExtractedPage {
         testId: null,
         role: null,
         cssPath: "body > main > button",
-        rect: { x: 700, y: 80, width: 28, height: 28 },
+        rect: { x: 700, y: 80, width: buttonSide, height: buttonSide },
         animated: false,
         interactive: true,
         text: null,
@@ -97,7 +103,7 @@ function extracted(options: { overflowing: boolean }): ExtractedPage {
   };
 }
 
-function fakeBrowser(options: { overflowing: boolean }): CaptureBrowser {
+function fakeBrowser(options: { overflowing: boolean; undersizedButton?: boolean }): CaptureBrowser {
   const page: CapturePage = {
     clock: { async install() {}, async pauseAt() {} },
     async goto() {},
@@ -298,7 +304,10 @@ function modelFinding(over: Record<string, unknown> = {}): Record<string, unknow
   };
 }
 
-async function reviewWith(findings: unknown[]): Promise<LocalReviewOutcome> {
+async function reviewWith(
+  findings: unknown[],
+  capture: { overflowing: boolean; undersizedButton?: boolean } = { overflowing: true },
+): Promise<LocalReviewOutcome> {
   return runLocalReview(
     {
       url: "http://127.0.0.1:5000",
@@ -309,7 +318,7 @@ async function reviewWith(findings: unknown[]): Promise<LocalReviewOutcome> {
       context: CONTEXT,
     },
     {
-      browser: fakeBrowser({ overflowing: true }),
+      browser: fakeBrowser(capture),
       sink: memorySink(),
       modelFactory: deepModel(findings),
     },
@@ -360,13 +369,22 @@ describe("runLocalReview on a run whose findings were all deleted", () => {
   });
 
   it("REGRESSION GUARD: a page the model found nothing wrong with keeps its grade", async () => {
-    const outcome = await reviewWith([]);
+    // Nothing measured AND nothing found. This is the earned `ship`, and it is
+    // the one every retraction has to stay away from: retracting it would turn
+    // every genuinely passing review into a run that says it assessed nothing.
+    const outcome = await reviewWith([], { overflowing: false, undersizedButton: false });
 
+    expect(outcome.capture.deterministicFindings).toEqual([]);
     expect(outcome.result.coverage?.routesReviewed).toEqual(["/pricing"]);
     expect(outcome.modelFindingsSeen).toBe(0);
     expect(outcome.result.findings).toEqual([]);
     expect(outcome.result.grade).toBe("ship");
     expect(outcome.result).not.toHaveProperty("gradeUnavailableReason");
+    // Measured, and clean: the positive statement, never an absent field.
+    expect(outcome.result.measurements).toEqual({
+      checksRun: ["contrast", "overflow", "touch_target"],
+      violations: [],
+    });
   });
 });
 
@@ -544,5 +562,59 @@ describe("runLocalReview grounds the critique on the repository's design system"
     expect(batches).toHaveLength(2);
     expect(batches[0]).toEqual(GENOME_RULES.map((rule) => rule.text));
     expect(batches[1]).toEqual(["/pricing"]);
+  });
+});
+
+/**
+ * The audit's run, end to end on the shipped local pipeline: a page the engine
+ * itself measured violations on, and a judge that answered with nothing at all.
+ *
+ * This is the shape the injected demo page produces against a weak model. It
+ * used to publish `grade: "ship"`, `findings: []`, `hallucinationDrops: 0` and
+ * nowhere in the payload a reader could see the three violations the engine had
+ * just computed. Both halves of that are closed here: the measurements are on
+ * the result, and the grade is retracted.
+ */
+describe("runLocalReview on a page it measured and nothing judged", () => {
+  it("retracts the grade and publishes what it measured", async () => {
+    const outcome = await reviewWith([]);
+
+    // The grade field itself is BYTE-UNCHANGED. Nothing floors it, nothing
+    // computes it from a measurement; the retraction sits beside it.
+    expect(outcome.result.grade).toBe("ship");
+    expect(outcome.result.gradeUnavailableReason).toBe("measured_facts_unjudged");
+    expect(outcome.result.coverage?.routesReviewed).toEqual(["/pricing"]);
+    expect(outcome.modelFindingsSeen).toBe(0);
+    expect(outcome.result.findings).toEqual([]);
+    expect(outcome.result.hallucinationDrops).toBe(0);
+
+    const kinds = (outcome.result.measurements?.violations ?? []).map((v) => v.kind);
+    expect(kinds).toContain("overflow");
+    expect(kinds).toContain("touch_target");
+    expect(outcome.result.overall).toContain("do not meet threshold");
+    // No measurement is ever a finding.
+    expect(outcome.result.findings).toHaveLength(0);
+  });
+
+  it("a single surviving finding suppresses the retraction entirely", async () => {
+    // The finding cites `#hero-title`, which no measurement names. The rule is
+    // not "did the model cover what was measured", it is "did the model speak".
+    const outcome = await reviewWith([modelFinding({ elementRef: "#hero-title" })]);
+
+    expect(outcome.result.findings).toHaveLength(1);
+    expect(outcome.result).not.toHaveProperty("gradeUnavailableReason");
+    expect(outcome.result.grade).toBe("needs_work");
+    // And the measurements are published under that grade all the same.
+    expect((outcome.result.measurements?.violations ?? []).length).toBeGreaterThan(0);
+  });
+
+  it("a model that spoke and was deleted still reports nothing_survived_validation", async () => {
+    // Precedence, pinned: `modelFindingsSeen > 0` is the older and more specific
+    // statement, and a measured page must not steal it.
+    const outcome = await reviewWith([modelFinding({ elementRef: "#ghost" })]);
+
+    expect(outcome.modelFindingsSeen).toBe(1);
+    expect(outcome.result.findings).toEqual([]);
+    expect(outcome.result.gradeUnavailableReason).toBe("nothing_survived_validation");
   });
 });

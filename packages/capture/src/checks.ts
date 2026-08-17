@@ -1,4 +1,4 @@
-import type { Viewport } from "@engine/types";
+import type { MeasurementKind, MeasurementReport, Viewport, WireMeasurement, WireViewport } from "@engine/types";
 import { compositeOver, isOpaque, parseCssColor } from "./color.js";
 
 /**
@@ -42,6 +42,34 @@ export interface TextNodeStyle {
   rect: Rect;
   /** scrollWidth of the node's content; > rect.width means horizontal overflow. */
   contentWidthPx: number;
+  /**
+   * The element's computed `overflow-x`, when the capture reported it.
+   *
+   * `contentWidthPx` alone cannot tell breakage from design: a `<pre>` with a
+   * scrollbar, a horizontal carousel and a deliberately scrollable table all
+   * have `scrollWidth > clientWidth` and are all working exactly as authored.
+   * Only `overflow-x: visible` means the content actually escapes its box.
+   *
+   * Optional because the engine and the capture fleet deploy separately, and a
+   * fleet that predates the field sends nothing. Absent is UNKNOWN, never
+   * "visible": an unknown value is reported as a measurement and is never
+   * block-eligible. The violation itself is still emitted either way, because a
+   * measured overflow is worth a look even when it is intentional.
+   */
+  overflowX?: string;
+  /**
+   * Whether anything in this element's background stack paints something
+   * `resolvedBackground` cannot see: a `background-image` or a `backdrop-filter`.
+   *
+   * The contrast check flattens background COLORS onto the canvas. White text on
+   * a photo sitting over a white base therefore measures as a 1:1 violation that
+   * a reader never experiences. The measurement is still emitted, because a
+   * flagged element is worth a human look, but it is never block-eligible.
+   *
+   * Optional for the same reason `overflowX` is, and absent is UNKNOWN, so a
+   * pre-upgrade capture yields a reported, non-block-eligible measurement.
+   */
+  backdropObscured?: boolean;
 }
 
 /** An interactive element whose hit target must meet the minimum size. */
@@ -87,6 +115,20 @@ export interface DeterministicFinding {
   selector: string;
   /** A factual statement for the prompt, e.g. "contrast 2.31:1 (needs 4.5:1)". */
   detail: string;
+  /**
+   * Whether this measurement is precise enough for a consumer to gate a merge
+   * on. Set by the check that produced it, from the precision inputs only the
+   * check can see (`overflow-x`, the viewport, an obscured backdrop).
+   *
+   * The engine owns PRECISION; a consumer owns POLICY. `false` never means the
+   * measurement is wrong, only that acting on it automatically would be. The
+   * violation is reported either way.
+   *
+   * Optional so a capture service that predates the flag still parses, and
+   * absent is read as `false` everywhere: an unknown precision must never
+   * authorize a merge block.
+   */
+  blockEligible?: boolean;
 }
 
 interface Rgb {
@@ -124,8 +166,27 @@ function contrastThreshold(node: TextNodeStyle): number {
   return isLarge ? 3.0 : 4.5;
 }
 
-/** Minimum touch-target size in CSS px (WCAG 2.5.5 / platform HIG). */
+/**
+ * REPORTING threshold for touch-target size, in CSS px.
+ *
+ * 44 is WCAG 2.5.5 Target Size (Enhanced), which is level **AAA**, and it is
+ * also the iOS/Android platform HIG number. It is the right line to REPORT
+ * against: a 30px control is worth telling a designer about.
+ *
+ * It is the wrong line to fail a build on, and this comment used to imply
+ * otherwise by citing 2.5.5 without its level. See `AA_TOUCH_TARGET_PX`.
+ */
 export const MIN_TOUCH_TARGET_PX = 44;
+
+/**
+ * The level **AA** touch-target line: WCAG 2.2 SC 2.5.8 Target Size (Minimum),
+ * 24x24 CSS px.
+ *
+ * This, not 44, is what a repo may gate a merge on, and only on a mobile
+ * viewport: 2.5.8 is a pointer-target criterion, and applying a phone rule to a
+ * 1440px desktop surface with a mouse fails pages that are not failing anyone.
+ */
+export const AA_TOUCH_TARGET_PX = 24;
 
 export function contrastViolations(nodes: TextNodeStyle[]): DeterministicFinding[] {
   const out: DeterministicFinding[] = [];
@@ -150,6 +211,11 @@ export function contrastViolations(nodes: TextNodeStyle[]): DeterministicFinding
         viewport: node.viewport,
         selector: node.selector,
         detail: `text contrast ${ratio.toFixed(2)}:1 is below WCAG AA ${threshold.toFixed(1)}:1`,
+        // The ratio is exact for a flat colour backdrop and meaningless over a
+        // photo, and only the extractor can tell which this was. Unknown counts
+        // as obscured: the same discipline as the `continue`s above, one step
+        // weaker because the fact is still worth reporting.
+        blockEligible: node.backdropObscured === false,
       });
     }
   }
@@ -166,6 +232,10 @@ export function overflowViolations(nodes: TextNodeStyle[]): DeterministicFinding
         viewport: node.viewport,
         selector: node.selector,
         detail: `content width ${node.contentWidthPx}px exceeds container ${Math.round(node.rect.width)}px (horizontal overflow)`,
+        // `scrollWidth` on a deliberate scroll container is not breakage. Only
+        // `visible` means the content escapes the box; `auto`, `scroll`,
+        // `hidden`, `clip` and unknown are reported and never gated on.
+        blockEligible: node.overflowX === "visible",
       });
     }
   }
@@ -185,6 +255,12 @@ export function touchTargetViolations(
         viewport: el.viewport,
         selector: el.selector,
         detail: `touch target ${Math.round(el.rect.width)}x${Math.round(el.rect.height)}px is below ${minPx}x${minPx}px`,
+        // Reported at the AAA line, gateable only at the AA one, and only where
+        // a finger is the pointer. A 28x28 control on a desktop page is a note
+        // for a designer, not grounds to fail somebody's build.
+        blockEligible:
+          el.viewport === "mobile" &&
+          (el.rect.width < AA_TOUCH_TARGET_PX || el.rect.height < AA_TOUCH_TARGET_PX),
       });
     }
   }
@@ -203,4 +279,60 @@ export function deterministicChecks(input: DeterministicCheckInput): Determinist
     ...overflowViolations(input.textNodes),
     ...touchTargetViolations(input.interactive),
   ];
+}
+
+/** Every check this module implements, in the order the report lists them. */
+export const ALL_MEASUREMENT_KINDS: readonly MeasurementKind[] = [
+  "contrast",
+  "overflow",
+  "touch_target",
+];
+
+/**
+ * Project the per-(route, viewport) measurements into the wire report a
+ * consumer receives.
+ *
+ * The same 3.23:1 contrast measured at three viewports is ONE defect a reader
+ * fixes once, so the grouping key is (kind, route, element, detail) and the
+ * viewports accumulate in first-encounter order. That rule is not new: it is
+ * exactly what the terminal report's `groupFacts` has always done, and
+ * `groupFacts` now delegates here so the sentence a reader sees in a terminal
+ * and the sentence a consumer parses off the wire cannot drift apart.
+ *
+ * `blockEligible` on a group is true only when EVERY measurement in it is
+ * block-eligible. A violation that is precise at mobile and inconclusive at
+ * desktop is not something to fail a build on, and the group is one row.
+ *
+ * `checksRun` defaults to every check this module implements, because that is
+ * what `deterministicChecks` runs. A caller that ran a subset says so, and a
+ * caller that measured nothing passes an empty list, which is the difference
+ * between "measured, clean" and "not measured".
+ */
+export function toMeasurementReport(
+  findings: readonly DeterministicFinding[],
+  checksRun: readonly MeasurementKind[] = ALL_MEASUREMENT_KINDS,
+): MeasurementReport {
+  const groups = new Map<string, WireMeasurement>();
+  for (const finding of findings) {
+    // JSON, so no separator character can collide with a selector or detail.
+    const key = JSON.stringify([finding.kind, finding.route, finding.selector, finding.detail]);
+    const existing = groups.get(key);
+    if (existing) {
+      if (!existing.viewports.includes(finding.viewport as WireViewport)) {
+        existing.viewports.push(finding.viewport as WireViewport);
+      }
+      // One inconclusive viewport makes the whole group inconclusive.
+      existing.blockEligible = existing.blockEligible && finding.blockEligible === true;
+      continue;
+    }
+    groups.set(key, {
+      kind: finding.kind,
+      route: finding.route,
+      viewports: [finding.viewport as WireViewport],
+      element: finding.selector,
+      detail: finding.detail,
+      blockEligible: finding.blockEligible === true,
+    });
+  }
+  return { checksRun: [...checksRun], violations: [...groups.values()] };
 }

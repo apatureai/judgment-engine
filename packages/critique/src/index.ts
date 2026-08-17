@@ -105,5 +105,10 @@ export {
 export type { ModelGeneration, GenerationConfig } from "./generations.js";
 export { TriageOutputSchema, allUnchanged, runTriage } from "./triage.js";
 export type { TriageOutput, TriageRoute, TriageDeps, TriageResult } from "./triage.js";
-export { toEngineReviewResult, deriveTitle, wireFindingId } from "./wire-projection.js";
+export {
+  toEngineReviewResult,
+  deriveTitle,
+  measuredFactsUnjudged,
+  wireFindingId,
+} from "./wire-projection.js";
 export type { WireProjectionOptions } from "./wire-projection.js";
