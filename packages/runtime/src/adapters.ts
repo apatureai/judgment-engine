@@ -38,6 +38,16 @@ const deterministicFindingSchema = z.object({
   // itself fell into. Absent is UNKNOWN, and every reader treats unknown as not
   // gateable.
   blockEligible: z.boolean().optional(),
+  // Which BAND of badness the fleet's check put this measurement in: an
+  // ordinal, higher is worse, comparable only within a `kind`. Named here for
+  // the same `.strict()` reason as `blockEligible`, and constrained to a
+  // non-negative integer because that is what a band is; a fractional "band"
+  // would be a magnitude leaking across the boundary that exists to stop
+  // exactly that.
+  //
+  // Absent is UNKNOWN. Not zero, and never defaulted here: a band this engine
+  // invented would be indistinguishable downstream from one a check measured.
+  severity: z.number().int().nonnegative().optional(),
 }).strict();
 
 const captureSchema = z.object({

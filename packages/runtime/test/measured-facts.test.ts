@@ -333,6 +333,31 @@ describe("measurementReportFor", () => {
     expect(byKind.get("overflow")).toBe(false);
     expect(byKind.get("touch_target")).toBe(false);
   });
+
+  it("carries a fleet-supplied severity band through, worst member first", () => {
+    // The overflow is measured at mobile and at tablet and is ONE row. The row
+    // has to speak for its worst viewport, or a consumer comparing bands across
+    // commits would read "unchanged" on a page that got worse at one width.
+    const capture = measuredCapture();
+    const banded: MeasuredCapture = {
+      ...capture,
+      deterministicFindings: (capture.deterministicFindings ?? []).map((finding) =>
+        finding.kind === "overflow"
+          ? { ...finding, severity: finding.viewport === "tablet" ? 3 : 1 }
+          : finding,
+      ),
+    };
+    const report = measurementReportFor(banded);
+    const overflow = report?.violations.find((violation) => violation.kind === "overflow");
+    expect(overflow?.viewports).toEqual(["mobile", "tablet"]);
+    expect(overflow?.severity).toBe(3);
+
+    // The fleet said nothing about the contrast row, so it carries no band at
+    // all. Not zero: a consumer has to be able to see that there is no answer.
+    const contrast = report?.violations.find((violation) => violation.kind === "contrast");
+    expect(contrast).toBeDefined();
+    expect(contrast).not.toHaveProperty("severity");
+  });
 });
 
 describe("capture service contract", () => {
@@ -349,6 +374,38 @@ describe("capture service contract", () => {
     );
     expect(captured.deterministicFindings).toHaveLength(4);
     expect(captured.pageText).toEqual({ "/": "Pricing that scales with you" });
+  });
+
+  it("accepts a severity band, and refuses one that is not a band", async () => {
+    // `.strict()` again: a fleet that bands its measurements must not have its
+    // whole response rejected by an engine that had no field for the band.
+    const parse = async (severity: unknown) => {
+      const capture = measuredCapture();
+      const body = {
+        ...capture,
+        deterministicFindings: (capture.deterministicFindings ?? []).map((finding) => ({
+          ...finding,
+          severity,
+        })),
+      };
+      const client = new HttpCaptureClient("https://capture.test", "token", async () =>
+        new Response(JSON.stringify(body), { status: 200, headers: { "content-type": "application/json" } }));
+      return client.forJob("job_1", new AbortController().signal)(
+        "https://preview.example.test",
+        { installationId: "tenant_1", viewports: [VIEWPORT], darkMode: false, isFork: true, routes: ["/"] },
+      );
+    };
+
+    const captured = await parse(3);
+    expect(captured.deterministicFindings?.map((finding) => finding.severity)).toEqual([3, 3, 3, 3]);
+    // Zero is a band, and a fleet that measured one has to be able to say so.
+    expect((await parse(0)).deterministicFindings?.[0]?.severity).toBe(0);
+
+    // A band is an ordinal. A fraction is a magnitude wearing the field's name,
+    // and a magnitude is exactly what this boundary exists to keep out.
+    await expect(parse(2.5)).rejects.toThrow();
+    await expect(parse(-1)).rejects.toThrow();
+    await expect(parse("high")).rejects.toThrow();
   });
 
   it("rejects a measurement of a kind nothing downstream can classify", async () => {
@@ -472,6 +529,36 @@ describe("the deployed pipeline carries what the capture measured", () => {
     // is stated, never papered over.
     expect(result.coverage?.routesReviewed).toEqual([]);
     expect(result.gradeUnavailableReason).toBe("nothing_reviewed");
+  });
+
+  it("publishes the severity band on the result a consumer polls for", async () => {
+    // The band is useless if it stops short of the wire. This is the whole hop
+    // it has to survive: a capture response parsed by a `.strict()` schema, the
+    // grouping, the wire projection, a JSON round trip through the object store
+    // and back out of `GET /jobs/:id`.
+    const capture = measuredCapture();
+    const banded: MeasuredCapture = {
+      ...capture,
+      deterministicFindings: (capture.deterministicFindings ?? []).map((finding) =>
+        finding.kind === "overflow"
+          ? { ...finding, severity: finding.viewport === "tablet" ? 3 : 1 }
+          : finding.kind === "contrast"
+            ? { ...finding, severity: 2 }
+            : finding,
+      ),
+    };
+    const { result } = await runJob(banded);
+    const bands = new Map(
+      (result.measurements?.violations ?? []).map((violation) => [violation.kind, violation.severity]),
+    );
+    // One row for the overflow, banded by its WORST viewport.
+    expect(bands.get("overflow")).toBe(3);
+    expect(bands.get("contrast")).toBe(2);
+    // The touch target the fleet never banded arrives with no band, and the
+    // field is absent rather than zero after the JSON round trip.
+    const touch = result.measurements?.violations.find((v) => v.kind === "touch_target");
+    expect(touch).toBeDefined();
+    expect(touch).not.toHaveProperty("severity");
   });
 
   it("says nothing about a gap when the service measured and found nothing", async () => {

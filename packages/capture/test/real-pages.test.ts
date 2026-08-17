@@ -305,3 +305,66 @@ describe("real page: text over a gradient", () => {
     }
   });
 });
+
+/**
+ * The severity band, on what Chromium actually measured.
+ *
+ * The band is the field that lets a consumer tell a violation that got worse
+ * from one that was merely re-measured, so it has to be a band of the real
+ * number and not of a hand-written one. Every value below came out of the same
+ * recorded captures the checks above are pinned against.
+ */
+describe("real page: severity bands", () => {
+  it("bands a real contrast failure by how far the text is from readable", () => {
+    // #8f8f8f on white, 3.23:1: a genuine AA failure for its size, and above
+    // the 3.0 line the criterion itself accepts for large text.
+    expect(findingsFor("text-over-photo", "desktop")[0]?.severity).toBe(1);
+
+    // White text at the pale end of a gradient, 1.13:1. Not a worse version of
+    // the same problem: text that is not there. It bands at the bottom even
+    // though the engine declines to gate on it, because the band is about the
+    // ratio and `blockEligible` is about the precision.
+    const [gradient] = findingsFor("text-over-gradient", "desktop");
+    expect(gradient?.blockEligible).toBe(false);
+    expect(gradient?.severity).toBe(3);
+  });
+
+  it("bands a real pointer target by how far it is from a finger", () => {
+    const mobile = findingsFor("pointer-targets", "mobile");
+    const bands = new Map(mobile.map((f) => [f.selector, f.severity]));
+    // 32x32: clears the AA line, misses the AAA one, reported as an advisory
+    // and banded at the top of the scale because that is what the box measures.
+    expect(bands.get("#toolbar-bold")).toBe(1);
+    // 20x20: under the AA minimum and still a control a finger can find.
+    expect(bands.get("#packed-a")).toBe(2);
+    expect(bands.get("#packed-b")).toBe(2);
+  });
+
+  it("bands the same real overflow differently at two viewports, which is the point", () => {
+    // #spilling-line escapes its 240px box by 242px on both captures. On a
+    // 390px phone that is more than half the screen; on a 1440px desktop it is
+    // a sixth. A pixel count would call those the same event and they are not.
+    expect(findingsFor("scroll-containers", "mobile")[0]?.severity).toBe(3);
+    expect(findingsFor("scroll-containers", "desktop")[0]?.severity).toBe(2);
+
+    // The clip that lost 210px of an invoice amount, measured the same way.
+    const mobile = findingsFor("clipped-text", "mobile");
+    const desktop = findingsFor("clipped-text", "desktop");
+    expect(mobile.find((f) => f.selector === "#clipped-amount")?.severity).toBe(3);
+    expect(desktop.find((f) => f.selector === "#clipped-amount")?.severity).toBe(2);
+  });
+
+  it("bands every violation these pages produce, with no gaps and no zeroes", () => {
+    // A band nothing computed must be ABSENT, and these checks can always
+    // compute one, so a missing band here would mean a hop dropped it. A zero
+    // would mean something floored an answer it did not have.
+    for (const page of ["scroll-containers", "clipped-text", "pointer-targets", "text-over-photo", "text-over-gradient"]) {
+      for (const viewport of ["mobile", "desktop"] as const) {
+        for (const finding of findingsFor(page, viewport)) {
+          expect(finding.severity, `${page}.${viewport} ${finding.selector}`).toBeGreaterThan(0);
+          expect(finding.severity).toBeLessThanOrEqual(3);
+        }
+      }
+    }
+  });
+});

@@ -738,10 +738,42 @@ no model involved, hands those sentences to the judge as facts it is told to tru
 in the terminal report. Until now that was where they stopped: nothing on the wire carried one, so a
 consumer holding a result could not see a single measurement the engine had taken. `measurements` is
 `{ checksRun, violations }`, where each violation names its kind, route, element, the viewports it
-was measured at, the engine's sentence verbatim, and `blockEligible`. `checksRun` is what makes an
-empty `violations` mean anything: empty `checksRun` is "nothing was measured", and a non-empty one
-with no violations is the positive statement "these checks ran and found nothing". The field being
-ABSENT means this producer does not report measurements, and never means the page is clean.
+was measured at, the engine's sentence verbatim, `blockEligible`, and `severity`. `checksRun` is what
+makes an empty `violations` mean anything: empty `checksRun` is "nothing was measured", and a
+non-empty one with no violations is the positive statement "these checks ran and found nothing". The
+field being ABSENT means this producer does not report measurements, and never means the page is
+clean.
+
+`severity` is the engine's BAND: an ordinal, higher is worse, and nothing else. It exists because a
+consumer comparing a pull request against its base commit holds sentences, not numbers, and a
+sentence cannot tell a violation that got worse from one that was merely re-measured. Take an element
+from `2.91:1` to `1.02:1` and the words barely move; the band moves from 1 to 3. The bands are coarse
+on purpose, so that ordinary re-measurement noise cannot move one and a band that DID move is a
+material change rather than a re-render.
+
+The landmarks are the engine's, and they are not arbitrary. Contrast bands against the WCAG lines:
+at or above `3.0:1` is 1, which is the AA bar for large text and the lowest ratio any level-AA
+criterion accepts; at or above `1.5:1` is 2; below that is 3, where the glyphs and their backdrop
+are close enough in luminance that the text is discovered rather than read. A pointer target bands
+on its smallest dimension: at least 24px is 1, which is SC 2.5.8 (AA) where 44px is SC 2.5.5 (AAA);
+at least 10px is 2; under that is 3, which is not a control a finger can be aimed at. An overflow
+bands on how much of the VIEWPORT the excess spills, because 40px off a 390px phone and 40px off a
+1440px desktop are not the same event: up to a tenth is 1, up to a half is 2, more is 3.
+
+A band is comparable only WITHIN a kind, and only as an order. It is not a magnitude and it is not
+`findings[].severity`, which is a model's judgment on a closed enum that feeds the grade; this one is
+arithmetic the check did on its own number and it feeds nothing. Never sum one, average one, scale
+one, or compare a contrast band against a touch-target band. A group of measurements, which is one
+row across several viewports, carries its WORST member's band: a row is fixed once, and a row
+reporting the mildest of its viewports would hide a real worsening at one width. That is the opposite
+rule to `blockEligible`, which takes the most cautious member, and the two ask different questions:
+"how bad does this get" against "may this fail a build".
+
+The field is optional and ABSENT means unknown, the same rule `blockEligible` follows for the same
+reason. A capture fleet older than the field sends nothing, a check that cannot compute a band emits
+nothing, and a group no member of which carried one keeps the field absent rather than gaining a
+floor. Zero is a band; absent is not a band, and a consumer must never read one as the other or an
+unknown would end up gating a merge.
 
 `blockEligible` is the engine's claim that a measurement is precise enough for a consumer to gate a
 merge on. It is the second of three answers a check can give, and the first one matters more.

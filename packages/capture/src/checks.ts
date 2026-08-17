@@ -1,4 +1,5 @@
 import type { MeasurementKind, MeasurementReport, Viewport, WireMeasurement, WireViewport } from "@engine/types";
+import { VIEWPORT_SIZES } from "./browser-port.js";
 import { compositeOver, isOpaque, parseCssColor } from "./color.js";
 
 /**
@@ -199,6 +200,32 @@ export interface DeterministicFinding {
    * authorize a merge block.
    */
   blockEligible?: boolean;
+  /**
+   * Which BAND of badness this measurement falls in. An ordinal, higher is
+   * worse, owned by the check that produced it (see `contrastSeverity`,
+   * `overflowSeverity`, `touchTargetSeverity` for the landmarks and why they
+   * sit where they do).
+   *
+   * Comparable only WITHIN a `kind`. A contrast 2 and a touch-target 2 are not
+   * the same amount of anything, there is no ordering across kinds, and the
+   * number is not a magnitude: it is never subtracted, averaged, scaled or
+   * summed. It answers "which band of badness", never "how bad".
+   *
+   * The bands are COARSE on purpose. A consumer stores a band for a base commit
+   * and compares it to the band measured on a pull request, so ordinary
+   * re-measurement noise must not move it: a contrast ratio drifting 2.91 to
+   * 2.87 on an untouched page stays in the same band, and a band that DID move
+   * is by construction a material change rather than a re-render. The raw
+   * ratio, the raw pixel count and the raw excess are exactly what must not
+   * cross this boundary, which is why none of them do.
+   *
+   * Optional, for the same reason `blockEligible` is and with the same rule: a
+   * capture service that predates the field sends nothing, an older stored band
+   * is not there to compare against, and a check that cannot compute one emits
+   * nothing rather than a number. Absent is UNKNOWN, and unknown never gates.
+   * Zero is a band; absent is not a band, and the two must never be conflated.
+   */
+  severity?: number;
 }
 
 interface Rgb {
@@ -286,6 +313,91 @@ export const AAA_TOUCH_TARGET_PX = TOUCH_TARGET_CRITERIA.AAA.minPx;
 export const TOUCH_VIEWPORTS: readonly Viewport[] = ["mobile", "tablet"];
 
 /**
+ * The band an undersized pointer target has stopped being a control at all.
+ *
+ * 24px is the level AA line (SC 2.5.8) and 44px the AAA one, so anything the
+ * check reports is already under 24. What the second landmark separates is a
+ * target that is merely small, a 20px icon button a careful finger still lands
+ * on, from one at 8px, which is not a control a finger can be aimed at and is
+ * usually a decorative glyph that was made clickable by accident.
+ */
+const VESTIGIAL_TOUCH_TARGET_PX = 10;
+
+/**
+ * The ratio below which text has effectively stopped being visible.
+ *
+ * The upper landmark is a WCAG one: 3.0 is the AA line for large text, the
+ * lowest ratio any level-AA criterion accepts, so a violation at or above it is
+ * text that missed the 4.5 bar for its size and is still text a reader reads.
+ * 1.5 has no criterion behind it and does not pretend to: it is the point where
+ * the glyphs and their backdrop are close enough in luminance that the text is
+ * not read so much as discovered.
+ */
+const NEAR_INVISIBLE_CONTRAST_RATIO = 1.5;
+
+/** The AA line for large text; see `NEAR_INVISIBLE_CONTRAST_RATIO`. */
+const LARGE_TEXT_AA_CONTRAST_RATIO = 3.0;
+
+/**
+ * How much of the viewport an overflow has to spill before it changes band.
+ *
+ * A share of the viewport rather than a pixel count, because 40px off the edge
+ * of a 390px phone and 40px off the edge of a 1440px desktop are not the same
+ * event. A tenth of the viewport is a word or two past the edge; half of it is
+ * the page laid out for a width it was not given.
+ */
+const OVERFLOW_MINOR_SHARE = 0.1;
+const OVERFLOW_MAJOR_SHARE = 0.5;
+
+/**
+ * The contrast band for a measured ratio, or `undefined` when there is no ratio
+ * to band.
+ *
+ * `undefined` rather than a floor value: a band nothing computed must be absent,
+ * because a consumer reads absent as unknown and reads any number, zero
+ * included, as a claim the engine made.
+ */
+export function contrastSeverity(ratio: number): number | undefined {
+  if (!Number.isFinite(ratio)) return undefined;
+  if (ratio >= LARGE_TEXT_AA_CONTRAST_RATIO) return 1;
+  if (ratio >= NEAR_INVISIBLE_CONTRAST_RATIO) return 2;
+  return 3;
+}
+
+/**
+ * The touch-target band for a measured box, from its SMALLEST dimension.
+ *
+ * Smallest, because both target-size criteria are stated as a square minimum
+ * and a 200x8px strip fails on the 8. `undefined` when the box has no finite
+ * size to measure, for the reason `contrastSeverity` returns it.
+ */
+export function touchTargetSeverity(rect: Rect): number | undefined {
+  const smallest = Math.min(rect.width, rect.height);
+  if (!Number.isFinite(smallest)) return undefined;
+  if (smallest >= AA_TOUCH_TARGET_PX) return 1;
+  if (smallest >= VESTIGIAL_TOUCH_TARGET_PX) return 2;
+  return 3;
+}
+
+/**
+ * The overflow band for a measured excess, as a share of the viewport width.
+ *
+ * `undefined` when the viewport is not one this capture has a width for. That
+ * is a real path and not a formality: `Viewport` is a string that arrives from
+ * a capture service, this module is pure and validates nothing, and dividing by
+ * an unknown width would produce a band out of nothing. Absent instead.
+ */
+export function overflowSeverity(excessPx: number, viewport: Viewport): number | undefined {
+  const width = VIEWPORT_SIZES[viewport]?.width;
+  if (width === undefined || !Number.isFinite(width) || width <= 0) return undefined;
+  if (!Number.isFinite(excessPx)) return undefined;
+  const share = excessPx / width;
+  if (share <= OVERFLOW_MINOR_SHARE) return 1;
+  if (share <= OVERFLOW_MAJOR_SHARE) return 2;
+  return 3;
+}
+
+/**
  * What the text is measured against: one colour for a flat fill, one colour per
  * stop for a computable gradient, `null` when the backdrop is not knowable.
  *
@@ -351,6 +463,7 @@ export function contrastViolations(nodes: TextNodeStyle[]): DeterministicFinding
     if (ratio === null) continue;
     const threshold = contrastThreshold(node);
     if (ratio >= threshold) continue;
+    const severity = contrastSeverity(ratio);
     out.push({
       kind: "contrast",
       route: node.route,
@@ -375,6 +488,10 @@ export function contrastViolations(nodes: TextNodeStyle[]): DeterministicFinding
       // take glyph-level geometry this capture does not collect, and a merge
       // must not fail on a bound the code cannot close.
       blockEligible: !backdrop.gradient && node.backdropObscured === false,
+      // The band is about the RATIO and not about the precision: a gradient's
+      // worst stop is still measured, and a consumer that will not gate on it
+      // may still want to know the text went from readable to invisible.
+      ...(severity === undefined ? {} : { severity }),
     });
   }
   return out;
@@ -498,6 +615,10 @@ export function overflowViolations(nodes: TextNodeStyle[]): DeterministicFinding
     if (clippedPx <= 0) continue;
     const container = Math.round(node.rect.width);
     const measured = `content width ${node.contentWidthPx}px exceeds container ${container}px`;
+    // One band for both shapes below: a clipped overflow and an escaping one
+    // spill the same number of pixels past the same viewport, and the band says
+    // how far the page came apart, not what the box did about it.
+    const severity = overflowSeverity(clippedPx, node.viewport);
     // A scroll container has content wider than its box by definition and on
     // purpose. Every `<pre>` with a scrollbar and every horizontal carousel
     // measured as breakage before this line existed, and `overflow` is the one
@@ -525,6 +646,7 @@ export function overflowViolations(nodes: TextNodeStyle[]): DeterministicFinding
         // excess is cut, nothing above can reveal it, and no affordance tells
         // the reader that anything was cut.
         blockEligible: clip.verdict === "content_loss",
+        ...(severity === undefined ? {} : { severity }),
       });
       continue;
     }
@@ -543,6 +665,7 @@ export function overflowViolations(nodes: TextNodeStyle[]): DeterministicFinding
       // that did not report a field leaves the question open, and an open
       // question must not fail a build.
       blockEligible: node.overflowX === "visible" && node.ancestorScrollsX === false,
+      ...(severity === undefined ? {} : { severity }),
     });
   }
   return out;
@@ -630,6 +753,11 @@ export function touchTargetViolations(
     // both criteria exempt it. Enlarging it would damage the paragraph.
     if (el.inlineTarget === true) continue;
     const size = `${Math.round(el.rect.width)}x${Math.round(el.rect.height)}px`;
+    // Banded off the BOX, not off the criterion in force, so the same 20px
+    // control lands in the same band whether a repository measures at AA or at
+    // AAA. A band that moved because the reader changed their mind about which
+    // criterion to hold would be a band about the config, not about the page.
+    const severity = touchTargetSeverity(el.rect);
 
     if (isUndersized(el.rect, criterion.minPx)) {
       if (name === "AA" && meetsSpacingException(el, elements)) continue;
@@ -646,6 +774,7 @@ export function touchTargetViolations(
         // reported `inlineTarget` leaves the Inline exception unevaluated, and
         // an unevaluated exception could be the whole finding.
         blockEligible: el.inlineTarget === false,
+        ...(severity === undefined ? {} : { severity }),
       });
       continue;
     }
@@ -680,6 +809,10 @@ export function touchTargetViolations(
         `minimum in ${cite(criterion)}, and is below the ` +
         `${enhanced.minPx}x${enhanced.minPx}px minimum in ${cite(enhanced)}`,
       blockEligible: false,
+      // A target in this band cleared 24px, so the box bands at 1. Emitted
+      // rather than omitted, because "the least bad band" is a measured answer
+      // and omitting it would say the engine did not have one.
+      ...(severity === undefined ? {} : { severity }),
     });
   }
   return out;
@@ -723,6 +856,17 @@ export const ALL_MEASUREMENT_KINDS: readonly MeasurementKind[] = [
  * block-eligible. A violation that is precise at mobile and inconclusive at
  * desktop is not something to fail a build on, and the group is one row.
  *
+ * `severity` on a group is the WORST band any member reached: a group speaks
+ * for its worst part. It is one row a reader fixes once, and the row that says
+ * band 1 while one of its viewports is at band 3 understates the page to the
+ * reader and, worse, hides a real worsening from a consumer comparing bands
+ * across commits. It is the opposite rule to `blockEligible` on purpose: that
+ * one asks "may this fail a build", where one doubt is enough to say no; this
+ * one asks "how bad does this get", where the answer is the maximum.
+ *
+ * The comparison is safe because the group key includes `kind`, so every member
+ * of a group is the same kind and bands are only ever compared within one.
+ *
  * `checksRun` defaults to every check this module implements, because that is
  * what `deterministicChecks` runs. A caller that ran a subset says so, and a
  * caller that measured nothing passes an empty list, which is the difference
@@ -743,6 +887,22 @@ export function checksRunFor(viewports: readonly Viewport[]): MeasurementKind[] 
   return ALL_MEASUREMENT_KINDS.filter((kind) => kind !== "touch_target" || touchable);
 }
 
+/**
+ * The worse of two bands, either of which may be unknown.
+ *
+ * A known band beats an unknown one rather than erasing it: a member that
+ * carries no band says nothing about how bad the group is, and treating that
+ * silence as a reason to drop a band another member did measure would throw
+ * away the only answer anyone has. Unknown only survives when NOTHING knew.
+ */
+function worseSeverity(a: number | undefined, b: number | undefined): number | undefined {
+  if (a === undefined) return b;
+  if (b === undefined) return a;
+  // An order comparison over an ordinal, which is the only operation this
+  // number permits. Never a sum, a mean or a difference.
+  return a >= b ? a : b;
+}
+
 export function toMeasurementReport(
   findings: readonly DeterministicFinding[],
   checksRun: readonly MeasurementKind[] = ALL_MEASUREMENT_KINDS,
@@ -758,6 +918,12 @@ export function toMeasurementReport(
       }
       // One inconclusive viewport makes the whole group inconclusive.
       existing.blockEligible = existing.blockEligible && finding.blockEligible === true;
+      // A group speaks for its worst part; see the note above this function.
+      const worst = worseSeverity(existing.severity, finding.severity);
+      // Assigned only when something knew, so a group no member banded keeps
+      // the field ABSENT rather than gaining an `undefined` that a serializer
+      // would drop anyway and a reader would have to guess at.
+      if (worst !== undefined) existing.severity = worst;
       continue;
     }
     groups.set(key, {
@@ -767,6 +933,7 @@ export function toMeasurementReport(
       element: finding.selector,
       detail: finding.detail,
       blockEligible: finding.blockEligible === true,
+      ...(finding.severity === undefined ? {} : { severity: finding.severity }),
     });
   }
   return { checksRun: [...checksRun], violations: [...groups.values()] };

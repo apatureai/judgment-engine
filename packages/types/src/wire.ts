@@ -134,12 +134,17 @@ export type MeasurementKind = "contrast" | "overflow" | "touch_target";
 /**
  * One violation the engine COMPUTED from the captured DOM, on the wire.
  *
- * Not a finding, and never convertible into one. It carries no severity, no
- * confidence and no dimension, because no model produced it and nothing
- * calibrated it: it is a `getComputedStyle` call and a rectangle. It never
- * enters `findings[]`, never reaches the grade function, and the only field on a
- * result it can influence is `gradeUnavailableReason` (see
- * `measured_facts_unjudged`), which RETRACTS a grade rather than computing one.
+ * Not a finding, and never convertible into one. It carries no confidence and
+ * no dimension, because no model produced it and nothing calibrated it: it is a
+ * `getComputedStyle` call and a rectangle. It never enters `findings[]`, never
+ * reaches the grade function, and the only field on a result it can influence is
+ * `gradeUnavailableReason` (see `measured_facts_unjudged`), which RETRACTS a
+ * grade rather than computing one.
+ *
+ * `severity` here is NOT `WireFinding.severity` and the two share nothing but a
+ * name. That one is a model's judgment on a closed enum that feeds the grade;
+ * this one is a coarse arithmetic band the check computed off its own number,
+ * and it feeds nothing.
  */
 export interface WireMeasurement {
   kind: MeasurementKind;
@@ -159,6 +164,29 @@ export interface WireMeasurement {
    * build on it.
    */
   blockEligible: boolean;
+  /**
+   * Which BAND of badness this measurement falls in: an ordinal, higher is
+   * worse, owned by the check that produced it.
+   *
+   * Comparable only WITHIN a `kind`, and only as an order. It is not a
+   * magnitude: never summed, averaged, scaled, differenced, or compared against
+   * a band of another kind. It answers "which band of badness", never "how
+   * bad". A group's band is its WORST member's.
+   *
+   * The bands are COARSE by design, so ordinary re-measurement noise cannot
+   * move one. That is what makes the field usable by a consumer holding a band
+   * measured on a base commit: a band that changed is a material change to the
+   * page and not a re-render, and the raw ratios and pixel counts that would
+   * drift stay on the engine's side of this boundary.
+   *
+   * Additive + optional (schema v1, x-schema-version), like `dimension`.
+   * ABSENT means unknown: a producer older than the field, a check that could
+   * not compute one, or a group no member of which carried one. A consumer must
+   * not substitute a value for an absent one, and unknown must never authorize
+   * a merge block, exactly as with `blockEligible`. Zero is a band; absent is
+   * not a band, and reading absent as zero would make an unknown gate.
+   */
+  severity?: number;
 }
 
 /**
