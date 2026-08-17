@@ -23,10 +23,18 @@
           "rgba(0, 0, 0, 0)",
           "rgb(255, 255, 255)"
         ],
+        "backgroundImages": [
+          "none",
+          "none",
+          "none"
+        ],
         "backdropObscured": false,
+        "backdropFiltered": false,
         "contentWidthPx": 342,
         "overflowX": "visible",
-        "ancestorScrollsX": false
+        "ancestorScrollsX": false,
+        "textOverflow": "clip",
+        "whiteSpace": "normal"
       }
     },
     {
@@ -53,10 +61,19 @@
           "rgba(0, 0, 0, 0)",
           "rgb(255, 255, 255)"
         ],
+        "backgroundImages": [
+          "none",
+          "url(\"data:image/png;base64,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\")",
+          "none",
+          "none"
+        ],
         "backdropObscured": true,
+        "backdropFiltered": false,
         "contentWidthPx": 294,
         "overflowX": "visible",
-        "ancestorScrollsX": false
+        "ancestorScrollsX": false,
+        "textOverflow": "clip",
+        "whiteSpace": "normal"
       }
     },
     {
@@ -83,10 +100,19 @@
           "rgba(0, 0, 0, 0)",
           "rgb(255, 255, 255)"
         ],
+        "backgroundImages": [
+          "none",
+          "none",
+          "none",
+          "none"
+        ],
         "backdropObscured": true,
+        "backdropFiltered": true,
         "contentWidthPx": 310,
         "overflowX": "visible",
-        "ancestorScrollsX": false
+        "ancestorScrollsX": false,
+        "textOverflow": "clip",
+        "whiteSpace": "normal"
       }
     },
     {
@@ -112,10 +138,18 @@
           "rgba(0, 0, 0, 0)",
           "rgb(255, 255, 255)"
         ],
+        "backgroundImages": [
+          "none",
+          "none",
+          "none"
+        ],
         "backdropObscured": false,
+        "backdropFiltered": false,
         "contentWidthPx": 342,
         "overflowX": "visible",
-        "ancestorScrollsX": false
+        "ancestorScrollsX": false,
+        "textOverflow": "clip",
+        "whiteSpace": "normal"
       }
     }
   ],

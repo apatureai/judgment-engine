@@ -8,14 +8,14 @@
       "cssPath": "body > main > h1",
       "rect": {
         "x": 24,
-        "y": 45.4375,
-        "width": 1392,
-        "height": 48
+        "y": 38.734375,
+        "width": 480,
+        "height": 33
       },
       "animated": false,
       "interactive": false,
       "text": {
-        "fontSizePx": 32,
+        "fontSizePx": 22,
         "fontWeight": 700,
         "color": "rgb(17, 17, 17)",
         "backgroundStack": [
@@ -30,7 +30,7 @@
         ],
         "backdropObscured": false,
         "backdropFiltered": false,
-        "contentWidthPx": 1392,
+        "contentWidthPx": 480,
         "overflowX": "visible",
         "ancestorScrollsX": false,
         "textOverflow": "clip",
@@ -38,167 +38,54 @@
       }
     },
     {
-      "tag": "nav",
-      "id": null,
+      "tag": "p",
+      "id": "ellipsis-title",
       "testId": null,
       "role": null,
-      "cssPath": "body > main > nav",
+      "cssPath": "body > main > section:nth-of-type(1) > p",
       "rect": {
         "x": 24,
-        "y": 114.875,
-        "width": 1392,
-        "height": 32
+        "y": 86.46875,
+        "width": 220,
+        "height": 27
       },
       "animated": false,
       "interactive": false,
-      "text": null
-    },
-    {
-      "tag": "button",
-      "id": "toolbar-bold",
-      "testId": null,
-      "role": null,
-      "cssPath": "body > main > nav > button",
-      "rect": {
-        "x": 24,
-        "y": 114.875,
-        "width": 32,
-        "height": 32
-      },
-      "animated": false,
-      "interactive": true,
       "text": {
-        "fontSizePx": 16,
+        "fontSizePx": 18,
         "fontWeight": 400,
-        "color": "rgb(0, 0, 0)",
+        "color": "rgb(17, 17, 17)",
         "backgroundStack": [
+          "rgba(0, 0, 0, 0)",
+          "rgba(0, 0, 0, 0)",
+          "rgba(0, 0, 0, 0)",
           "rgb(255, 255, 255)"
         ],
         "backgroundImages": [
+          "none",
+          "none",
+          "none",
           "none"
         ],
         "backdropObscured": false,
         "backdropFiltered": false,
-        "contentWidthPx": 30,
-        "overflowX": "visible",
+        "contentWidthPx": 465,
+        "overflowX": "hidden",
         "ancestorScrollsX": false,
-        "textOverflow": "clip",
-        "whiteSpace": "normal"
-      },
-      "inlineTarget": false
-    },
-    {
-      "tag": "button",
-      "id": "packed-a",
-      "testId": null,
-      "role": null,
-      "cssPath": "body > main > div:nth-of-type(1) > button:nth-of-type(1)",
-      "rect": {
-        "x": 24,
-        "y": 154.875,
-        "width": 20,
-        "height": 20
-      },
-      "animated": false,
-      "interactive": true,
-      "text": {
-        "fontSizePx": 16,
-        "fontWeight": 400,
-        "color": "rgb(0, 0, 0)",
-        "backgroundStack": [
-          "rgb(255, 255, 255)"
-        ],
-        "backgroundImages": [
-          "none"
-        ],
-        "backdropObscured": false,
-        "backdropFiltered": false,
-        "contentWidthPx": 18,
-        "overflowX": "visible",
-        "ancestorScrollsX": false,
-        "textOverflow": "clip",
-        "whiteSpace": "normal"
-      },
-      "inlineTarget": false
-    },
-    {
-      "tag": "button",
-      "id": "packed-b",
-      "testId": null,
-      "role": null,
-      "cssPath": "body > main > div:nth-of-type(1) > button:nth-of-type(2)",
-      "rect": {
-        "x": 46,
-        "y": 154.875,
-        "width": 20,
-        "height": 20
-      },
-      "animated": false,
-      "interactive": true,
-      "text": {
-        "fontSizePx": 16,
-        "fontWeight": 400,
-        "color": "rgb(0, 0, 0)",
-        "backgroundStack": [
-          "rgb(255, 255, 255)"
-        ],
-        "backgroundImages": [
-          "none"
-        ],
-        "backdropObscured": false,
-        "backdropFiltered": false,
-        "contentWidthPx": 18,
-        "overflowX": "visible",
-        "ancestorScrollsX": false,
-        "textOverflow": "clip",
-        "whiteSpace": "normal"
-      },
-      "inlineTarget": false
-    },
-    {
-      "tag": "button",
-      "id": "isolated-star",
-      "testId": null,
-      "role": null,
-      "cssPath": "body > main > div:nth-of-type(2) > button",
-      "rect": {
-        "x": 64,
-        "y": 219.875,
-        "width": 20,
-        "height": 20
-      },
-      "animated": false,
-      "interactive": true,
-      "text": {
-        "fontSizePx": 16,
-        "fontWeight": 400,
-        "color": "rgb(0, 0, 0)",
-        "backgroundStack": [
-          "rgb(255, 255, 255)"
-        ],
-        "backgroundImages": [
-          "none"
-        ],
-        "backdropObscured": false,
-        "backdropFiltered": false,
-        "contentWidthPx": 18,
-        "overflowX": "visible",
-        "ancestorScrollsX": false,
-        "textOverflow": "clip",
-        "whiteSpace": "normal"
-      },
-      "inlineTarget": false
+        "textOverflow": "ellipsis",
+        "whiteSpace": "nowrap"
+      }
     },
     {
       "tag": "p",
-      "id": null,
+      "id": "clipped-amount",
       "testId": null,
       "role": null,
-      "cssPath": "body > main > p",
+      "cssPath": "body > main > section:nth-of-type(2) > p",
       "rect": {
         "x": 24,
-        "y": 295.875,
-        "width": 1392,
+        "y": 137.46875,
+        "width": 140,
         "height": 24
       },
       "animated": false,
@@ -210,40 +97,42 @@
         "backgroundStack": [
           "rgba(0, 0, 0, 0)",
           "rgba(0, 0, 0, 0)",
+          "rgba(0, 0, 0, 0)",
           "rgb(255, 255, 255)"
         ],
         "backgroundImages": [
+          "none",
           "none",
           "none",
           "none"
         ],
         "backdropObscured": false,
         "backdropFiltered": false,
-        "contentWidthPx": 1392,
-        "overflowX": "visible",
+        "contentWidthPx": 350,
+        "overflowX": "hidden",
         "ancestorScrollsX": false,
         "textOverflow": "clip",
-        "whiteSpace": "normal"
+        "whiteSpace": "nowrap"
       }
     },
     {
-      "tag": "a",
-      "id": "inline-terms",
+      "tag": "p",
+      "id": "wrapping-blurb",
       "testId": null,
       "role": null,
-      "cssPath": "body > main > p > a",
+      "cssPath": "body > main > section:nth-of-type(3) > p",
       "rect": {
-        "x": 382.921875,
-        "y": 298.875,
-        "width": 41.828125,
-        "height": 18
+        "x": 24,
+        "y": 185.46875,
+        "width": 200,
+        "height": 72
       },
       "animated": false,
-      "interactive": true,
+      "interactive": false,
       "text": {
         "fontSizePx": 16,
         "fontWeight": 400,
-        "color": "rgb(0, 0, 238)",
+        "color": "rgb(17, 17, 17)",
         "backgroundStack": [
           "rgba(0, 0, 0, 0)",
           "rgba(0, 0, 0, 0)",
@@ -258,17 +147,166 @@
         ],
         "backdropObscured": false,
         "backdropFiltered": false,
-        "contentWidthPx": 0,
+        "contentWidthPx": 423,
+        "overflowX": "hidden",
+        "ancestorScrollsX": false,
+        "textOverflow": "ellipsis",
+        "whiteSpace": "normal"
+      }
+    },
+    {
+      "tag": "span",
+      "id": "sr-only-hint",
+      "testId": null,
+      "role": null,
+      "cssPath": "body > main > section:nth-of-type(4) > span",
+      "rect": {
+        "x": 24,
+        "y": 281.46875,
+        "width": 1,
+        "height": 1
+      },
+      "animated": false,
+      "interactive": false,
+      "text": {
+        "fontSizePx": 16,
+        "fontWeight": 400,
+        "color": "rgb(17, 17, 17)",
+        "backgroundStack": [
+          "rgba(0, 0, 0, 0)",
+          "rgba(0, 0, 0, 0)",
+          "rgba(0, 0, 0, 0)",
+          "rgb(255, 255, 255)"
+        ],
+        "backgroundImages": [
+          "none",
+          "none",
+          "none",
+          "none"
+        ],
+        "backdropObscured": false,
+        "backdropFiltered": false,
+        "contentWidthPx": 365,
+        "overflowX": "hidden",
+        "ancestorScrollsX": false,
+        "textOverflow": "clip",
+        "whiteSpace": "nowrap"
+      }
+    },
+    {
+      "tag": "p",
+      "id": "visible-note",
+      "testId": null,
+      "role": null,
+      "cssPath": "body > main > section:nth-of-type(4) > p",
+      "rect": {
+        "x": 24,
+        "y": 281.46875,
+        "width": 480,
+        "height": 24
+      },
+      "animated": false,
+      "interactive": false,
+      "text": {
+        "fontSizePx": 16,
+        "fontWeight": 400,
+        "color": "rgb(17, 17, 17)",
+        "backgroundStack": [
+          "rgba(0, 0, 0, 0)",
+          "rgba(0, 0, 0, 0)",
+          "rgba(0, 0, 0, 0)",
+          "rgb(255, 255, 255)"
+        ],
+        "backgroundImages": [
+          "none",
+          "none",
+          "none",
+          "none"
+        ],
+        "backdropObscured": false,
+        "backdropFiltered": false,
+        "contentWidthPx": 480,
         "overflowX": "visible",
         "ancestorScrollsX": false,
         "textOverflow": "clip",
         "whiteSpace": "normal"
+      }
+    },
+    {
+      "tag": "span",
+      "id": "clipped-cell",
+      "testId": null,
+      "role": null,
+      "cssPath": "body > main > section:nth-of-type(5) > span",
+      "rect": {
+        "x": 25,
+        "y": 330.46875,
+        "width": 176,
+        "height": 40
       },
-      "inlineTarget": true
+      "animated": false,
+      "interactive": false,
+      "text": {
+        "fontSizePx": 16,
+        "fontWeight": 400,
+        "color": "rgb(17, 17, 17)",
+        "backgroundStack": [
+          "rgba(0, 0, 0, 0)",
+          "rgba(0, 0, 0, 0)",
+          "rgba(0, 0, 0, 0)",
+          "rgb(255, 255, 255)"
+        ],
+        "backgroundImages": [
+          "none",
+          "none",
+          "none",
+          "none"
+        ],
+        "backdropObscured": false,
+        "backdropFiltered": false,
+        "contentWidthPx": 496,
+        "overflowX": "hidden",
+        "ancestorScrollsX": true,
+        "textOverflow": "clip",
+        "whiteSpace": "nowrap"
+      }
+    },
+    {
+      "tag": "p",
+      "id": "rounded-card",
+      "testId": null,
+      "role": null,
+      "cssPath": "body > main > section:nth-of-type(6) > p",
+      "rect": {
+        "x": 24,
+        "y": 395.46875,
+        "width": 316,
+        "height": 64
+      },
+      "animated": false,
+      "interactive": false,
+      "text": {
+        "fontSizePx": 16,
+        "fontWeight": 400,
+        "color": "rgb(17, 17, 17)",
+        "backgroundStack": [
+          "rgb(244, 244, 245)"
+        ],
+        "backgroundImages": [
+          "none"
+        ],
+        "backdropObscured": false,
+        "backdropFiltered": false,
+        "contentWidthPx": 316,
+        "overflowX": "hidden",
+        "ancestorScrollsX": false,
+        "textOverflow": "clip",
+        "whiteSpace": "normal"
+      }
     }
   ],
   "fonts": [],
-  "bodyText": "Pointer targets\nB\nxy\n*\n\nDelivery is free on orders over 40 dollars; see the terms for the details that apply to your region.",
+  "bodyText": "Clipped content and deliberate truncation\n\nQuarterly revenue recognition policy, revised August 2026\n\nBalance due 1,284,905.42 USD by 2026-09-01\n\nReference SETTLEMENT2026000418NORTHWINDTRADERSLEDGER applies to this line.\n\nOpens the invoice detail panel in the same window\n\nEverything on this page is measured at both viewports.\n\ndeploy succeeded region=us-east-1 build=8f31c02 duration=214s\n\nRounded corners clip, and nothing is missing.",
   "canvasBackground": "rgb(255, 255, 255)",
   "documentHeight": 900
 }

@@ -20,6 +20,12 @@
  *
  * Pass `--print` to also dump the findings each page produces, which is how the
  * before/after of a checks change is read.
+ *
+ * Any bare argument names a page to record, so a change that touches one check
+ * can re-record the pages it is about and leave every other recorded payload
+ * exactly as it was:
+ *
+ *   node scripts/record-capture-fixtures.mjs --print clipped-text
  */
 import { readdir, writeFile } from "node:fs/promises";
 import { createRequire } from "node:module";
@@ -45,7 +51,11 @@ const pagesDir = fileURLToPath(new URL("../packages/capture/fixtures/pages", imp
 const outDir = fileURLToPath(new URL("../packages/capture/fixtures/extracted", import.meta.url));
 const print = process.argv.includes("--print");
 
-const files = (await readdir(pagesDir)).filter((f) => f.endsWith(".html")).sort();
+const only = new Set(process.argv.slice(2).filter((arg) => !arg.startsWith("--")));
+const files = (await readdir(pagesDir))
+  .filter((f) => f.endsWith(".html"))
+  .filter((f) => only.size === 0 || only.has(f.replace(/\.html$/, "")))
+  .sort();
 const browser = await chromium.launch();
 try {
   for (const file of files) {

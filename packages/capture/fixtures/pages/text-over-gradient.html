@@ -1,0 +1,39 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Text over a gradient</title>
+<style>
+  :root { color-scheme: light; }
+  body { background: #ffffff; color: #111111; font: 16px/1.5 system-ui, sans-serif; margin: 0; padding: 24px; }
+  .band { padding: 32px 24px; margin: 0 0 24px; }
+  .band p { margin: 0; }
+  /* Two plain-colour stops, so the backdrop behind this text is computable at
+     every point of the element. White text is comfortable at the dark end and
+     unreadable at the light one, which is the case a flat fill cannot express
+     and the reason the worst stop is the one worth measuring. */
+  .fade { background-image: linear-gradient(#1b3a6b, #eaf2ff); }
+  .fade p { color: #ffffff; }
+  /* Same shape, sideways, and still readable at both ends: the control that
+     tells a real measurement apart from "any gradient is a finding". */
+  .ink { background-image: linear-gradient(to right, #ffffff, #eaf2ff); }
+  .ink p { color: #14243d; }
+  /* A stop in a colour space this engine does not parse. Not measurable, and
+     the check has to say nothing rather than guess at the missing endpoint. */
+  .wide { background-image: linear-gradient(oklch(0.7 0.1 200), #eaf2ff); }
+  .wide p { color: #ffffff; }
+  /* A gradient laid over a bitmap is still a bitmap: what the reader sees at
+     any point depends on the photograph, so nothing here is computable. */
+  .layered {
+    background-image:
+      linear-gradient(rgba(0, 0, 0, 0.15), rgba(0, 0, 0, 0.55)),
+      url("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==");
+    background-size: cover;
+  }
+  .layered p { color: #ffffff; }
+</style>
+<main>
+  <h1>Text over a gradient</h1>
+  <div class="band fade"><p id="fade-caption">Booking closes at midnight on the fourteenth.</p></div>
+  <div class="band ink"><p id="ink-caption">Booking closes at midnight on the fourteenth.</p></div>
+  <div class="band wide"><p id="wide-caption">Booking closes at midnight on the fourteenth.</p></div>
+  <div class="band layered"><p id="layered-caption">Booking closes at midnight on the fourteenth.</p></div>
+</main>

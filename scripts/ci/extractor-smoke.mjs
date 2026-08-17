@@ -28,7 +28,21 @@ import {
 const require = createRequire(new URL("../../packages/capture/package.json", import.meta.url));
 const { chromium } = require("playwright-core");
 
-/** Each case: a page, and the contrast facts it must (and must not) produce. */
+/**
+ * Each case: a page, and the facts it must (and must not) produce.
+ *
+ * `expectOverflow` is checked the same way as `expectContrast`, and for the
+ * same reason. Whether a clip is a deliberate truncation or lost content is
+ * decided from `text-overflow` and `white-space` as CHROMIUM computes them, and
+ * a fixture recorded once cannot notice the day that serialization changes.
+ * Absent means the page must produce no overflow fact at all.
+ *
+ * Its pixel counts are normalized away before comparing, because the width of a
+ * line of text in the default UA font is a property of the machine and this has
+ * to pass on a developer's laptop and on a CI runner. What is asserted here is
+ * the DECISION and the properties it cites; the exact widths are asserted
+ * against a recorded capture in `packages/capture/test/real-pages.test.ts`.
+ */
 const CASES = [
   {
     name: "black text on the browser's default canvas",
@@ -65,6 +79,62 @@ const CASES = [
     html: `<div style="background:oklch(0.7 0.1 200)"><p style="color:#8a8a8a">Wide gamut</p></div>`,
     expectContrast: [],
   },
+  {
+    name: "white text on a gradient with plain color stops",
+    // A gradient states its endpoints, so the backdrop IS known: white text is
+    // comfortable at the #1b3a6b end and invisible at the #eaf2ff end. Advisory,
+    // because the engine knows what the box paints and not where the glyphs sat.
+    html: `<div style="background-image:linear-gradient(#1b3a6b,#eaf2ff)"><p style="color:#fff">Booking closes tonight</p></div>`,
+    expectContrast: [
+      "advisory: text contrast 1.13:1 at the worst stop of the background gradient is below WCAG AA 4.5:1",
+    ],
+  },
+  {
+    name: "gradient with a stop the extractor cannot parse",
+    // One unreadable stop makes the whole run unknowable: the missing endpoint
+    // could be the worst one, so the readable stops are not an answer.
+    html: `<div style="background-image:linear-gradient(oklch(0.7 0.1 200),#eaf2ff)"><p style="color:#fff">Wide gamut stop</p></div>`,
+    expectContrast: [],
+  },
+  {
+    name: "text over a photograph, gradient or not",
+    // A 1x1 PNG stands in for the dusk sky. Nothing a bitmap paints is
+    // computable from a flattened colour, and laying a gradient over one does
+    // not make it so.
+    html:
+      `<div style="background-image:linear-gradient(rgba(0,0,0,0.15),rgba(0,0,0,0.55)),` +
+      `url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==')">` +
+      `<p style="color:#fff">Field notes from the ridge</p></div>`,
+    expectContrast: [],
+  },
+  {
+    name: "a line the author truncated with an ellipsis",
+    // The card title, cut on purpose, with the mark that tells the reader so.
+    html:
+      `<p style="width:220px;overflow-x:hidden;text-overflow:ellipsis;white-space:nowrap">` +
+      `Quarterly revenue recognition policy, revised August 2026</p>`,
+    expectOverflow: [],
+  },
+  {
+    name: "a line clipped with no affordance at all",
+    // The same clip, and the end of the line is simply gone.
+    html:
+      `<p style="width:140px;overflow-x:hidden;white-space:nowrap">` +
+      `Balance due 1,284,905.42 USD by 2026-09-01</p>`,
+    expectOverflow: [
+      "content width Npx exceeds container Npx and Npx of it is clipped away with no " +
+        "truncation affordance (overflow-x: hidden, text-overflow: clip, white-space: nowrap)",
+    ],
+  },
+  {
+    name: "a code block that scrolls on purpose",
+    // scrollWidth is wider than the box on every render, forever, and every
+    // pixel of it is reachable.
+    html:
+      `<pre style="width:240px;overflow-x:auto;white-space:pre">` +
+      `$ pnpm --filter @engine/capture exec vitest run --reporter verbose</pre>`,
+    expectOverflow: [],
+  },
 ];
 
 function fail(message) {
@@ -85,13 +155,24 @@ try {
       textNodes: toTextNodeStyles(extracted, "/", "desktop"),
       interactive: toInteractiveElements(extracted, "/", "desktop"),
     });
-    const contrast = facts.filter((fact) => fact.kind === "contrast").map((fact) => fact.detail);
-    const expected = JSON.stringify(testCase.expectContrast);
-    const actual = JSON.stringify(contrast);
-    if (actual !== expected) {
-      fail(`${testCase.name}\n  expected contrast facts ${expected}\n  got                    ${actual}`);
-    } else {
-      console.log(`ok — ${testCase.name}${contrast.length > 0 ? ` (${contrast.join("; ")})` : " (silent)"}`);
+    let ok = true;
+    for (const [kind, want] of [
+      ["contrast", testCase.expectContrast ?? []],
+      ["overflow", testCase.expectOverflow ?? []],
+    ]) {
+      const got = facts
+        .filter((fact) => fact.kind === kind)
+        .map((fact) => (kind === "overflow" ? fact.detail.replace(/\d+px/g, "Npx") : fact.detail));
+      const expected = JSON.stringify(want);
+      const actual = JSON.stringify(got);
+      if (actual !== expected) {
+        ok = false;
+        fail(`${testCase.name}\n  expected ${kind} facts ${expected}\n  got                    ${actual}`);
+      }
+    }
+    if (ok) {
+      const stated = facts.map((fact) => fact.detail);
+      console.log(`ok - ${testCase.name}${stated.length > 0 ? ` (${stated.join("; ")})` : " (silent)"}`);
     }
   }
   await context.close();
@@ -101,7 +182,7 @@ try {
 
 if (process.exitCode) {
   console.error(
-    `extractor-smoke FAILED — see ${fileURLToPath(new URL("../../packages/capture/src/color.ts", import.meta.url))}`,
+    `extractor-smoke FAILED, see ${fileURLToPath(new URL("../../packages/capture/src/color.ts", import.meta.url))}`,
   );
 } else {
   console.log(`extractor-smoke: ${CASES.length} page(s) checked against a real Chromium`);

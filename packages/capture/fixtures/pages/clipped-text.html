@@ -1,0 +1,105 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Clipped content and deliberate truncation</title>
+<style>
+  :root { color-scheme: light; }
+  body { background: #ffffff; color: #111111; font: 16px/1.5 system-ui, sans-serif; margin: 0; padding: 24px; }
+  main { max-width: 480px; }
+  h1 { font-size: 22px; }
+  section { margin: 0 0 24px; }
+
+  /* Deliberate truncation. The author cut the line ON PURPOSE and left the
+     reader the affordance that says so: a single nowrap line, ellipsis at the
+     edge. Nothing to report. */
+  .card-title {
+    width: 220px;
+    overflow-x: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    margin: 0;
+    font-size: 18px;
+  }
+
+  /* Content loss. Same clip, no affordance at all: the tail of the line is
+     simply gone and nothing on screen says a word is missing. */
+  .amount {
+    width: 140px;
+    overflow-x: hidden;
+    white-space: nowrap;
+    margin: 0;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Cannot tell. `text-overflow: ellipsis` is set, but the text wraps, so
+     whether an ellipsis is painted at all depends on what happens to fall on
+     the overflowing line. */
+  .blurb {
+    width: 200px;
+    overflow-x: hidden;
+    text-overflow: ellipsis;
+    white-space: normal;
+    margin: 0;
+  }
+
+  /* Cannot tell. The visually-hidden idiom: a 1px box that clips everything
+     and is meant to. */
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  /* A clip INSIDE a horizontal scroller. The wrapper scrolls, and that does
+     nothing for content the inner box cut off at its own edge. */
+  .table-wrap { overflow-x: auto; border: 1px solid #ddd; }
+  .table-wrap .cell {
+    display: block;
+    width: 160px;
+    overflow-x: hidden;
+    white-space: nowrap;
+    padding: 8px;
+  }
+
+  /* The control for rendering slop: a clipping box whose content fits. A
+     rounded card clips for the corners, not to hide anything. */
+  .rounded {
+    width: 300px;
+    overflow: hidden;
+    border-radius: 12px;
+    background: #f4f4f5;
+    padding: 8px;
+    margin: 0;
+    font-style: italic;
+  }
+</style>
+<main>
+  <h1>Clipped content and deliberate truncation</h1>
+
+  <section>
+    <p class="card-title" id="ellipsis-title">Quarterly revenue recognition policy, revised August 2026</p>
+  </section>
+
+  <section>
+    <p class="amount" id="clipped-amount">Balance due 1,284,905.42 USD by 2026-09-01</p>
+  </section>
+
+  <section>
+    <p class="blurb" id="wrapping-blurb">Reference SETTLEMENT2026000418NORTHWINDTRADERSLEDGER applies to this line.</p>
+  </section>
+
+  <section>
+    <span class="sr-only" id="sr-only-hint">Opens the invoice detail panel in the same window</span>
+    <p id="visible-note">Everything on this page is measured at both viewports.</p>
+  </section>
+
+  <section class="table-wrap" id="cell-scroller">
+    <span class="cell" id="clipped-cell">deploy succeeded region=us-east-1 build=8f31c02 duration=214s</span>
+  </section>
+
+  <section>
+    <p class="rounded" id="rounded-card">Rounded corners clip, and nothing is missing.</p>
+  </section>
+</main>

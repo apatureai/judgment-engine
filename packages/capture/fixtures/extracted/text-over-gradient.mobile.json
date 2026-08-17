@@ -1,0 +1,201 @@
+{
+  "elements": [
+    {
+      "tag": "h1",
+      "id": null,
+      "testId": null,
+      "role": null,
+      "cssPath": "body > main > h1",
+      "rect": {
+        "x": 24,
+        "y": 45.4375,
+        "width": 342,
+        "height": 48
+      },
+      "animated": false,
+      "interactive": false,
+      "text": {
+        "fontSizePx": 32,
+        "fontWeight": 700,
+        "color": "rgb(17, 17, 17)",
+        "backgroundStack": [
+          "rgba(0, 0, 0, 0)",
+          "rgba(0, 0, 0, 0)",
+          "rgb(255, 255, 255)"
+        ],
+        "backgroundImages": [
+          "none",
+          "none",
+          "none"
+        ],
+        "backdropObscured": false,
+        "backdropFiltered": false,
+        "contentWidthPx": 342,
+        "overflowX": "visible",
+        "ancestorScrollsX": false,
+        "textOverflow": "clip",
+        "whiteSpace": "normal"
+      }
+    },
+    {
+      "tag": "p",
+      "id": "fade-caption",
+      "testId": null,
+      "role": null,
+      "cssPath": "body > main > div:nth-of-type(1) > p",
+      "rect": {
+        "x": 48,
+        "y": 146.875,
+        "width": 294,
+        "height": 48
+      },
+      "animated": false,
+      "interactive": false,
+      "text": {
+        "fontSizePx": 16,
+        "fontWeight": 400,
+        "color": "rgb(255, 255, 255)",
+        "backgroundStack": [
+          "rgba(0, 0, 0, 0)",
+          "rgba(0, 0, 0, 0)",
+          "rgba(0, 0, 0, 0)",
+          "rgb(255, 255, 255)"
+        ],
+        "backgroundImages": [
+          "none",
+          "linear-gradient(rgb(27, 58, 107), rgb(234, 242, 255))",
+          "none",
+          "none"
+        ],
+        "backdropObscured": true,
+        "backdropFiltered": false,
+        "contentWidthPx": 294,
+        "overflowX": "visible",
+        "ancestorScrollsX": false,
+        "textOverflow": "clip",
+        "whiteSpace": "normal"
+      }
+    },
+    {
+      "tag": "p",
+      "id": "ink-caption",
+      "testId": null,
+      "role": null,
+      "cssPath": "body > main > div:nth-of-type(2) > p",
+      "rect": {
+        "x": 48,
+        "y": 282.875,
+        "width": 294,
+        "height": 48
+      },
+      "animated": false,
+      "interactive": false,
+      "text": {
+        "fontSizePx": 16,
+        "fontWeight": 400,
+        "color": "rgb(20, 36, 61)",
+        "backgroundStack": [
+          "rgba(0, 0, 0, 0)",
+          "rgba(0, 0, 0, 0)",
+          "rgba(0, 0, 0, 0)",
+          "rgb(255, 255, 255)"
+        ],
+        "backgroundImages": [
+          "none",
+          "linear-gradient(to right, rgb(255, 255, 255), rgb(234, 242, 255))",
+          "none",
+          "none"
+        ],
+        "backdropObscured": true,
+        "backdropFiltered": false,
+        "contentWidthPx": 294,
+        "overflowX": "visible",
+        "ancestorScrollsX": false,
+        "textOverflow": "clip",
+        "whiteSpace": "normal"
+      }
+    },
+    {
+      "tag": "p",
+      "id": "wide-caption",
+      "testId": null,
+      "role": null,
+      "cssPath": "body > main > div:nth-of-type(3) > p",
+      "rect": {
+        "x": 48,
+        "y": 418.875,
+        "width": 294,
+        "height": 48
+      },
+      "animated": false,
+      "interactive": false,
+      "text": {
+        "fontSizePx": 16,
+        "fontWeight": 400,
+        "color": "rgb(255, 255, 255)",
+        "backgroundStack": [
+          "rgba(0, 0, 0, 0)",
+          "rgba(0, 0, 0, 0)",
+          "rgba(0, 0, 0, 0)",
+          "rgb(255, 255, 255)"
+        ],
+        "backgroundImages": [
+          "none",
+          "linear-gradient(oklch(0.7 0.1 200), rgb(234, 242, 255))",
+          "none",
+          "none"
+        ],
+        "backdropObscured": true,
+        "backdropFiltered": false,
+        "contentWidthPx": 294,
+        "overflowX": "visible",
+        "ancestorScrollsX": false,
+        "textOverflow": "clip",
+        "whiteSpace": "normal"
+      }
+    },
+    {
+      "tag": "p",
+      "id": "layered-caption",
+      "testId": null,
+      "role": null,
+      "cssPath": "body > main > div:nth-of-type(4) > p",
+      "rect": {
+        "x": 48,
+        "y": 554.875,
+        "width": 294,
+        "height": 48
+      },
+      "animated": false,
+      "interactive": false,
+      "text": {
+        "fontSizePx": 16,
+        "fontWeight": 400,
+        "color": "rgb(255, 255, 255)",
+        "backgroundStack": [
+          "rgba(0, 0, 0, 0)",
+          "rgba(0, 0, 0, 0)",
+          "rgba(0, 0, 0, 0)",
+          "rgb(255, 255, 255)"
+        ],
+        "backgroundImages": [
+          "none",
+          "linear-gradient(rgba(0, 0, 0, 0.15), rgba(0, 0, 0, 0.55)), url(\"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==\")",
+          "none",
+          "none"
+        ],
+        "backdropObscured": true,
+        "backdropFiltered": false,
+        "contentWidthPx": 294,
+        "overflowX": "visible",
+        "ancestorScrollsX": false,
+        "textOverflow": "clip",
+        "whiteSpace": "normal"
+      }
+    }
+  ],
+  "fonts": [],
+  "bodyText": "Text over a gradient\n\nBooking closes at midnight on the fourteenth.\n\nBooking closes at midnight on the fourteenth.\n\nBooking closes at midnight on the fourteenth.\n\nBooking closes at midnight on the fourteenth.",
+  "canvasBackground": "rgb(255, 255, 255)",
+  "documentHeight": 844
+}

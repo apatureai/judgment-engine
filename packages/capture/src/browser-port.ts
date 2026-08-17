@@ -42,6 +42,31 @@ export interface ExtractedElement {
      */
     backgroundStack: string[];
     /**
+     * The computed `background-image` of each layer in `backgroundStack`, same
+     * order, `"none"` where a layer paints no image.
+     *
+     * Raw and unresolved for the same reason the colours are: whether an image
+     * is a photograph or a `linear-gradient(#ffffff, #eaf2ff)` whose endpoints
+     * are ordinary sRGB colours is a parsing question, and it is answered in
+     * `toTextNodeStyles`, where it is testable without a browser.
+     *
+     * Optional for the deploy-skew reason, and absent is UNKNOWN: a capture
+     * that reports an obscured backdrop without saying what obscured it gets
+     * the old answer, which is that the backdrop is not computable.
+     */
+    backgroundImages?: string[];
+    /**
+     * True when anything in that stack applies a `backdrop-filter`.
+     *
+     * Split out from `backdropObscured` because it is the half that can never
+     * be computed: a filter's output depends on the pixels it samples. A
+     * gradient resolves to its stops; a blur resolves to nothing, so a filtered
+     * backdrop is declined whatever else the stack paints.
+     *
+     * Optional and UNKNOWN-when-absent, which also declines.
+     */
+    backdropFiltered?: boolean;
+    /**
      * True when anything in that stack paints a `background-image` or a
      * `backdrop-filter`, which a flattened colour cannot represent. Optional
      * because the capture fleet deploys separately from the engine; absent is
@@ -72,6 +97,24 @@ export interface ExtractedElement {
      * costs block-eligibility rather than being read as `false`.
      */
     ancestorScrollsX?: boolean;
+    /**
+     * Computed `text-overflow`. `clip` (the initial value) means the excess is
+     * cut with no mark; anything else (`ellipsis`, or a custom string) is an
+     * affordance the reader can see, which is the signature of a deliberate
+     * truncation rather than lost content.
+     *
+     * Optional for the deploy-skew reason, and absent is UNKNOWN, never `clip`:
+     * a capture that cannot say whether an affordance was rendered must not
+     * make a clip gateable.
+     */
+    textOverflow?: string;
+    /**
+     * Computed `white-space`. `text-overflow` only renders on content that does
+     * not wrap, so `nowrap`/`pre` is the other half of the truncation signature.
+     *
+     * Optional and UNKNOWN-when-absent, for the same reason.
+     */
+    whiteSpace?: string;
   } | null;
   /** True for elements a pointer can target (button/a/input/[role=button]…). */
   interactive: boolean;

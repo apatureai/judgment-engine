@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   BREAKAGE_KINDS,
+  classifyClip,
   contrastRatio,
   contrastViolations,
   deterministicChecks,
@@ -78,6 +79,80 @@ describe("contrast violations", () => {
   });
 });
 
+/**
+ * Text over a gradient, which is a backdrop with no single colour.
+ *
+ * The precision pass declined every `background-image`, which is right for a
+ * photograph and took a computable `linear-gradient(#ffffff, #eaf2ff)` with it.
+ * A gradient resolves to a SET of backdrops, and the measurement is the worst
+ * of them, because a ratio that fails anywhere on the element is a real failure
+ * somewhere on the element.
+ */
+describe("contrast against a computable gradient", () => {
+  const overGradient = (over: Partial<TextNodeStyle> = {}) =>
+    textNode({
+      color: "#ffffff",
+      backgroundColor: null,
+      backdropObscured: true,
+      backgroundGradient: ["rgb(27, 58, 107)", "rgb(234, 242, 255)"],
+      ...over,
+    });
+
+  it("measures the worst stop and says that is what it measured", () => {
+    const [violation] = contrastViolations([overGradient()]);
+    // 1.13:1 at the #eaf2ff end. At the other end the same text is 10:1, and
+    // reporting THAT would be a true number about the wrong half of the element.
+    expect(violation?.detail).toBe(
+      "advisory: text contrast 1.13:1 at the worst stop of the background gradient " +
+        "is below WCAG AA 4.5:1",
+    );
+  });
+
+  it("never gates on a gradient, however exact the stops are", () => {
+    // The arithmetic is exact; the geometry is not. The engine knows what the
+    // element paints and not where inside it the glyphs sit, so the worst stop
+    // may be off to one side of the text measured against it.
+    expect(contrastViolations([overGradient()])[0]?.blockEligible).toBe(false);
+  });
+
+  it("says nothing when the text clears the bar at every stop", () => {
+    // The guard is a measurement, not a rule that a gradient is a defect.
+    const readable = overGradient({
+      color: "#14243d",
+      backgroundGradient: ["rgb(255, 255, 255)", "rgb(234, 242, 255)"],
+    });
+    expect(contrastViolations([readable])).toEqual([]);
+    // …and the SAME text over the dark end of the original gradient does fail,
+    // which is what "worst stop" means: both ends are measured, not the last.
+    expect(contrastViolations([overGradient({ color: "#14243d" })])[0]?.detail).toContain(
+      "1.38:1 at the worst stop",
+    );
+  });
+
+  it("still declines a backdrop that resolved to no stops at all", () => {
+    // A photograph, a backdrop-filter, a stop in a colour space this engine
+    // does not read: all of them arrive here as an obscured backdrop with no
+    // resolved gradient, and all of them stay silent.
+    expect(contrastViolations([overGradient({ backgroundGradient: undefined })])).toEqual([]);
+    expect(contrastViolations([overGradient({ backgroundGradient: [] })])).toEqual([]);
+  });
+
+  it("ignores a resolved gradient once the backdrop is known to be a flat fill", () => {
+    // `backdropObscured: false` is the extractor saying there is no image. A
+    // stale gradient field must not overrule it, and the flat measurement keeps
+    // its block-eligibility.
+    const [violation] = contrastViolations([
+      overGradient({
+        backdropObscured: false,
+        backgroundColor: "#ffffff",
+        color: "#aaaaaa",
+      }),
+    ]);
+    expect(violation?.detail).toBe("text contrast 2.32:1 is below WCAG AA 4.5:1");
+    expect(violation?.blockEligible).toBe(true);
+  });
+});
+
 describe("overflow violations", () => {
   const wide = (over: Partial<TextNodeStyle> = {}) =>
     textNode({ contentWidthPx: 260, rect: rect(200, 20), ...over });
@@ -107,6 +182,116 @@ describe("overflow violations", () => {
     for (const overflowX of ["hidden", "clip"]) {
       expect(overflowViolations([wide({ overflowX })])).toHaveLength(1);
     }
+  });
+});
+
+/**
+ * What a clip MEANS, which is the question that kept the commonest real
+ * overflow defect at advisory forever.
+ *
+ * `overflow-x: hidden` with content wider than the box is a truncated card
+ * title and a lost invoice number at the same measurement, so the check used to
+ * report both the same way and gate on neither. These are the three answers,
+ * and the third one is not a rounding error to be pushed into one of the other
+ * two: an affordance that cannot be established is not an affordance that is
+ * absent.
+ */
+describe("clip intent", () => {
+  const clipped = (over: Partial<TextNodeStyle> = {}) =>
+    textNode({
+      contentWidthPx: 460,
+      rect: rect(220, 24),
+      overflowX: "hidden",
+      textOverflow: "clip",
+      whiteSpace: "nowrap",
+      ...over,
+    });
+
+  it("says nothing about a line the author truncated with an ellipsis", () => {
+    // The card title, the table cell, the file name: cut on purpose, and the
+    // ellipsis at the edge is the reader being told so.
+    const truncated = clipped({ textOverflow: "ellipsis" });
+    expect(classifyClip(truncated)).toEqual({ verdict: "deliberate_truncation" });
+    expect(overflowViolations([truncated])).toEqual([]);
+    // `clip` is the initial value; any other value paints a mark. A custom
+    // string is `text-overflow: "…"`, which is the same intent spelled out.
+    expect(classifyClip(clipped({ textOverflow: '"…"' })).verdict).toBe("deliberate_truncation");
+    // `pre` does not wrap either, so the mark renders there too.
+    expect(classifyClip(clipped({ textOverflow: "ellipsis", whiteSpace: "pre" })).verdict).toBe(
+      "deliberate_truncation",
+    );
+  });
+
+  it("gates a clip that cut the content with nothing to show for it", () => {
+    const [violation] = overflowViolations([clipped()]);
+    expect(classifyClip(clipped())).toEqual({ verdict: "content_loss" });
+    expect(violation?.blockEligible).toBe(true);
+    // The sentence names the properties the decision was made from, and how
+    // much content the clip took.
+    expect(violation?.detail).toBe(
+      "content width 460px exceeds container 220px and 240px of it is clipped away with no " +
+        "truncation affordance (overflow-x: hidden, text-overflow: clip, white-space: nowrap)",
+    );
+    // `overflow-x: clip` cuts exactly the same way.
+    expect(overflowViolations([clipped({ overflowX: "clip" })])[0]?.blockEligible).toBe(true);
+  });
+
+  it("reports without gating when the affordance cannot be established, and says why", () => {
+    // Wrapping content: `text-overflow` acts on a line that overflows its box,
+    // and whether one does here depends on what lands on it.
+    const wrapping = clipped({ textOverflow: "ellipsis", whiteSpace: "normal" });
+    expect(classifyClip(wrapping)).toEqual({
+      verdict: "indeterminate",
+      reason: "a truncation mark on wrapping content may not be rendered at all",
+    });
+    const [reported] = overflowViolations([wrapping]);
+    expect(reported?.blockEligible).toBe(false);
+    expect(reported?.detail).toBe(
+      "content width 460px exceeds container 220px and is clipped (overflow-x: hidden, " +
+        "text-overflow: ellipsis, white-space: normal); not gated because a truncation mark on " +
+        "wrapping content may not be rendered at all",
+    );
+  });
+
+  it("does not gate the visually-hidden idiom, whose whole purpose is to clip", () => {
+    // `width: 1px; height: 1px; overflow: hidden` is what every design system
+    // ships for screen-reader-only text. Its content really is clipped away,
+    // and failing a build on it would fail a build on an accessibility feature.
+    const srOnly = clipped({ rect: { x: 0, y: 0, width: 1, height: 1 }, contentWidthPx: 365 });
+    const [reported] = overflowViolations([srOnly]);
+    expect(reported?.blockEligible).toBe(false);
+    expect(reported?.detail).toContain(
+      "not gated because a 1x1px box is the visually-hidden idiom, not a box content is rendered in",
+    );
+  });
+
+  it("does not gate a clip whose text-overflow the capture never reported", () => {
+    // Deploy skew: the capture fleet ships separately from the engine, and a
+    // fleet that predates these fields says nothing. Reading that silence as
+    // the initial value `clip` would make every truncated card title on every
+    // page a merge blocker on the day this shipped.
+    const older = clipped({ textOverflow: undefined, whiteSpace: undefined });
+    const [reported] = overflowViolations([older]);
+    expect(reported?.blockEligible).toBe(false);
+    expect(reported?.detail).toContain(
+      "not gated because the capture did not report text-overflow",
+    );
+    expect(reported?.detail).toContain("text-overflow: not reported");
+    // An empty string is the same absence by another route.
+    expect(classifyClip(clipped({ textOverflow: "" })).verdict).toBe("indeterminate");
+  });
+
+  it("does not let an ancestor scroller excuse a clip the element made itself", () => {
+    // A wrapper that scrolls brings its OWN overflow into reach. It does
+    // nothing for content this element already cut at its own edge, and the
+    // check used to drop the finding entirely on that rescue.
+    const inScroller = clipped({ ancestorScrollsX: true });
+    const [violation] = overflowViolations([inScroller]);
+    expect(violation?.blockEligible).toBe(true);
+    // …while an element that does not clip is still rescued by that ancestor.
+    expect(
+      overflowViolations([clipped({ overflowX: "visible", ancestorScrollsX: true })]),
+    ).toEqual([]);
   });
 });
 
@@ -144,14 +329,61 @@ describe("touch-target violations", () => {
     );
   });
 
-  it("measures 2.5.5 only when asked, and says so", () => {
-    // A 30x30 control clears AA and fails the AAA line. Under the default it is
-    // not a finding at all, because claiming a 2.5.8 failure here would be false.
-    expect(touchTargetViolations(crowded(30, 30))).toHaveLength(0);
+  it("measures 2.5.5 as a failure only when asked, and says so", () => {
+    // A 30x30 control clears AA and fails the AAA line. Under the default that
+    // is never phrased as a 2.5.8 failure, because it is not one.
+    const [banded] = touchTargetViolations(crowded(30, 30));
+    expect(banded?.detail).not.toContain("below the 24x24px minimum");
     const [strict] = touchTargetViolations(crowded(30, 30), { criterion: "AAA" });
     expect(strict?.detail).toBe(
       "touch target 30x30px is below the 44x44px minimum in WCAG 2.2 SC 2.5.5 Target Size (Enhanced), level AAA",
     );
+    expect(strict?.blockEligible).toBe(true);
+  });
+
+  it("reports the band between the two criteria as an advisory, on touch only", () => {
+    // The gap the move from 44 to 24 opened. A 32px control is comfortable
+    // under a mouse and mis-tapped on a phone, and for a while it was reported
+    // nowhere at all. It is reported now, naming both bars and gating nothing,
+    // because the repository never committed to AAA.
+    const [advisory, second] = touchTargetViolations(crowded(32, 32));
+    expect(advisory?.detail).toBe(
+      "advisory: touch target 32x32px meets the 24x24px minimum in WCAG 2.2 SC 2.5.8 " +
+        "Target Size (Minimum), level AA, and is below the 44x44px minimum in " +
+        "WCAG 2.2 SC 2.5.5 Target Size (Enhanced), level AAA",
+    );
+    expect(advisory?.blockEligible).toBe(false);
+    expect(second?.blockEligible).toBe(false);
+
+    // A pointer criterion, still only where a finger is.
+    const desktop = crowded(32, 32).map((target) => ({ ...target, viewport: "desktop" as const }));
+    expect(touchTargetViolations(desktop)).toEqual([]);
+
+    // Above the AAA line there is no band left to report.
+    expect(touchTargetViolations(crowded(48, 48))).toEqual([]);
+  });
+
+  it("does not re-report a target the AA spacing exception already excused", () => {
+    // A 20x20 control with clear space around it passes 2.5.8 through the
+    // exception the criterion grants it. Reporting it one line lower as an AAA
+    // advisory would take that exception back through a side door, and it is
+    // one of the pages the precision pass made silent.
+    const isolated: InteractiveElement = {
+      route: "/",
+      viewport: "mobile",
+      selector: "#isolated",
+      role: "button",
+      rect: { x: 0, y: 0, width: 20, height: 20 },
+      inlineTarget: false,
+    };
+    expect(touchTargetViolations([isolated])).toEqual([]);
+  });
+
+  it("keeps the Inline exception across both tiers", () => {
+    // A 32px link inside a sentence is in the advisory band by size, and both
+    // criteria exempt exactly that shape by name.
+    const inline = crowded(32, 32).map((target) => ({ ...target, inlineTarget: true }));
+    expect(touchTargetViolations(inline)).toEqual([]);
   });
 });
 
@@ -187,10 +419,19 @@ describe("deterministicChecks", () => {
     const interactive: InteractiveElement[] = [
       { route: "/", viewport: "mobile", selector: "a", role: "link", rect: rect(30, 30) },
     ];
-    expect(deterministicChecks({ textNodes: [], interactive })).toHaveLength(0);
-    expect(
-      deterministicChecks({ textNodes: [], interactive, touchTargetCriterion: "AAA" }),
-    ).toHaveLength(1);
+    // Same 30x30 target, two different statements about it: a suggestion under
+    // the default, a gateable failure for a repository that chose AAA.
+    const [byDefault] = deterministicChecks({ textNodes: [], interactive });
+    expect(byDefault?.blockEligible).toBe(false);
+    expect(byDefault?.detail).toMatch(/^advisory: /);
+
+    const strict = deterministicChecks({
+      textNodes: [],
+      interactive,
+      touchTargetCriterion: "AAA",
+    });
+    expect(strict).toHaveLength(1);
+    expect(strict[0]?.detail).toContain("is below the 44x44px minimum");
   });
 });
 

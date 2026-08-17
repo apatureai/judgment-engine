@@ -122,15 +122,27 @@ describe("touch targets: the criterion actually applied (P2)", () => {
     expect(TOUCH_TARGET_CRITERIA.AAA).toMatchObject({ sc: "2.5.5", level: "AAA", minPx: 44 });
   });
 
-  it("T7: a 28x28 target is not an AA failure and is not reported as one", () => {
+  it("T7: a 28x28 target is not an AA failure and is never reported as one", () => {
     // The case the old text called a violation "below 44x44px" while citing
     // 2.5.5 without its level, which reads as a conformance failure and is not.
-    expect(touchTargetViolations(crowd(interactive({ rect: rect(28, 28) })))).toEqual([]);
+    const [advisory] = touchTargetViolations(crowd(interactive({ rect: rect(28, 28) })));
+    expect(advisory?.detail).not.toContain("below the 24x24px minimum");
+    expect(advisory?.detail).toContain("meets the 24x24px minimum in WCAG 2.2 SC 2.5.8");
+    // …and it is not silent either, which is the other half of the same claim.
+    // 28px is inside the range 2.5.5 exists because of, so it is reported as a
+    // suggestion, said so in the sentence, and it gates nothing.
+    expect(advisory?.detail).toMatch(/^advisory: /);
+    expect(advisory?.detail).toContain("below the 44x44px minimum in WCAG 2.2 SC 2.5.5");
+    expect(advisory?.blockEligible).toBe(false);
 
+    // Asked for AAA explicitly, the same target is a failure of the criterion
+    // the repository chose: phrased as a failure, and gateable.
     const [strict] = touchTargetViolations(crowd(interactive({ rect: rect(28, 28) })), {
       criterion: "AAA",
     });
-    expect(strict?.detail).toContain("WCAG 2.2 SC 2.5.5 Target Size (Enhanced), level AAA");
+    expect(strict?.detail).toBe(
+      "touch target 28x28px is below the 44x44px minimum in WCAG 2.2 SC 2.5.5 Target Size (Enhanced), level AAA",
+    );
     expect(strict?.blockEligible).toBe(true);
   });
 

@@ -69,6 +69,29 @@ export interface TextNodeStyle {
    */
   ancestorScrollsX?: boolean;
   /**
+   * The element's computed `text-overflow`, when the capture reported it.
+   *
+   * This is what separates the two things `overflow-x: hidden` can mean. A
+   * value other than `clip` paints a mark at the cut, so the reader can see
+   * that the line was truncated; `clip` cuts mid-glyph and says nothing.
+   *
+   * Optional, and absent is UNKNOWN: a clip whose affordance was never
+   * observed is reported and never block-eligible.
+   */
+  textOverflow?: string;
+  /**
+   * The element's computed `white-space`, when the capture reported it.
+   *
+   * `text-overflow` acts on content that overflows a line box, so it only
+   * reliably renders where the line cannot wrap. A wrapping element with
+   * `text-overflow: ellipsis` may show the mark or may not, depending on what
+   * lands on the overflowing line, and that is one of the shapes this check
+   * genuinely cannot decide.
+   *
+   * Optional, and absent is UNKNOWN, for the same reason.
+   */
+  whiteSpace?: string;
+  /**
    * Whether anything in this element's background stack paints something
    * `resolvedBackground` cannot see: a `background-image` or a `backdrop-filter`.
    *
@@ -82,6 +105,22 @@ export interface TextNodeStyle {
    * still yields a reported, non-block-eligible measurement.
    */
   backdropObscured?: boolean;
+  /**
+   * The FLATTENED, fully opaque backdrop at each stop of a background gradient,
+   * when the gradient behind this text was computable (`resolvedGradientBackdrops`).
+   *
+   * `backdropObscured` says a background image is in the way; this says the
+   * image was a `linear-gradient(#ffffff, #eaf2ff)` and here is exactly what it
+   * paints. Declining every image treats those two as the same fact, which cost
+   * the commonest computable case there is: white text on a pale gradient,
+   * unreadable at one end and reported nowhere.
+   *
+   * A gradient has no single backdrop, so it is not one colour: it is the set
+   * of stops, and the check measures the worst of them. Absent means the
+   * backdrop is not a computable gradient, which is nearly every image, and the
+   * check falls back to declining exactly as before.
+   */
+  backgroundGradient?: string[];
 }
 
 /** An interactive element whose hit target must meet the minimum size. */
@@ -237,40 +276,97 @@ export const AAA_TOUCH_TARGET_PX = TOUCH_TARGET_CRITERIA.AAA.minPx;
  */
 export const TOUCH_VIEWPORTS: readonly Viewport[] = ["mobile", "tablet"];
 
+/**
+ * What the text is measured against: one colour for a flat fill, one colour per
+ * stop for a computable gradient, `null` when the backdrop is not knowable.
+ *
+ * `null` is the same decision everywhere it is returned: the true ratio cannot
+ * be derived from what was captured, so no fact is emitted. Silence, never a
+ * guess; a wrong number here is published as a measurement.
+ */
+function measurableBackdrop(
+  node: TextNodeStyle,
+): { backdrops: readonly string[]; gradient: boolean } | null {
+  // A background-image or a backdrop-filter paints something no flattened
+  // colour represents. White text on a photograph over a white page flattens to
+  // 1.00:1, a number that is not merely imprecise but false.
+  if (node.backdropObscured === true) {
+    // …unless the image was a gradient whose stops are plain colours, in which
+    // case the backdrop IS known: not as one colour, as the set of stops.
+    const stops = node.backgroundGradient;
+    return stops !== undefined && stops.length > 0 ? { backdrops: stops, gradient: true } : null;
+  }
+  return node.backgroundColor === null
+    ? null
+    : { backdrops: [node.backgroundColor], gradient: false };
+}
+
+/**
+ * The LOWEST contrast ratio the text reaches over the given backdrops, or
+ * `null` when any of them is unparseable or translucent.
+ *
+ * Lowest, because a ratio that fails anywhere on the element is a real failure
+ * somewhere on the element. For a flat fill there is one backdrop and the
+ * lowest is the only one.
+ *
+ * Between two adjacent gradient stops the rendered backdrop is an sRGB
+ * interpolation, and relative luminance is monotone in every channel, so no
+ * point in between is lighter or darker than the stops that bound it. The
+ * worst stop is therefore an upper bound on the worst ratio the reader meets:
+ * where the text's own luminance falls BETWEEN two stops there is a point along
+ * the run whose contrast is lower still, down to 1.00:1. Reporting the worst
+ * stop understates that case, which is the safe direction and a deliberate
+ * choice: an understated ratio can only cost a finding, never invent one.
+ */
+function worstContrastRatio(color: string, backdrops: readonly string[]): number | null {
+  const rawFg = parseCssColor(color);
+  if (rawFg === null || rawFg.a === 0) return null;
+  let worst: number | null = null;
+  for (const css of backdrops) {
+    const bg = parseCssColor(css);
+    if (bg === null || !isOpaque(bg)) return null;
+    // Translucent text is composited onto the resolved backdrop; its rendered
+    // color is what a reader actually sees, and what WCAG is defined over.
+    const ratio = contrastRatio(compositeOver(rawFg, bg), bg);
+    if (worst === null || ratio < worst) worst = ratio;
+  }
+  return worst;
+}
+
 export function contrastViolations(nodes: TextNodeStyle[]): DeterministicFinding[] {
   const out: DeterministicFinding[] = [];
   for (const node of nodes) {
-    // Every `continue` below is the same decision: the true ratio is not
-    // knowable from what was captured, so no fact is emitted. Silence, never a
-    // guess; a wrong number here is published as a measurement.
-    if (node.backgroundColor === null) continue;
-    // A background-image or a backdrop-filter paints something no flattened
-    // colour represents. White text on a photograph over a white page flattens
-    // to 1.00:1, a number that is not merely imprecise but false, and this
-    // engine publishes its measurements as facts. Not measurable here.
-    if (node.backdropObscured === true) continue;
-    const bg = parseCssColor(node.backgroundColor);
-    if (bg === null || !isOpaque(bg)) continue;
-    const rawFg = parseCssColor(node.color);
-    if (rawFg === null || rawFg.a === 0) continue;
-    // Translucent text is composited onto the resolved backdrop; its rendered
-    // color is what a reader actually sees, and what WCAG is defined over.
-    const fg = compositeOver(rawFg, bg);
-    const ratio = contrastRatio(fg, bg);
+    const backdrop = measurableBackdrop(node);
+    if (backdrop === null) continue;
+    const ratio = worstContrastRatio(node.color, backdrop.backdrops);
+    if (ratio === null) continue;
     const threshold = contrastThreshold(node);
-    if (ratio < threshold) {
-      out.push({
-        kind: "contrast",
-        route: node.route,
-        viewport: node.viewport,
-        selector: node.selector,
-        detail: `text contrast ${ratio.toFixed(2)}:1 is below WCAG AA ${threshold.toFixed(1)}:1`,
-        // Exact when the extractor confirmed a flat colour backdrop. A capture
-        // that never reported the field could be sitting on an image nobody
-        // looked for, so it is reported and not gated on.
-        blockEligible: node.backdropObscured === false,
-      });
-    }
+    if (ratio >= threshold) continue;
+    out.push({
+      kind: "contrast",
+      route: node.route,
+      viewport: node.viewport,
+      selector: node.selector,
+      // Two different statements, and the sentence says which one it is. A flat
+      // fill is the ratio the reader meets everywhere on the element; a
+      // gradient is the ratio at its worst stop, which is a fact about the
+      // backdrop and not yet a fact about the glyphs.
+      detail: backdrop.gradient
+        ? `advisory: text contrast ${ratio.toFixed(2)}:1 at the worst stop of the background ` +
+          `gradient is below WCAG AA ${threshold.toFixed(1)}:1`
+        : `text contrast ${ratio.toFixed(2)}:1 is below WCAG AA ${threshold.toFixed(1)}:1`,
+      // Exact when the extractor confirmed a flat colour backdrop. A capture
+      // that never reported the field could be sitting on an image nobody
+      // looked for, so it is reported and not gated on.
+      //
+      // A gradient is never gateable, and the reason is not the arithmetic: the
+      // stops are exact. It is that the engine knows what the ELEMENT paints and
+      // not where the glyphs sit inside it, so the worst stop may be off to one
+      // side of the text that was measured against it. Establishing that would
+      // take glyph-level geometry this capture does not collect, and a merge
+      // must not fail on a bound the code cannot close.
+      blockEligible: !backdrop.gradient && node.backdropObscured === false,
+    });
   }
   return out;
 }
@@ -278,24 +374,143 @@ export function contrastViolations(nodes: TextNodeStyle[]): DeterministicFinding
 /**
  * The computed `overflow-x` values that make an element a scroll container: the
  * excess is reachable, by wheel, swipe, drag or keyboard.
- *
- * `hidden` and `clip` are deliberately NOT here. They also declare what happens
- * to the excess, but what happens is that the reader never gets it, so those
- * stay reportable (and, being a common and usually deliberate authoring tool,
- * not gateable).
  */
 const SCROLLABLE_OVERFLOW_X: readonly string[] = ["auto", "scroll", "overlay"];
+
+/**
+ * The computed `overflow-x` values that CUT the excess off: no wheel, no swipe,
+ * no scrollbar reaches it. What the cut MEANS is a separate question, and
+ * `classifyClip` is where it is answered.
+ *
+ * `hidden` is still a scroll container, so a script CAN scroll it, which is how
+ * a tab strip with arrow buttons is usually built. Nothing in a computed style
+ * says whether such a control exists, so a clip with no affordance in its own
+ * style is read as content loss and that residual shape is stated in the
+ * README's limitations rather than guessed at here. `clip` is not scrollable at
+ * all, by script or otherwise.
+ */
+const CLIPPING_OVERFLOW_X: readonly string[] = ["hidden", "clip"];
+
+/**
+ * The computed `white-space` values under which inline content does not wrap,
+ * so a line runs past the box edge and `text-overflow` has something to act on.
+ * `normal`, `pre-wrap`, `pre-line` and `break-spaces` all wrap.
+ */
+const NON_WRAPPING_WHITE_SPACE: readonly string[] = ["nowrap", "pre"];
+
+/**
+ * A box this small in either dimension is not a rendered box. It is the
+ * visually-hidden idiom (`width: 1px; height: 1px; overflow: hidden`, usually
+ * with a `clip-path`), which every design system ships for screen-reader-only
+ * text, and whose whole purpose is that the content is clipped away from sight
+ * while assistive technology still reads it.
+ */
+const DEGENERATE_BOX_PX = 1;
+
+/**
+ * What a clip MEANS, which is the question `overflow-x: hidden` alone cannot
+ * answer and the reason the overflow measurement could not gate anything.
+ *
+ * `overflow-x: hidden` with content wider than the box is either a deliberate
+ * truncation, where the author cut the line and left the reader a mark saying
+ * so, or content loss, where a word ends mid-glyph and nothing on screen
+ * indicates that anything is missing. They are the same measurement and
+ * opposite facts, so the check used to report both at advisory forever, and
+ * content loss under a clip is the commonest real overflow defect there is.
+ *
+ * There is a third answer, and collapsing it into either of the other two to
+ * make the numbers look better would be the whole bug again. `indeterminate`
+ * carries the reason, which is emitted in the finding: a reader who is told a
+ * measurement is not gateable is owed the sentence explaining why.
+ */
+export type ClipVerdict =
+  | { verdict: "content_loss" }
+  | { verdict: "deliberate_truncation" }
+  | { verdict: "indeterminate"; reason: string };
+
+/**
+ * Decide what a clipping element's clip means, from computed style only.
+ *
+ * The signature of a deliberate truncation is a truncation AFFORDANCE that
+ * actually renders: `text-overflow` set to something other than `clip`, on
+ * content that cannot wrap. That is the shape of every truncated table cell,
+ * card title and file name in every design system, and the reader can see the
+ * ellipsis sitting at the cut.
+ *
+ * Everything that follows is a reason the affordance cannot be established, and
+ * each one lands in `indeterminate` rather than in either verdict.
+ */
+export function classifyClip(node: TextNodeStyle): ClipVerdict {
+  // Deploy skew: a capture fleet older than these fields sends nothing, and
+  // "no text-overflow reported" must not be read as "text-overflow: clip".
+  if (node.textOverflow === undefined || node.textOverflow === "" || node.whiteSpace === undefined) {
+    return {
+      verdict: "indeterminate",
+      reason: "the capture did not report text-overflow, so a deliberate truncation cannot be ruled out",
+    };
+  }
+  const affordance = node.textOverflow !== "clip";
+  const wraps = !NON_WRAPPING_WHITE_SPACE.includes(node.whiteSpace);
+  if (affordance && !wraps) return { verdict: "deliberate_truncation" };
+  if (affordance) {
+    return {
+      verdict: "indeterminate",
+      reason: "a truncation mark on wrapping content may not be rendered at all",
+    };
+  }
+  if (node.rect.width <= DEGENERATE_BOX_PX || node.rect.height <= DEGENERATE_BOX_PX) {
+    return {
+      verdict: "indeterminate",
+      reason:
+        `a ${Math.round(node.rect.width)}x${Math.round(node.rect.height)}px box is the ` +
+        "visually-hidden idiom, not a box content is rendered in",
+    };
+  }
+  return { verdict: "content_loss" };
+}
 
 export function overflowViolations(nodes: TextNodeStyle[]): DeterministicFinding[] {
   const out: DeterministicFinding[] = [];
   for (const node of nodes) {
-    if (node.contentWidthPx <= Math.ceil(node.rect.width)) continue;
+    // The tolerance for sub-pixel layout: `contentWidthPx` and the box width
+    // are rounded from the same layout, and a fractional box rounds up. Probed
+    // against Chromium across the boundary, a box narrower than its content by
+    // up to about one pixel reports no excess at all, so this ceiling is the
+    // rounding allowance and no second one is invented below.
+    const clippedPx = node.contentWidthPx - Math.ceil(node.rect.width);
+    if (clippedPx <= 0) continue;
+    const container = Math.round(node.rect.width);
+    const measured = `content width ${node.contentWidthPx}px exceeds container ${container}px`;
     // A scroll container has content wider than its box by definition and on
     // purpose. Every `<pre>` with a scrollbar and every horizontal carousel
     // measured as breakage before this line existed, and `overflow` is the one
     // kind that overrules a triage pass declining to look, so the noisiest
     // measurement was also the loudest.
     if (node.overflowX !== undefined && SCROLLABLE_OVERFLOW_X.includes(node.overflowX)) continue;
+    if (node.overflowX !== undefined && CLIPPING_OVERFLOW_X.includes(node.overflowX)) {
+      // Checked BEFORE the ancestor-scroller rescue below, because that rescue
+      // does not apply here: an ancestor that scrolls moves its own content
+      // into view and does nothing whatever for content this element already
+      // cut off at its own edge.
+      const clip = classifyClip(node);
+      if (clip.verdict === "deliberate_truncation") continue;
+      const applied = `overflow-x: ${node.overflowX}, text-overflow: ${node.textOverflow ?? "not reported"}, white-space: ${node.whiteSpace ?? "not reported"}`;
+      out.push({
+        kind: "overflow",
+        route: node.route,
+        viewport: node.viewport,
+        selector: node.selector,
+        detail:
+          clip.verdict === "content_loss"
+            ? `${measured} and ${clippedPx}px of it is clipped away with no truncation affordance (${applied})`
+            : `${measured} and is clipped (${applied}); not gated because ${clip.reason}`,
+        // Content loss is the one clip this engine will stand behind: the
+        // excess is cut, nothing above can reveal it, and no affordance tells
+        // the reader that anything was cut.
+        blockEligible: clip.verdict === "content_loss",
+      });
+      continue;
+    }
     // The scroller is frequently the wrapper, not the text: a wide row inside a
     // `.table-wrap` computes `overflow-x: visible` on the row itself. The
     // reader can still reach all of it, so it is not the page coming apart.
@@ -305,7 +520,7 @@ export function overflowViolations(nodes: TextNodeStyle[]): DeterministicFinding
       route: node.route,
       viewport: node.viewport,
       selector: node.selector,
-      detail: `content width ${node.contentWidthPx}px exceeds container ${Math.round(node.rect.width)}px (horizontal overflow)`,
+      detail: `${measured} (horizontal overflow)`,
       // Gateable only when the capture affirmatively established both halves:
       // the box does not scroll, and nothing above it does either. A capture
       // that did not report a field leaves the question open, and an open
@@ -379,6 +594,11 @@ export interface TouchTargetOptions {
   criterion?: TouchTargetCriterion;
 }
 
+/** `WCAG 2.2 SC 2.5.8 Target Size (Minimum), level AA`, for the emitted text. */
+function cite(criterion: (typeof TOUCH_TARGET_CRITERIA)[TouchTargetCriterion]): string {
+  return `WCAG 2.2 SC ${criterion.sc} ${criterion.name}, level ${criterion.level}`;
+}
+
 export function touchTargetViolations(
   elements: InteractiveElement[],
   options: TouchTargetOptions = {},
@@ -389,25 +609,60 @@ export function touchTargetViolations(
   for (const el of elements) {
     // A pointer-target criterion, on the surfaces it is about.
     if (!TOUCH_VIEWPORTS.includes(el.viewport)) continue;
-    if (!isUndersized(el.rect, criterion.minPx)) continue;
     // "Inline": a link in a sentence is sized by the line-height around it, and
     // both criteria exempt it. Enlarging it would damage the paragraph.
     if (el.inlineTarget === true) continue;
-    if (name === "AA" && meetsSpacingException(el, elements)) continue;
+    const size = `${Math.round(el.rect.width)}x${Math.round(el.rect.height)}px`;
+
+    if (isUndersized(el.rect, criterion.minPx)) {
+      if (name === "AA" && meetsSpacingException(el, elements)) continue;
+      out.push({
+        kind: "touch_target",
+        route: el.route,
+        viewport: el.viewport,
+        selector: el.selector,
+        detail:
+          `touch target ${size} is below the ${criterion.minPx}x${criterion.minPx}px minimum ` +
+          `in ${cite(criterion)}`,
+        // Every exception this check can evaluate has already been applied
+        // above. What is left is the one it cannot: a capture that never
+        // reported `inlineTarget` leaves the Inline exception unevaluated, and
+        // an unevaluated exception could be the whole finding.
+        blockEligible: el.inlineTarget === false,
+      });
+      continue;
+    }
+
+    // The band between the two criteria: a target that clears AA and does not
+    // clear AAA. A 32px control is comfortable under a mouse and mis-tapped on
+    // a phone, which is why 2.5.5 exists, and after the check moved from 44 to
+    // the 24 the criterion for level AA actually states, it was reported
+    // nowhere at all. It is reported here, as what it is: not a conformance
+    // failure for a repository that never committed to AAA, so never
+    // block-eligible, and never phrased as one.
+    //
+    // Only the band. A target the AA check already looked at and excused, by
+    // the Spacing exception it is entitled to, is not re-reported one line
+    // lower under a stricter criterion; that would take back the exception
+    // through a side door. A repository that wants the AAA line held asks for
+    // it, and then it is measured as a failure and gates like one.
+    if (name !== "AA") continue;
+    if (!isUndersized(el.rect, AAA_TOUCH_TARGET_PX)) continue;
+    const enhanced = TOUCH_TARGET_CRITERIA.AAA;
     out.push({
       kind: "touch_target",
       route: el.route,
       viewport: el.viewport,
       selector: el.selector,
+      // Both halves in one sentence: which bar it cleared and which it did not.
+      // The terminal report prints this line and nothing else about the row, so
+      // a reader who cannot tell a hard failure from a suggestion here cannot
+      // tell anywhere.
       detail:
-        `touch target ${Math.round(el.rect.width)}x${Math.round(el.rect.height)}px is below ` +
-        `the ${criterion.minPx}x${criterion.minPx}px minimum in WCAG 2.2 SC ${criterion.sc} ` +
-        `${criterion.name}, level ${criterion.level}`,
-      // Every exception this check can evaluate has already been applied above.
-      // What is left is the one it cannot: a capture that never reported
-      // `inlineTarget` leaves the Inline exception unevaluated, and an
-      // unevaluated exception could be the whole finding.
-      blockEligible: el.inlineTarget === false,
+        `advisory: touch target ${size} meets the ${criterion.minPx}x${criterion.minPx}px ` +
+        `minimum in ${cite(criterion)}, and is below the ` +
+        `${enhanced.minPx}x${enhanced.minPx}px minimum in ${cite(enhanced)}`,
+      blockEligible: false,
     });
   }
   return out;

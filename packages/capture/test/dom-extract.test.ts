@@ -164,6 +164,69 @@ describe("toTextNodeStyles precision fields", () => {
     expect(node).not.toHaveProperty("backdropObscured");
   });
 
+  it("resolves a computable gradient to one backdrop per stop", () => {
+    const [node] = toTextNodeStyles(
+      page([
+        withText({
+          backgroundStack: ["rgba(0, 0, 0, 0)", "rgb(255, 255, 255)"],
+          backgroundImages: ["none", "linear-gradient(rgb(27, 58, 107), rgb(234, 242, 255))"],
+          backdropObscured: true,
+          backdropFiltered: false,
+        }),
+      ]),
+      "/",
+      "desktop",
+    );
+    expect(node?.backgroundGradient).toEqual(["rgb(27, 58, 107)", "rgb(234, 242, 255)"]);
+  });
+
+  it("omits the gradient for a photograph, a filter, or a fleet that cannot say", () => {
+    // Each of these leaves the backdrop obscured with nothing resolved, which
+    // is the state the contrast check declines to measure.
+    const cases: Array<Partial<NonNullable<ExtractedElement["text"]>>> = [
+      // A bitmap.
+      {
+        backgroundImages: ["none", 'url("data:image/png;base64,iVBORw0=")'],
+        backdropObscured: true,
+        backdropFiltered: false,
+      },
+      // A frosted panel: the gradient is readable, the blur over it is not.
+      {
+        backgroundImages: ["none", "linear-gradient(rgb(0, 0, 0), rgb(255, 255, 255))"],
+        backdropObscured: true,
+        backdropFiltered: true,
+      },
+      // A capture too old to report either field.
+      { backdropObscured: true },
+    ];
+    for (const text of cases) {
+      const [node] = toTextNodeStyles(
+        page([withText({ backgroundStack: ["rgba(0, 0, 0, 0)", "rgb(255, 255, 255)"], ...text })]),
+        "/",
+        "desktop",
+      );
+      expect(node).not.toHaveProperty("backgroundGradient");
+    }
+  });
+
+  it("carries the two clip-intent properties verbatim, and omits them when absent", () => {
+    // They are what tells a deliberate truncation from content loss, so an
+    // older capture that reports neither has to arrive at the check as unknown
+    // rather than as the initial value `clip`, which would make every clip on
+    // every pre-upgrade capture gateable.
+    const [reported] = toTextNodeStyles(
+      page([withText({ textOverflow: "ellipsis", whiteSpace: "nowrap" })]),
+      "/",
+      "desktop",
+    );
+    expect(reported?.textOverflow).toBe("ellipsis");
+    expect(reported?.whiteSpace).toBe("nowrap");
+
+    const [absent] = toTextNodeStyles(page([withText({})]), "/", "desktop");
+    expect(absent).not.toHaveProperty("textOverflow");
+    expect(absent).not.toHaveProperty("whiteSpace");
+  });
+
   it("keeps a false flag, which is a real answer and not an absence", () => {
     const [node] = toTextNodeStyles(
       page([withText({ backdropObscured: false, ancestorScrollsX: false })]),

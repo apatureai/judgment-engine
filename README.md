@@ -204,10 +204,13 @@ because the clock pin is per-context.
 WCAG contrast ratios, horizontal overflow and touch-target sizes are computed from the captured DOM
 and handed to the model as facts it is told to trust over its own pixels. Each check reports nothing
 it cannot measure exactly. Text whose backdrop never resolves to an opaque, parseable colour produces
-no fact rather than a guessed one, and neither does text over a `background-image`, where a flattened
-colour would report white-on-a-photo as 1.00:1. An element that scrolls on purpose is not overflow.
-A pointer-target criterion is measured where a finger is the pointer, at the level the emitted
-sentence names.
+no fact rather than a guessed one, and neither does text over a photograph, where a flattened colour
+would report white-on-a-photo as 1.00:1. A gradient is not a photograph: where its stops are plain
+colours the backdrop is known at every point of the element, and the text is measured against the
+worst of them, because a ratio that fails anywhere on the element fails somewhere on the element.
+An element that scrolls on purpose is not overflow, and neither is a line the author cut on purpose
+and marked with an ellipsis. A pointer-target criterion is measured where a finger is the pointer,
+at the level the emitted sentence names.
 
 **5. It judges, it never edits.**
 There is no write path to any repository anywhere in this codebase, and no code that drives the UI.
@@ -744,12 +747,19 @@ ABSENT means this producer does not report measurements, and never means the pag
 merge on. It is the second of three answers a check can give, and the first one matters more.
 
 A check DECLINES when the number is not computable from what was captured, and then no measurement
-is emitted at all. Contrast over a `background-image` or a `backdrop-filter` is declined, because a
-flattened background *colour* cannot see a photograph and white text on a dusk sky over a white page
-flattens to `1.00:1`, which is not an imprecise number but a false one. An element whose computed
+is emitted at all. Contrast over a photograph or a `backdrop-filter` is declined, because a flattened
+background *colour* cannot see either one and white text on a dusk sky over a white page flattens to
+`1.00:1`, which is not an imprecise number but a false one. The exception is a `background-image`
+that states its own colours: a `linear-gradient(#1b3a6b, #eaf2ff)` is resolved to one backdrop per
+stop and measured against the worst of them, and it is declined again the moment a stop is a colour
+this engine does not parse, a second image is painted over it, or a filter is in the way. An element
+whose computed
 `overflow-x` is `auto`, `scroll` or `overlay` is declined, and so is one inside an ancestor that
 scrolls: a `<pre>` with a scrollbar and a wide row inside a `.table-wrap` have content wider than
 their box on purpose and forever, and `overflow` is the one kind that overrules a triage pass. A
+clipped element is declined too when the clip is a deliberate truncation, which is `text-overflow`
+set to something other than `clip` on content that cannot wrap: the card title cut at 220px with an
+ellipsis sitting at the cut was cut on purpose, and the reader can see that it was. A
 pointer target is measured only on a touch viewport, and only after the exceptions the criterion
 itself carries: a link inside a sentence (Inline), and an undersized control with a clear 24px circle
 around it (Spacing). Citing a success criterion while ignoring its exceptions is citing it
@@ -757,11 +767,29 @@ incorrectly.
 
 A check REPORTS with `blockEligible: false` when the measurement is true but something the capture
 could not evaluate leaves room to explain it away, which is mostly deploy skew: a capture fleet that
-predates a field sends nothing, and unknown never means "no". Clipped content (`overflow-x: hidden`
-or `clip`) is reported and not gated, because clipping is usually deliberate.
+predates a field sends nothing, and unknown never means "no". A clip whose intent cannot be
+established is reported and not gated, and the sentence says which shape it was: an ellipsis on
+wrapping content, where whether a truncation mark is painted at all depends on what falls on the
+overflowing line; a 1x1px box, which is the visually-hidden idiom for screen-reader-only text and
+not a box anything is rendered in; and a capture too old to report `text-overflow`, where reading
+that silence as the initial value `clip` would make every truncated card title a merge blocker.
 
-What the engine will stand behind is the rest: an escape from every scroller, a ratio over a
-backdrop confirmed flat, an undersized target on a touch viewport with no exception left to apply.
+Two more shapes are reported and never gated, and in both the sentence says so in its first word. A
+ratio measured against the worst stop of a gradient is exact arithmetic about the ELEMENT and not
+yet about the glyphs: the engine knows what the box paints and not where inside it the text landed,
+so the worst stop may be off to one side of the line measured against it. And a pointer target
+between the two criteria, at least 24x24 and under 44x44 on a touch viewport, clears the level AA
+line the criterion actually states and misses the AAA one that exists because a 32px control is
+mis-tapped on a phone: `advisory: touch target 32x32px meets the 24x24px minimum in WCAG 2.2 SC
+2.5.8 Target Size (Minimum), level AA, and is below the 44x44px minimum in WCAG 2.2 SC 2.5.5 Target
+Size (Enhanced), level AAA`. A repository that has committed to AAA asks for it, and then the same
+target is measured as a failure of the criterion it chose and gates like one. A target the Spacing
+exception already excused is not re-reported one tier down; that would take the exception back
+through a side door.
+
+What the engine will stand behind is the rest: an escape from every scroller, a clip that cut
+content with no affordance to show for it, a ratio over a backdrop confirmed flat, an undersized
+target on a touch viewport with no exception left to apply.
 The emitted sentence names the criterion it applied, at the level it applied, so `20x20px is below
 the 24x24px minimum in WCAG 2.2 SC 2.5.8 Target Size (Minimum), level AA` can be checked against the
 spec. The engine owns precision; a consumer owns policy.
@@ -891,11 +919,13 @@ rediscover them from a result that did not say what they expected.
   with nothing in the payload to contradict it. The measured channel is structurally incapable of
   covering that case, and nothing else in this repository covers it either.
 - **The measured checks are unaudited on real repositories.** The corpora with known ground truth
-  are a fixture site built to contain planted defects and the three pages in
-  `packages/capture/fixtures/pages`, each built around one false-positive shape (a scrollable
-  `<pre>`, a small desktop control, white text on a photograph) with a genuine violation of the same
-  kind beside it as a control. Those are real pages rendered in the real browser, and they are still
-  six pages. What remains unmeasured on a large legacy codebase is the *rate*.
+  are a fixture site built to contain planted defects and the pages in
+  `packages/capture/fixtures/pages`, each built around one shape a check has to get right (a
+  scrollable `<pre>`, a small desktop control, white text on a photograph, a line clipped with no
+  affordance beside one truncated with an ellipsis) with a genuine violation of the same kind beside
+  it as a control. Those are real pages rendered in the real browser at two viewports each, and
+  there are still only a handful of them. What remains unmeasured on a large legacy codebase is the
+  *rate*.
 - **The target-size check evaluates two of the criterion's exceptions, not all of them.** WCAG 2.2
   SC 2.5.8 also exempts a target with an equivalent full-size control elsewhere on the page, one
   whose presentation is user-agent controlled, and one whose size is essential. None of those is
@@ -908,12 +938,21 @@ rediscover them from a result that did not say what they expected.
   an image that is entirely behind an opaque layer. Sampling the rendered pixels under the glyphs
   would measure all of these; nothing here does that yet. Declining is the conservative direction:
   the failure mode is a violation nobody hears about rather than a number that is wrong.
-- **Clipped content is reported without being gateable, and that is a guess.**
-  `overflow-x: hidden` with content wider than the box means the reader never gets the excess, which
-  is a real defect, and it is also how `text-overflow: ellipsis` and a hundred deliberate layout
-  clips look from the DOM. The engine cannot tell them apart, so it reports and does not gate. Note
-  also that `overflow` is the only member of `BREAKAGE_KINDS`, so what forces a deep model look is
-  deliberately wider than what may gate a merge: forcing a deep look is free.
+- **A clip is read from `text-overflow` alone, which is the intent it can prove and not all of the
+  intent there is.** `overflow-x: hidden` with content wider than the box is content loss when the
+  cut carries no affordance, and a deliberate truncation when `text-overflow` paints a mark on
+  content that cannot wrap. The first now gates; the second is silent. What sits between them is
+  reported and not gated, and the sentence names which shape it was: an ellipsis on wrapping
+  content, a 1x1px visually-hidden box, or a capture too old to report `text-overflow` at all. What
+  the gate can still misread is an affordance that lives outside computed style: a clipped element
+  whose excess is animated through the box, or reachable by a control beside it, or expanded by a
+  "read more" toggle, is content loss as far as `text-overflow` is concerned and would gate. The
+  fixture pages contain none of those, so this is a reasoned expectation and not a measured rate.
+  The gate also reads only the element's OWN `overflow-x`: a clip an ancestor applies is a different
+  measurement and is not decided here. Note also that `overflow` is the only member of
+  `BREAKAGE_KINDS`, so what forces a deep model look stays deliberately wider than what may gate a
+  merge, and a deliberate truncation no longer forces either: forcing a deep look is free, but on a
+  fact the engine has decided is not a defect there is nothing to look at.
 - **There is no baseline store, so nothing here is scoped to what a PR introduced.** Every
   measurement is of the page as it is now, not of what this change did to it. A repository that
   turns measurements into a merge blocker gets its pre-existing debt on the first run.

@@ -55,6 +55,100 @@ export function parseCssColor(css: string): Rgba | null {
   return null;
 }
 
+/**
+ * The gradient functions whose stops are ordinary color stops, so the rendered
+ * backdrop at any point of the element is an interpolation BETWEEN two adjacent
+ * stops and never outside the set of stops.
+ *
+ * That property is the whole licence for measuring a gradient at all: each sRGB
+ * channel moves monotonically from one stop to the next, relative luminance is
+ * monotone in every channel, so no point between two stops is lighter than the
+ * lighter of them or darker than the darker one.
+ */
+const GRADIENT_FUNCTION = /^(?:repeating-)?(?:linear|radial|conic)-gradient$/;
+
+/**
+ * The first argument of a gradient may describe its GEOMETRY rather than a
+ * color: `to right`, `45deg`, `circle at 50% 50%`, `farthest-corner`.
+ *
+ * Matched syntactically, and deliberately narrowly. "Whatever fails to parse as
+ * a color must be the direction" would silently drop a real stop authored in a
+ * color space this module does not read, and measuring the remaining stops as
+ * if they were the whole gradient is exactly the invented fact this file exists
+ * to prevent.
+ *
+ * `in oklab` and friends are absent on purpose: an interpolation method other
+ * than the default changes the path taken between two stops, and this module is
+ * only entitled to the monotonicity argument for the default sRGB path.
+ */
+const GRADIENT_GEOMETRY =
+  /^(?:to\s|at\s|from\s|circle\b|ellipse\b|closest-|farthest-|-?[\d.]+(?:deg|grad|rad|turn)\b)/;
+
+/** A stop's position (`50%`, `12px`, `0`), which carries no color information. */
+const STOP_POSITION = /\s+-?[\d.]+(?:%|[a-z]+)?$/;
+
+/**
+ * A whole argument that is nothing but a position: an interpolation HINT. It
+ * moves the midpoint of the blend between the stops on either side of it and
+ * introduces no color, so those stops still bound the whole run.
+ */
+const INTERPOLATION_HINT = /^-?[\d.]+(?:%|[a-z]+)?$/;
+
+/** Split on commas that are not inside parentheses (`rgb(1, 2, 3)` stays whole). */
+function splitTopLevel(value: string): string[] {
+  const parts: string[] = [];
+  let depth = 0;
+  let start = 0;
+  for (let i = 0; i < value.length; i += 1) {
+    const ch = value[i];
+    if (ch === "(") depth += 1;
+    else if (ch === ")") depth -= 1;
+    else if (ch === "," && depth === 0) {
+      parts.push(value.slice(start, i));
+      start = i + 1;
+    }
+  }
+  parts.push(value.slice(start));
+  return parts.map((part) => part.trim());
+}
+
+/** Drop the position from a color stop; a stop may carry up to two of them. */
+function stripStopPosition(stop: string): string {
+  let s = stop.trim();
+  for (let i = 0; i < 2 && STOP_POSITION.test(s); i += 1) s = s.replace(STOP_POSITION, "").trim();
+  return s;
+}
+
+/**
+ * The color stops of a computed `background-image` that is a single gradient
+ * whose stops are all plain colors, or `null` when the value is anything else.
+ *
+ * `null` is not "no gradient here": it is "the backdrop this paints is not
+ * computable", which is the same answer a photograph gets, and the caller must
+ * treat both identically. A gradient with ONE unparseable stop returns `null`
+ * rather than the stops it did read, because the missing one could be the worst.
+ */
+export function parseGradientStops(css: string): Rgba[] | null {
+  const value = css.trim();
+  const open = value.indexOf("(");
+  if (open < 0 || !value.endsWith(")")) return null;
+  if (!GRADIENT_FUNCTION.test(value.slice(0, open).trim().toLowerCase())) return null;
+
+  const args = splitTopLevel(value.slice(open + 1, -1));
+  const stops: Rgba[] = [];
+  for (let i = 0; i < args.length; i += 1) {
+    const arg = (args[i] as string).trim();
+    if (i === 0 && GRADIENT_GEOMETRY.test(arg.toLowerCase())) continue;
+    if (INTERPOLATION_HINT.test(arg)) continue;
+    const stripped = stripStopPosition(arg);
+    if (stripped === "") continue;
+    const color = parseCssColor(stripped);
+    if (color === null) return null;
+    stops.push(color);
+  }
+  return stops.length >= 2 ? stops : null;
+}
+
 /** True when the color is fully opaque, i.e. nothing behind it can show through. */
 export function isOpaque(color: Rgba): boolean {
   return color.a >= 1;
@@ -112,4 +206,61 @@ export function flattenBackground(stack: readonly string[], canvas: string | nul
 
   for (let i = layers.length - 1; i >= 0; i -= 1) base = compositeOver(layers[i] as Rgba, base);
   return base;
+}
+
+/**
+ * Flatten a background stack that paints a COMPUTABLE GRADIENT: one opaque
+ * color per gradient stop, in stop order.
+ *
+ * `flattenBackground` answers "what single color is behind this text", and a
+ * gradient has no single answer, which is why a background image used to be
+ * declined outright. It does not follow that a gradient is unknowable: a
+ * two-stop `linear-gradient(#ffffff, #eaf2ff)` states its endpoints in plain
+ * sRGB, and every point between them lies between the two. So the honest
+ * resolution of that backdrop is not one color, it is the set of stops, and a
+ * caller measures against whichever of them is worst.
+ *
+ * `images` is the computed `background-image` of each layer in `stack`, same
+ * order, `"none"` where a layer paints no image. Returns `null` whenever the
+ * backdrop is not computable, which is every other case:
+ *
+ *   - no image at all, or more than one painted image (which of them a given
+ *     pixel shows depends on their sizes and positions, not on this stack),
+ *   - an image that is not a gradient, or a gradient with an unparseable stop,
+ *   - a gradient with any translucent stop, since what shows through it is the
+ *     layer below, which this stack stops describing at the gradient,
+ *   - an unparseable or opaque layer NEARER than the gradient, which would sit
+ *     between the gradient and the reader.
+ */
+export function flattenGradientBackdrops(
+  stack: readonly string[],
+  images: readonly string[],
+): Rgba[] | null {
+  let index = -1;
+  for (let i = 0; i < images.length; i += 1) {
+    const image = (images[i] ?? "").trim().toLowerCase();
+    if (image === "" || image === "none") continue;
+    if (index !== -1) return null;
+    index = i;
+  }
+  if (index === -1) return null;
+
+  const stops = parseGradientStops(images[index] as string);
+  if (stops === null || !stops.every(isOpaque)) return null;
+
+  // Layers between the gradient and the reader, nearest first. Each one is
+  // painted OVER every stop, so a translucent tint darkens the whole run.
+  const over: Rgba[] = [];
+  for (let i = 0; i < index; i += 1) {
+    const color = parseCssColor(stack[i] ?? "");
+    if (color === null || isOpaque(color)) return null;
+    if (color.a === 0) continue;
+    over.push(color);
+  }
+
+  return stops.map((stop) => {
+    let base: Rgba = stop;
+    for (let i = over.length - 1; i >= 0; i -= 1) base = compositeOver(over[i] as Rgba, base);
+    return base;
+  });
 }

@@ -3,6 +3,7 @@ export {
   contrastRatio,
   contrastViolations,
   overflowViolations,
+  classifyClip,
   touchTargetViolations,
   deterministicChecks,
   isBreakage,
@@ -21,13 +22,21 @@ export type {
   TextNodeStyle,
   InteractiveElement,
   CheckKind,
+  ClipVerdict,
   DeterministicFinding,
   DeterministicCheckInput,
   TouchTargetCriterion,
   TouchTargetOptions,
 } from "./checks.js";
 
-export { parseCssColor, isOpaque, compositeOver, flattenBackground } from "./color.js";
+export {
+  parseCssColor,
+  isOpaque,
+  compositeOver,
+  flattenBackground,
+  parseGradientStops,
+  flattenGradientBackdrops,
+} from "./color.js";
 export type { Rgba } from "./color.js";
 
 export {
@@ -146,6 +155,7 @@ export type {
 export {
   DOM_EXTRACT_EXPRESSION,
   resolvedBackground,
+  resolvedGradientBackdrops,
   toInteractiveElements,
   toRawGeometryElements,
   toTextNodeStyles,

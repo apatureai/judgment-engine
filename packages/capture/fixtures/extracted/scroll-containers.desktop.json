@@ -23,10 +23,18 @@
           "rgba(0, 0, 0, 0)",
           "rgb(255, 255, 255)"
         ],
+        "backgroundImages": [
+          "none",
+          "none",
+          "none"
+        ],
         "backdropObscured": false,
+        "backdropFiltered": false,
         "contentWidthPx": 480,
         "overflowX": "visible",
-        "ancestorScrollsX": false
+        "ancestorScrollsX": false,
+        "textOverflow": "clip",
+        "whiteSpace": "normal"
       }
     },
     {
@@ -50,10 +58,16 @@
         "backgroundStack": [
           "rgb(244, 244, 245)"
         ],
+        "backgroundImages": [
+          "none"
+        ],
         "backdropObscured": false,
+        "backdropFiltered": false,
         "contentWidthPx": 734,
         "overflowX": "auto",
-        "ancestorScrollsX": false
+        "ancestorScrollsX": false,
+        "textOverflow": "clip",
+        "whiteSpace": "pre"
       }
     },
     {
@@ -80,10 +94,19 @@
           "rgba(0, 0, 0, 0)",
           "rgb(255, 255, 255)"
         ],
+        "backgroundImages": [
+          "none",
+          "none",
+          "none",
+          "none"
+        ],
         "backdropObscured": false,
+        "backdropFiltered": false,
         "contentWidthPx": 666,
         "overflowX": "visible",
-        "ancestorScrollsX": true
+        "ancestorScrollsX": true,
+        "textOverflow": "clip",
+        "whiteSpace": "nowrap"
       }
     },
     {
@@ -107,10 +130,16 @@
         "backgroundStack": [
           "rgb(255, 255, 255)"
         ],
+        "backgroundImages": [
+          "none"
+        ],
         "backdropObscured": false,
+        "backdropFiltered": false,
         "contentWidthPx": 482,
         "overflowX": "visible",
-        "ancestorScrollsX": false
+        "ancestorScrollsX": false,
+        "textOverflow": "clip",
+        "whiteSpace": "nowrap"
       }
     }
   ],

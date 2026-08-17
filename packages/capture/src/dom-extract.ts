@@ -1,6 +1,6 @@
 import type { Viewport } from "@engine/types";
 import type { InteractiveElement, TextNodeStyle } from "./checks.js";
-import { flattenBackground } from "./color.js";
+import { flattenBackground, flattenGradientBackdrops } from "./color.js";
 import type { ExtractedElement, ExtractedPage } from "./browser-port.js";
 import type { RawGeometryElement } from "./geometry.js";
 
@@ -50,25 +50,35 @@ export const DOM_EXTRACT_EXPRESSION = `(() => {
   // COLOR cannot represent: a background-image or a backdrop-filter. White text
   // on a photo over a white base flattens to a 1:1 ratio nobody experiences, so
   // the contrast measurement is still emitted and marked as not gateable.
+  //
+  // The background-image VALUES come back too, one per layer, with a separate
+  // flag for a backdrop-filter. "Obscured" lumps a photograph together with a
+  // two-stop linear-gradient whose endpoints are ordinary sRGB colors, and only
+  // one of those is genuinely unknowable. Telling them apart is a parsing
+  // question, so it is answered in the pure normalizer below rather than in a
+  // page script no unit test can reach.
   const backgroundStack = (el) => {
     const stack = [];
+    const images = [];
     let obscured = false;
+    let filtered = false;
     let node = el;
     while (node && stack.length < 32) {
       const style = getComputedStyle(node);
       const image = style.backgroundImage;
       if (image && image !== "none") obscured = true;
       const filter = style.backdropFilter || style.webkitBackdropFilter;
-      if (filter && filter !== "none") obscured = true;
+      if (filter && filter !== "none") { obscured = true; filtered = true; }
       const bg = style.backgroundColor;
       if (bg) {
         stack.push(bg);
+        images.push(image || "none");
         const alpha = /^rgba\\(\\s*\\d+\\s*,\\s*\\d+\\s*,\\s*\\d+\\s*,\\s*([\\d.]+)\\s*\\)$/.exec(bg);
         if (alpha === null || Number(alpha[1]) >= 1) break;
       }
       node = node.parentElement;
     }
-    return { stack: stack, obscured: obscured };
+    return { stack: stack, images: images, obscured: obscured, filtered: filtered };
   };
   // Whether any ANCESTOR scrolls horizontally. The overflowing element is very
   // often not the scroller: a wide row inside a .table-wrap, a long line inside
@@ -143,13 +153,22 @@ export const DOM_EXTRACT_EXPRESSION = `(() => {
         fontWeight: parseInt(style.fontWeight, 10) || 400,
         color: style.color,
         backgroundStack: backdrop.stack,
+        backgroundImages: backdrop.images,
         backdropObscured: backdrop.obscured,
+        backdropFiltered: backdrop.filtered,
         contentWidthPx: el.scrollWidth,
         // Reported so the overflow check can tell breakage from a deliberate
         // scroll container: a scrollWidth wider than the box is true of every
         // pre element with a scrollbar and every carousel, and those work.
         overflowX: style.overflowX,
         ancestorScrollsX: ancestorScrollsX(el),
+        // The two properties that separate a clip the author chose from a clip
+        // that lost content. A single nowrap line ending in an ellipsis is a
+        // truncation with an affordance: the reader can SEE that the text was
+        // cut. The same clip with text-overflow: clip shows a word ending
+        // mid-glyph and says nothing. Reported raw; the check decides.
+        textOverflow: style.textOverflow,
+        whiteSpace: style.whiteSpace,
       };
     }
     out.push(record);
@@ -225,6 +244,26 @@ export function resolvedBackground(stack: readonly string[], canvas: string | nu
   return flat === null ? null : `rgb(${flat.r}, ${flat.g}, ${flat.b})`;
 }
 
+/**
+ * The backdrop behind this text at each stop of a computable gradient, as CSS
+ * strings, or `null` when the backdrop is not a computable gradient.
+ *
+ * `null` is the ordinary answer and covers a photograph, a filter, a gradient
+ * in a colour space this engine does not read, and a fleet too old to report
+ * what it painted. Only a gradient whose stops are all plain opaque colours
+ * resolves, because only then is every point of the element's backdrop known.
+ */
+export function resolvedGradientBackdrops(
+  stack: readonly string[],
+  images: readonly string[] | undefined,
+  filtered: boolean | undefined,
+): string[] | null {
+  // A filter is not computable at all, and an unreported one could be there.
+  if (images === undefined || filtered !== false) return null;
+  const stops = flattenGradientBackdrops(stack, images);
+  return stops === null ? null : stops.map((stop) => `rgb(${stop.r}, ${stop.g}, ${stop.b})`);
+}
+
 /** Project text-bearing extracted elements into contrast/overflow check inputs (#19). */
 export function toTextNodeStyles(
   page: ExtractedPage,
@@ -234,6 +273,14 @@ export function toTextNodeStyles(
   const out: TextNodeStyle[] = [];
   for (const el of page.elements) {
     if (!el.text) continue;
+    // Resolved here, next to the flat backdrop and by the same rule: the check
+    // consumes a backdrop, never a stack. `null` for everything that is not a
+    // gradient with plain opaque stops, which is nearly every background image.
+    const gradient = resolvedGradientBackdrops(
+      el.text.backgroundStack,
+      el.text.backgroundImages,
+      el.text.backdropFiltered,
+    );
     out.push({
       route,
       viewport,
@@ -242,6 +289,7 @@ export function toTextNodeStyles(
       fontWeight: el.text.fontWeight,
       color: el.text.color,
       backgroundColor: resolvedBackground(el.text.backgroundStack, page.canvasBackground),
+      ...(gradient !== null ? { backgroundGradient: gradient } : {}),
       rect: {
         x: round(el.rect.x),
         y: round(el.rect.y),
@@ -249,13 +297,15 @@ export function toTextNodeStyles(
         height: round(el.rect.height),
       },
       contentWidthPx: round(el.text.contentWidthPx),
-      // All three carried verbatim, and each omitted when the extractor did not
+      // All five carried verbatim, and each omitted when the extractor did not
       // report it: absent has to stay UNKNOWN all the way to the check, which
       // is the only place that decides what unknown costs.
       ...(el.text.overflowX !== undefined ? { overflowX: el.text.overflowX } : {}),
       ...(el.text.ancestorScrollsX !== undefined
         ? { ancestorScrollsX: el.text.ancestorScrollsX }
         : {}),
+      ...(el.text.textOverflow !== undefined ? { textOverflow: el.text.textOverflow } : {}),
+      ...(el.text.whiteSpace !== undefined ? { whiteSpace: el.text.whiteSpace } : {}),
       ...(el.text.backdropObscured !== undefined
         ? { backdropObscured: el.text.backdropObscured }
         : {}),
