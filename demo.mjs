@@ -221,7 +221,7 @@ async function main(argv) {
   const env = { ...process.env, COREPACK_ENABLE_DOWNLOAD_PROMPT: "0" };
 
   console.log("judgment-engine demo: capture a real page with a real browser, then review it.");
-  console.log("No API key, no account, no service to point at. Ctrl-C is safe at any point.\n");
+  console.log("No API key, no account, no service to point at. Ctrl-C leaves nothing running.\n");
 
   console.log(stepLine(1, total, STEP_TITLES[0]));
   const corepack = await canRun("corepack", env);

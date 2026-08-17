@@ -7,6 +7,82 @@ ratios, horizontal overflow and touch-target sizes, computed from the captured D
 no API key. Point it at a vision-language model as well and it critiques the screenshots too, then
 deletes every finding the model cannot point at.**
 
+## Start here: one command
+
+```sh
+git clone https://github.com/apatureai/verdict && cd verdict
+node demo.mjs
+```
+
+**The only prerequisite is Node 24.** No API key, no account, no service to point at, nothing to
+configure, no second terminal. `demo.mjs` reaches the pinned pnpm through the corepack that ships
+with Node, installs the workspace, builds it, makes sure a Chromium is present, then serves the
+bundled demo site on a local port and reviews the page it is serving. The first run downloads about
+275 MB of Chromium (565 MB on disk); later runs skip that. Interrupting it with Ctrl-C leaves
+nothing running.
+
+```console
+$ node demo.mjs
+judgment-engine demo: capture a real page with a real browser, then review it.
+No API key, no account, no service to point at. Ctrl-C leaves nothing running.
+
+[1/5] Checking prerequisites
+      Node v24.14.0 on darwin/arm64
+      pnpm via corepack (pinned by packageManager)
+
+[2/5] Installing dependencies
+      … pnpm output …
+      pnpm warned it could not create the judgment-engine bin: expected on a fresh
+      clone, since that entry point is built in the next step.
+
+[3/5] Building the workspace
+      … tsc -b …
+
+[4/5] Checking for a Chromium to drive (first run downloads about 275 MB of Chromium)
+Chromium was already installed — 151.0.7922.34 launches (playwright-core 1.62.1)
+  cached in /Users/you/Library/Caches/ms-playwright
+
+[5/5] Capturing and reviewing the demo site
+      … the report below, in full …
+
+Artifacts you can open, all produced by the run above:
+
+  out/screenshots/index/desktop.png  163 KB  the page the measurements came from (6 screenshot(s) in all)
+  out/deterministic-facts.txt          2 KB  every measured fact, one per line
+  out/geometry.json                   13 KB  every element the capture can point at
+  out/report.txt                       3 KB  the run above, verbatim
+  out/review.json                      5 KB  the engine's wire result, with its provenance block
+  out/system-prompt.txt                3 KB  the rubric that was actually sent
+
+  open out/screenshots/index/desktop.png
+
+No model saw this page, so there is no grade above and the report says so instead of
+inventing one. The capture, the geometry map, the measured facts and the grounding gate
+are all real. To turn the critique half on, point it at any OpenAI-compatible endpoint
+that accepts images:
+
+  export MODEL_BASE_URL=https://your-endpoint/v1 MODEL_API_KEY=your-key
+  node packages/cli/dist/main.js --model live
+
+To review your own site instead of the demo:
+
+  node packages/cli/dist/main.js --url https://your-preview-deploy --routes /,/pricing
+
+Demo finished in 17s.
+```
+
+The transcript above is a run in a fresh clone of this repository, with three elisions marked `…`:
+pnpm's install output, `tsc`'s, and the review's own report, which is the picture immediately below.
+Nothing else is edited. Step 4 found the browser already cached from an earlier run on this machine;
+on a machine that has never had it, that step prints download progress for about 275 MB instead.
+
+The page it reviews is served and rendered during the run, not replayed. The screenshots are
+photographs of a browser that had the page open a second earlier, and the 18 measured facts are
+computed from the DOM that browser reported. The critique is the one part that is canned, which the
+run states rather than hides, and [step 3](#3-add-a-model-and-the-critique-half-turns-on) turns the
+real one on. The [quickstart](#quickstart) below is the same run in parts, for when you want the
+pieces rather than the demo.
+
 ![The judgment-engine terminal report: measured contrast, overflow and touch-target facts in a numbered list, then a review section reading "grade n/a (canned client, no model saw this page)" above replayed fixture text.](docs/report.png)
 
 That is a real run, unedited stdout, captured to [`docs/report.txt`](docs/report.txt) and typeset by
@@ -21,10 +97,9 @@ and **no grade**, because no model was configured and the report will not invent
 | **Capture and measure** | Node 24 and a Chromium download (`pnpm browser:install`). No key, no account. | Deterministic screenshots at three viewports, a DOM geometry map, and measured contrast / overflow / touch-target facts about the page you pointed it at. |
 | **Critique** | Any OpenAI-compatible chat endpoint that accepts images, self-hosted or not. | Model findings, each pinned to a route and element the capture actually produced, plus a grade. |
 
-Measure a page you did not write, right now, with nothing configured:
+`node demo.mjs` leaves the workspace built, so measuring a page you did not write is one more line:
 
 ```sh
-corepack enable && pnpm install --frozen-lockfile && pnpm build && pnpm browser:install
 node packages/cli/dist/main.js --url https://example.com --routes / --viewports mobile --model mock
 ```
 
@@ -139,7 +214,7 @@ It produces findings; acting on them is somebody else's job.
 | Tool | Floor | Check | Needed for |
 | --- | --- | --- | --- |
 | Node | v24 (`>=24`) | `node -v` | everything |
-| pnpm | 9.15.0 | `corepack enable && pnpm -v` | everything |
+| pnpm | 9.15.0 | `corepack enable && pnpm -v` | everything, and `node demo.mjs` gets it from corepack itself |
 | Chromium | installed by `pnpm browser:install` (~275 MB download) | `pnpm browser:install` | any real capture |
 | Rust | stable | `cargo --version` | only `rust/capture-dedup` |
 | uv | any | `uv --version` | only `python/*` |
@@ -148,6 +223,9 @@ Verified on macOS 15.6 (Apple silicon) with Node 24.14.0 and pnpm 9.15.0. Linux 
 Windows is untested.
 
 ## Quickstart
+
+`node demo.mjs` does every step in this section for you and ends at step 2's output. Read on if you
+want the parts: your own site instead of the demo one, a model configured, or the run taken apart.
 
 ### 1. Install
 
@@ -591,6 +669,7 @@ What each package owns. This is ownership, not proof that each one sits on a liv
 
 | Elsewhere | |
 | --- | --- |
+| `demo.mjs` | The one-command entry point: prerequisite check, install, build, browser, then a real review of the bundled demo site. Plain dependency-free JavaScript, because it has to run before anything is installed. |
 | `rust/capture-dedup` | dHash / DCT pHash / Hamming, SSIM and anti-aliasing-aware pixel diff. Integer math where it matters, with a golden vector file mirrored byte for byte by a TypeScript test so both languages agree. `#![forbid(unsafe_code)]`, no RNG, no I/O. |
 | `python/eval` | Offline batch grader: recorded judge outputs + human-labeled golden set to scorecard. Pure, no GPU, no network. |
 | `python/preference-dataset` | Turns exported revealed-preference verdicts into KTO/SFT JSONL plus a dataset card. |
@@ -690,7 +769,8 @@ tests drive a fake `fetch`. The real browser is exercised by the `quickstart` jo
 `.github/workflows/ci.yml`, which runs `pnpm review` against a headless Chromium, asserts the
 artifacts this README promises, and runs `scripts/ci/extractor-smoke.mjs`, which runs the in-page DOM
 extractor against real pages and checks that the contrast facts a real Chromium produces are the true
-ones.
+ones. The `demo` job runs `node demo.mjs` from a bare checkout, with no pnpm action and no cache, so
+the one command at the top of this README is verified the way a stranger runs it.
 
 `.github/workflows/ci.yml` is the authoritative list of what is verified on every commit.
 [CONTRIBUTING.md](CONTRIBUTING.md) has the conventions.
@@ -701,6 +781,7 @@ ones.
 
 | Component | Notes |
 | --- | --- |
+| One-command first run | `node demo.mjs` installs, builds, gets a browser and reviews the bundled site from a clean clone. Run on every commit by the CI `demo` job. |
 | Capture (Chromium) | `pnpm review` captures real pages. Covered by fake-browser unit tests plus the CI quickstart job. |
 | Grounding + drop-and-count gate | Exercised end to end by the quickstart. |
 | Deterministic checks | Contrast, overflow, touch target, computed from the captured DOM. The contrast check reports nothing it cannot measure exactly: text whose backdrop never resolves to an opaque, parseable color (a wide-gamut `oklch()` panel, the dark UA canvas) produces no fact rather than a guessed one. |

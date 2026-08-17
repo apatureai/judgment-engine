@@ -13,6 +13,10 @@ open an issue first so we can agree on the shape. That is a conversation, not a 
 `packageManager`, so `corepack enable` gets you the right one). Add a stable Rust toolchain and
 [uv](https://docs.astral.sh/uv/) only if you touch `rust/` or `python/`.
 
+`node demo.mjs` does the install, the build and the browser download in one go and finishes with a
+real review, which is the fastest way to confirm your machine is set up before you change anything.
+The individual commands:
+
 ```sh
 corepack enable
 pnpm install --frozen-lockfile
@@ -107,6 +111,11 @@ the README promises, and runs `scripts/ci/extractor-smoke.mjs`, which drives the
 against real pages and checks that the deterministic contrast facts a real Chromium yields are the
 true ones. Add a case there when you touch `DOM_EXTRACT_EXPRESSION`: a fake page cannot tell you what
 `getComputedStyle` actually returns.
+
+The `demo` job in the same workflow runs `node demo.mjs` from a bare checkout, with no pnpm action
+and no cache, because the claim that command makes is that nothing has to be installed first. Its
+pure helpers are unit-tested in `packages/cli/test/demo-script.test.ts`, but the command as a whole
+is proven only by that job, so change either one with the other in mind.
 
 ## What makes a good pull request
 
