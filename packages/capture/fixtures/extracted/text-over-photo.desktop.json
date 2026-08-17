@@ -1,0 +1,126 @@
+{
+  "elements": [
+    {
+      "tag": "h1",
+      "id": null,
+      "testId": null,
+      "role": null,
+      "cssPath": "body > main > h1",
+      "rect": {
+        "x": 24,
+        "y": 45.4375,
+        "width": 1392,
+        "height": 48
+      },
+      "animated": false,
+      "interactive": false,
+      "text": {
+        "fontSizePx": 32,
+        "fontWeight": 700,
+        "color": "rgb(17, 17, 17)",
+        "backgroundStack": [
+          "rgba(0, 0, 0, 0)",
+          "rgba(0, 0, 0, 0)",
+          "rgb(255, 255, 255)"
+        ],
+        "backdropObscured": false,
+        "contentWidthPx": 1392,
+        "overflowX": "visible",
+        "ancestorScrollsX": false
+      }
+    },
+    {
+      "tag": "p",
+      "id": "hero-caption",
+      "testId": null,
+      "role": null,
+      "cssPath": "body > main > div:nth-of-type(1) > p",
+      "rect": {
+        "x": 48,
+        "y": 162.875,
+        "width": 1344,
+        "height": 27
+      },
+      "animated": false,
+      "interactive": false,
+      "text": {
+        "fontSizePx": 18,
+        "fontWeight": 400,
+        "color": "rgb(255, 255, 255)",
+        "backgroundStack": [
+          "rgba(0, 0, 0, 0)",
+          "rgba(0, 0, 0, 0)",
+          "rgba(0, 0, 0, 0)",
+          "rgb(255, 255, 255)"
+        ],
+        "backdropObscured": true,
+        "contentWidthPx": 1344,
+        "overflowX": "visible",
+        "ancestorScrollsX": false
+      }
+    },
+    {
+      "tag": "p",
+      "id": "frosted-caption",
+      "testId": null,
+      "role": null,
+      "cssPath": "body > main > div:nth-of-type(2) > p",
+      "rect": {
+        "x": 40,
+        "y": 277.875,
+        "width": 1360,
+        "height": 24
+      },
+      "animated": false,
+      "interactive": false,
+      "text": {
+        "fontSizePx": 16,
+        "fontWeight": 400,
+        "color": "rgb(255, 255, 255)",
+        "backgroundStack": [
+          "rgba(0, 0, 0, 0)",
+          "rgba(255, 255, 255, 0.25)",
+          "rgba(0, 0, 0, 0)",
+          "rgb(255, 255, 255)"
+        ],
+        "backdropObscured": true,
+        "contentWidthPx": 1360,
+        "overflowX": "visible",
+        "ancestorScrollsX": false
+      }
+    },
+    {
+      "tag": "p",
+      "id": "faint-note",
+      "testId": null,
+      "role": null,
+      "cssPath": "body > main > p",
+      "rect": {
+        "x": 24,
+        "y": 341.875,
+        "width": 1392,
+        "height": 24
+      },
+      "animated": false,
+      "interactive": false,
+      "text": {
+        "fontSizePx": 16,
+        "fontWeight": 400,
+        "color": "rgb(143, 143, 143)",
+        "backgroundStack": [
+          "rgba(0, 0, 0, 0)",
+          "rgba(0, 0, 0, 0)",
+          "rgb(255, 255, 255)"
+        ],
+        "backdropObscured": false,
+        "contentWidthPx": 1392,
+        "overflowX": "visible",
+        "ancestorScrollsX": false
+      }
+    }
+  ],
+  "fonts": [],
+  "bodyText": "Text over a photograph\n\nField notes from the ridge, September\n\nFrosted panel caption\n\nPrices exclude tax and are refreshed hourly.",
+  "canvasBackground": "rgb(255, 255, 255)",
+  "documentHeight": 900
+}

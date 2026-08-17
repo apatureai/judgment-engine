@@ -79,25 +79,79 @@ describe("contrast violations", () => {
 });
 
 describe("overflow violations", () => {
+  const wide = (over: Partial<TextNodeStyle> = {}) =>
+    textNode({ contentWidthPx: 260, rect: rect(200, 20), ...over });
+
   it("flags content wider than its container", () => {
-    expect(overflowViolations([textNode({ contentWidthPx: 260, rect: rect(200, 20) })])).toHaveLength(1);
+    expect(overflowViolations([wide()])).toHaveLength(1);
     expect(overflowViolations([textNode({ contentWidthPx: 190, rect: rect(200, 20) })])).toHaveLength(0);
+  });
+
+  it("says nothing about an element that scrolls on purpose", () => {
+    // The `<pre>` with a scrollbar, the carousel, the scrollable table. All
+    // three have scrollWidth wider than the box on every render, forever.
+    for (const overflowX of ["auto", "scroll", "overlay"]) {
+      expect(overflowViolations([wide({ overflowX })])).toEqual([]);
+    }
+  });
+
+  it("says nothing when an ancestor is the scroller", () => {
+    // The commonest shape in real markup: a wide row inside a .table-wrap. The
+    // row itself computes `overflow-x: visible` and is entirely reachable.
+    expect(overflowViolations([wide({ overflowX: "visible", ancestorScrollsX: true })])).toEqual([]);
+  });
+
+  it("still reports clipped content, which no reader can reach", () => {
+    // `hidden` and `clip` also declare what happens to the excess, and what
+    // happens is that it is cut off. That stays worth reporting.
+    for (const overflowX of ["hidden", "clip"]) {
+      expect(overflowViolations([wide({ overflowX })])).toHaveLength(1);
+    }
   });
 });
 
 describe("touch-target violations", () => {
-  const el = (w: number, h: number): InteractiveElement => ({
+  const el = (w: number, h: number, y: number, n: number): InteractiveElement => ({
     route: "/",
     viewport: "mobile",
-    selector: "button",
+    selector: `button:nth-of-type(${n})`,
     role: "button",
-    rect: rect(w, h),
+    rect: { x: 0, y, width: w, height: h },
+    inlineTarget: false,
   });
 
-  it("flags sub-44px targets and passes large enough ones", () => {
-    expect(touchTargetViolations([el(30, 30)])).toHaveLength(1);
-    expect(touchTargetViolations([el(48, 48)])).toHaveLength(0);
-    expect(touchTargetViolations([el(48, 20)])).toHaveLength(1); // one dimension too small
+  /**
+   * Two targets stacked 2px apart: close enough that a 24px circle centred on
+   * one reaches the other, which is the crowding SC 2.5.8 is about. Without it
+   * the Spacing exception applies and neither is a failure.
+   */
+  const crowded = (w: number, h: number): InteractiveElement[] => [
+    el(w, h, 0, 1),
+    el(w, h, h + 2, 2),
+  ];
+
+  it("flags sub-24px targets and passes large enough ones", () => {
+    expect(touchTargetViolations(crowded(20, 20))).toHaveLength(2);
+    expect(touchTargetViolations(crowded(48, 48))).toHaveLength(0);
+    // One dimension too small is still a violation.
+    expect(touchTargetViolations(crowded(48, 20))).toHaveLength(2);
+  });
+
+  it("measures AA by default and names the criterion it applied", () => {
+    const [violation] = touchTargetViolations(crowded(20, 20));
+    expect(violation?.detail).toBe(
+      "touch target 20x20px is below the 24x24px minimum in WCAG 2.2 SC 2.5.8 Target Size (Minimum), level AA",
+    );
+  });
+
+  it("measures 2.5.5 only when asked, and says so", () => {
+    // A 30x30 control clears AA and fails the AAA line. Under the default it is
+    // not a finding at all, because claiming a 2.5.8 failure here would be false.
+    expect(touchTargetViolations(crowded(30, 30))).toHaveLength(0);
+    const [strict] = touchTargetViolations(crowded(30, 30), { criterion: "AAA" });
+    expect(strict?.detail).toBe(
+      "touch target 30x30px is below the 44x44px minimum in WCAG 2.2 SC 2.5.5 Target Size (Enhanced), level AAA",
+    );
   });
 });
 
@@ -109,11 +163,34 @@ describe("deterministicChecks", () => {
         textNode({ contentWidthPx: 300, rect: rect(200, 20) }), // overflow
       ],
       interactive: [
-        { route: "/", viewport: "mobile", selector: "a", role: "link", rect: rect(20, 20) },
+        {
+          route: "/",
+          viewport: "mobile",
+          selector: "a",
+          role: "link",
+          rect: { x: 0, y: 0, width: 20, height: 20 },
+        },
+        {
+          route: "/",
+          viewport: "mobile",
+          selector: "a:nth-of-type(2)",
+          role: "link",
+          rect: { x: 22, y: 0, width: 20, height: 20 },
+        },
       ],
     });
-    const kinds = findings.map((f) => f.kind).sort();
+    const kinds = [...new Set(findings.map((f) => f.kind))].sort();
     expect(kinds).toEqual(["contrast", "overflow", "touch_target"]);
+  });
+
+  it("passes the requested target-size criterion through to the touch check", () => {
+    const interactive: InteractiveElement[] = [
+      { route: "/", viewport: "mobile", selector: "a", role: "link", rect: rect(30, 30) },
+    ];
+    expect(deterministicChecks({ textNodes: [], interactive })).toHaveLength(0);
+    expect(
+      deterministicChecks({ textNodes: [], interactive, touchTargetCriterion: "AAA" }),
+    ).toHaveLength(1);
   });
 });
 

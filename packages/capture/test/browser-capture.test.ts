@@ -57,14 +57,31 @@ const EXTRACTED: ExtractedPage = {
       },
     },
     {
+      // Two 20x20 controls, 2px apart. Undersized AND crowded, which is the
+      // situation WCAG 2.2 SC 2.5.8 describes; a lone 20x20 control with clear
+      // space around it meets that criterion's Spacing exception and is not a
+      // finding at all.
       tag: "button",
       id: "icon-close",
       testId: null,
       role: null,
-      cssPath: "body > main > button",
-      rect: { x: 700, y: 80, width: 28, height: 28 },
+      cssPath: "body > main > button:nth-of-type(1)",
+      rect: { x: 700, y: 80, width: 20, height: 20 },
       animated: false,
       interactive: true,
+      inlineTarget: false,
+      text: null,
+    },
+    {
+      tag: "button",
+      id: "icon-menu",
+      testId: null,
+      role: null,
+      cssPath: "body > main > button:nth-of-type(2)",
+      rect: { x: 722, y: 80, width: 20, height: 20 },
+      animated: false,
+      interactive: true,
+      inlineTarget: false,
       text: null,
     },
     {
@@ -269,11 +286,12 @@ describe("captureWithBrowser", () => {
     expect(capture.geometry.map((g) => g.selector)).toEqual([
       "#hero-title",
       "#icon-close",
+      "#icon-menu",
       "#hero-subtitle",
     ]);
     expect(capture.geometry[0]).toMatchObject({ route: "/", viewport: "mobile", role: "heading" });
     // Admitted for being measured, not reclassified as a landmark.
-    expect(capture.geometry[2]).toMatchObject({ selector: "#hero-subtitle", role: "generic" });
+    expect(capture.geometry[3]).toMatchObject({ selector: "#hero-subtitle", role: "generic" });
   });
 
   it("every element named in the measured facts is citable in the geometry map", async () => {
@@ -304,6 +322,7 @@ describe("captureWithBrowser", () => {
       "contrast:#hero-subtitle",
       "overflow:#hero-subtitle",
       "touch_target:#icon-close",
+      "touch_target:#icon-menu",
     ]);
     expect(factsForRoute(capture.deterministicFindings, "/")[0]).toMatch(/^- \[contrast\] #hero-subtitle \(mobile\)/);
     expect(factsForRoute(capture.deterministicFindings, "/missing")).toEqual([]);

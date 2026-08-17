@@ -70,6 +70,23 @@ export const DOM_EXTRACT_EXPRESSION = `(() => {
     }
     return { stack: stack, obscured: obscured };
   };
+  // Whether any ANCESTOR scrolls horizontally. The overflowing element is very
+  // often not the scroller: a wide row inside a .table-wrap, a long line inside
+  // a scrolling code shell. Both compute overflow-x: visible on the text itself
+  // and are reachable by the reader, so neither is the page coming apart.
+  // Only auto/scroll/overlay count; a hidden or clipped ancestor really does
+  // cut the content off, and that stays reportable.
+  const SCROLLS_X = new Set(["auto", "scroll", "overlay"]);
+  const ancestorScrollsX = (el) => {
+    let node = el.parentElement;
+    let hops = 0;
+    while (node && hops < 32) {
+      if (SCROLLS_X.has(getComputedStyle(node).overflowX)) return true;
+      node = node.parentElement;
+      hops += 1;
+    }
+    return false;
+  };
   const isAnimated = (el) => {
     const s = getComputedStyle(el);
     if (s.animationName && s.animationName !== "none") return true;
@@ -106,6 +123,19 @@ export const DOM_EXTRACT_EXPRESSION = `(() => {
       interactive: INTERACTIVE.has(tag) || role === "button" || role === "link",
       text: null,
     };
+    if (record.interactive) {
+      // The "Inline" exception both target-size criteria carry: a link in a
+      // sentence is sized by the line-height of the prose around it. Detected
+      // as "computes to an inline box AND its parent carries text of its own",
+      // which is the shape of a link inside a paragraph and not the shape of a
+      // nav item that merely happens to be inline.
+      const parent = el.parentElement;
+      const display = style.display;
+      record.inlineTarget =
+        (display === "inline" || display === "inline flow") &&
+        parent !== null &&
+        hasOwnText(parent);
+    }
     if (hasOwnText(el)) {
       const backdrop = backgroundStack(el);
       record.text = {
@@ -119,6 +149,7 @@ export const DOM_EXTRACT_EXPRESSION = `(() => {
         // scroll container: a scrollWidth wider than the box is true of every
         // pre element with a scrollbar and every carousel, and those work.
         overflowX: style.overflowX,
+        ancestorScrollsX: ancestorScrollsX(el),
       };
     }
     out.push(record);
@@ -218,10 +249,13 @@ export function toTextNodeStyles(
         height: round(el.rect.height),
       },
       contentWidthPx: round(el.text.contentWidthPx),
-      // Both carried verbatim, both omitted when the extractor did not report
-      // them: absent has to stay UNKNOWN all the way to the check, which is the
-      // only place that decides what unknown costs.
+      // All three carried verbatim, and each omitted when the extractor did not
+      // report it: absent has to stay UNKNOWN all the way to the check, which
+      // is the only place that decides what unknown costs.
       ...(el.text.overflowX !== undefined ? { overflowX: el.text.overflowX } : {}),
+      ...(el.text.ancestorScrollsX !== undefined
+        ? { ancestorScrollsX: el.text.ancestorScrollsX }
+        : {}),
       ...(el.text.backdropObscured !== undefined
         ? { backdropObscured: el.text.backdropObscured }
         : {}),
@@ -250,6 +284,9 @@ export function toInteractiveElements(
         width: round(el.rect.width),
         height: round(el.rect.height),
       },
+      // Omitted when the extractor did not report it, for the same reason as
+      // the text fields: unknown must reach the check as unknown.
+      ...(el.inlineTarget !== undefined ? { inlineTarget: el.inlineTarget } : {}),
     });
   }
   return out;

@@ -43,14 +43,31 @@ const EXTRACTED: ExtractedPage = {
       text: null,
     },
     {
+      // A crowded pair of 20x20 controls: undersized AND close enough that a
+      // 24px circle centred on one reaches the other, which is the situation
+      // WCAG 2.2 SC 2.5.8 describes. A lone small control with clear space
+      // meets that criterion's Spacing exception and is not a failure.
       tag: "button",
       id: "icon-close",
       testId: null,
       role: null,
-      cssPath: "body > main > button",
-      rect: { x: 700, y: 80, width: 28, height: 28 },
+      cssPath: "body > main > button:nth-of-type(1)",
+      rect: { x: 700, y: 80, width: 20, height: 20 },
       animated: false,
       interactive: true,
+      inlineTarget: false,
+      text: null,
+    },
+    {
+      tag: "button",
+      id: "icon-menu",
+      testId: null,
+      role: null,
+      cssPath: "body > main > button:nth-of-type(2)",
+      rect: { x: 722, y: 80, width: 20, height: 20 },
+      animated: false,
+      interactive: true,
+      inlineTarget: false,
       text: null,
     },
     {

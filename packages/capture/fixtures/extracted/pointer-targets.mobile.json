@@ -1,0 +1,225 @@
+{
+  "elements": [
+    {
+      "tag": "h1",
+      "id": null,
+      "testId": null,
+      "role": null,
+      "cssPath": "body > main > h1",
+      "rect": {
+        "x": 24,
+        "y": 45.4375,
+        "width": 342,
+        "height": 48
+      },
+      "animated": false,
+      "interactive": false,
+      "text": {
+        "fontSizePx": 32,
+        "fontWeight": 700,
+        "color": "rgb(17, 17, 17)",
+        "backgroundStack": [
+          "rgba(0, 0, 0, 0)",
+          "rgba(0, 0, 0, 0)",
+          "rgb(255, 255, 255)"
+        ],
+        "backdropObscured": false,
+        "contentWidthPx": 342,
+        "overflowX": "visible",
+        "ancestorScrollsX": false
+      }
+    },
+    {
+      "tag": "nav",
+      "id": null,
+      "testId": null,
+      "role": null,
+      "cssPath": "body > main > nav",
+      "rect": {
+        "x": 24,
+        "y": 114.875,
+        "width": 342,
+        "height": 32
+      },
+      "animated": false,
+      "interactive": false,
+      "text": null
+    },
+    {
+      "tag": "button",
+      "id": "toolbar-bold",
+      "testId": null,
+      "role": null,
+      "cssPath": "body > main > nav > button",
+      "rect": {
+        "x": 24,
+        "y": 114.875,
+        "width": 32,
+        "height": 32
+      },
+      "animated": false,
+      "interactive": true,
+      "text": {
+        "fontSizePx": 16,
+        "fontWeight": 400,
+        "color": "rgb(0, 0, 0)",
+        "backgroundStack": [
+          "rgb(255, 255, 255)"
+        ],
+        "backdropObscured": false,
+        "contentWidthPx": 30,
+        "overflowX": "visible",
+        "ancestorScrollsX": false
+      },
+      "inlineTarget": false
+    },
+    {
+      "tag": "button",
+      "id": "packed-a",
+      "testId": null,
+      "role": null,
+      "cssPath": "body > main > div:nth-of-type(1) > button:nth-of-type(1)",
+      "rect": {
+        "x": 24,
+        "y": 154.875,
+        "width": 20,
+        "height": 20
+      },
+      "animated": false,
+      "interactive": true,
+      "text": {
+        "fontSizePx": 16,
+        "fontWeight": 400,
+        "color": "rgb(0, 0, 0)",
+        "backgroundStack": [
+          "rgb(255, 255, 255)"
+        ],
+        "backdropObscured": false,
+        "contentWidthPx": 18,
+        "overflowX": "visible",
+        "ancestorScrollsX": false
+      },
+      "inlineTarget": false
+    },
+    {
+      "tag": "button",
+      "id": "packed-b",
+      "testId": null,
+      "role": null,
+      "cssPath": "body > main > div:nth-of-type(1) > button:nth-of-type(2)",
+      "rect": {
+        "x": 46,
+        "y": 154.875,
+        "width": 20,
+        "height": 20
+      },
+      "animated": false,
+      "interactive": true,
+      "text": {
+        "fontSizePx": 16,
+        "fontWeight": 400,
+        "color": "rgb(0, 0, 0)",
+        "backgroundStack": [
+          "rgb(255, 255, 255)"
+        ],
+        "backdropObscured": false,
+        "contentWidthPx": 18,
+        "overflowX": "visible",
+        "ancestorScrollsX": false
+      },
+      "inlineTarget": false
+    },
+    {
+      "tag": "button",
+      "id": "isolated-star",
+      "testId": null,
+      "role": null,
+      "cssPath": "body > main > div:nth-of-type(2) > button",
+      "rect": {
+        "x": 64,
+        "y": 219.875,
+        "width": 20,
+        "height": 20
+      },
+      "animated": false,
+      "interactive": true,
+      "text": {
+        "fontSizePx": 16,
+        "fontWeight": 400,
+        "color": "rgb(0, 0, 0)",
+        "backgroundStack": [
+          "rgb(255, 255, 255)"
+        ],
+        "backdropObscured": false,
+        "contentWidthPx": 18,
+        "overflowX": "visible",
+        "ancestorScrollsX": false
+      },
+      "inlineTarget": false
+    },
+    {
+      "tag": "p",
+      "id": null,
+      "testId": null,
+      "role": null,
+      "cssPath": "body > main > p",
+      "rect": {
+        "x": 24,
+        "y": 295.875,
+        "width": 342,
+        "height": 72
+      },
+      "animated": false,
+      "interactive": false,
+      "text": {
+        "fontSizePx": 16,
+        "fontWeight": 400,
+        "color": "rgb(17, 17, 17)",
+        "backgroundStack": [
+          "rgba(0, 0, 0, 0)",
+          "rgba(0, 0, 0, 0)",
+          "rgb(255, 255, 255)"
+        ],
+        "backdropObscured": false,
+        "contentWidthPx": 342,
+        "overflowX": "visible",
+        "ancestorScrollsX": false
+      }
+    },
+    {
+      "tag": "a",
+      "id": "inline-terms",
+      "testId": null,
+      "role": null,
+      "cssPath": "body > main > p > a",
+      "rect": {
+        "x": 51.625,
+        "y": 322.875,
+        "width": 41.828125,
+        "height": 18
+      },
+      "animated": false,
+      "interactive": true,
+      "text": {
+        "fontSizePx": 16,
+        "fontWeight": 400,
+        "color": "rgb(0, 0, 238)",
+        "backgroundStack": [
+          "rgba(0, 0, 0, 0)",
+          "rgba(0, 0, 0, 0)",
+          "rgba(0, 0, 0, 0)",
+          "rgb(255, 255, 255)"
+        ],
+        "backdropObscured": false,
+        "contentWidthPx": 0,
+        "overflowX": "visible",
+        "ancestorScrollsX": false
+      },
+      "inlineTarget": true
+    }
+  ],
+  "fonts": [],
+  "bodyText": "Pointer targets\nB\nxy\n*\n\nDelivery is free on orders over 40 dollars; see the terms for the details that apply to your region.",
+  "canvasBackground": "rgb(255, 255, 255)",
+  "documentHeight": 844
+}

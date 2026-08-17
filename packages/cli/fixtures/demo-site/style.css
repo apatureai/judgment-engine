@@ -4,9 +4,12 @@
  * rendered page describe the same system.
  *
  * Three defects are deliberate and are what the deterministic checks find:
- *   #hero-subtitle / #pricing-fineprint — text contrast under WCAG AA
- *   #icon-close / .tiny-cta            — touch targets under 44x44
- *   #promo-code                        — content wider than its container
+ *   #hero-subtitle / #pricing-fineprint: text contrast under WCAG AA
+ *   #icon-close: a pointer target under WCAG 2.2 SC 2.5.8
+ *   #promo-code: content wider than its container
+ *
+ * .tiny-cta is 30x30: over the AA line and under the AAA one, so it is a
+ * finding only for a repository that asked for SC 2.5.5.
  */
 
 :root {
@@ -103,11 +106,16 @@ h1 {
   border-radius: var(--radius-md);
 }
 
-/* DEFECT: 28x28 pointer target, under the 44x44 minimum. */
+/*
+ * DEFECT: a 20x20 pointer target jammed against the primary CTA. Undersized
+ * against WCAG 2.2 SC 2.5.8 (24x24, level AA) AND too close to another target
+ * for that criterion's Spacing exception to apply, which is what makes it a
+ * failure rather than merely a small button.
+ */
 #icon-close {
-  width: 28px;
-  height: 28px;
-  margin-left: var(--space-4);
+  width: 20px;
+  height: 20px;
+  margin-left: 0;
   border: 1px solid #d0d5dd;
   border-radius: 6px;
   background: #ffffff;
@@ -144,7 +152,7 @@ h1 {
   color: var(--color-text);
 }
 
-/* DEFECT: 30x30 pointer target. */
+/* 30x30: clears SC 2.5.8 (24x24, AA) and fails SC 2.5.5 (44x44, AAA). */
 .tiny-cta {
   display: inline-block;
   width: 30px;

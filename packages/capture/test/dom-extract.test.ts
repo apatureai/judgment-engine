@@ -142,28 +142,36 @@ describe("toTextNodeStyles precision fields", () => {
       },
     });
 
-  it("carries overflow-x and the obscured-backdrop flag through verbatim", () => {
+  it("carries overflow-x, the ancestor scroller and the obscured-backdrop flag verbatim", () => {
     const [node] = toTextNodeStyles(
-      page([withText({ overflowX: "auto", backdropObscured: true })]),
+      page([withText({ overflowX: "auto", ancestorScrollsX: true, backdropObscured: true })]),
       "/",
       "desktop",
     );
     expect(node?.overflowX).toBe("auto");
+    expect(node?.ancestorScrollsX).toBe(true);
     expect(node?.backdropObscured).toBe(true);
   });
 
-  it("omits both when the extractor did not report them", () => {
+  it("omits all three when the extractor did not report them", () => {
     // Absent has to stay UNKNOWN all the way to the check, which is the only
     // place entitled to decide what unknown costs. A default of `visible` here
-    // would make every pre-upgrade capture's scroll container gateable.
+    // would make every pre-upgrade capture's scroll container gateable, and a
+    // default of "no ancestor scrolls" would do the same for every wrapped row.
     const [node] = toTextNodeStyles(page([withText({})]), "/", "desktop");
     expect(node).not.toHaveProperty("overflowX");
+    expect(node).not.toHaveProperty("ancestorScrollsX");
     expect(node).not.toHaveProperty("backdropObscured");
   });
 
   it("keeps a false flag, which is a real answer and not an absence", () => {
-    const [node] = toTextNodeStyles(page([withText({ backdropObscured: false })]), "/", "desktop");
+    const [node] = toTextNodeStyles(
+      page([withText({ backdropObscured: false, ancestorScrollsX: false })]),
+      "/",
+      "desktop",
+    );
     expect(node?.backdropObscured).toBe(false);
+    expect(node?.ancestorScrollsX).toBe(false);
   });
 });
 
@@ -180,5 +188,22 @@ describe("toInteractiveElements", () => {
         rect: { x: 32, y: 101, width: 300.5, height: 20.13 },
       },
     ]);
+  });
+
+  it("carries the inline-target flag through, and omits it when unreported", () => {
+    // The WCAG "Inline" exception. Unknown must reach the check as unknown: a
+    // default of `false` there would assert that an unevaluated exception does
+    // not apply, and gate a build on it.
+    const link = (over: Partial<ExtractedElement>) =>
+      element({ tag: "a", id: "terms", interactive: true, role: null, ...over });
+
+    const [inline] = toInteractiveElements(page([link({ inlineTarget: true })]), "/", "mobile");
+    expect(inline?.inlineTarget).toBe(true);
+
+    const [block] = toInteractiveElements(page([link({ inlineTarget: false })]), "/", "mobile");
+    expect(block?.inlineTarget).toBe(false);
+
+    const [unknown] = toInteractiveElements(page([link({})]), "/", "mobile");
+    expect(unknown).not.toHaveProperty("inlineTarget");
   });
 });

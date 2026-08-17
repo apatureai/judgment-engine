@@ -1,0 +1,121 @@
+{
+  "elements": [
+    {
+      "tag": "h1",
+      "id": null,
+      "testId": null,
+      "role": null,
+      "cssPath": "body > main > h1",
+      "rect": {
+        "x": 24,
+        "y": 38.734375,
+        "width": 342,
+        "height": 66
+      },
+      "animated": false,
+      "interactive": false,
+      "text": {
+        "fontSizePx": 22,
+        "fontWeight": 700,
+        "color": "rgb(17, 17, 17)",
+        "backgroundStack": [
+          "rgba(0, 0, 0, 0)",
+          "rgba(0, 0, 0, 0)",
+          "rgb(255, 255, 255)"
+        ],
+        "backdropObscured": false,
+        "contentWidthPx": 342,
+        "overflowX": "visible",
+        "ancestorScrollsX": false
+      }
+    },
+    {
+      "tag": "pre",
+      "id": "scrollable-pre",
+      "testId": null,
+      "role": "region",
+      "cssPath": "body > main > pre",
+      "rect": {
+        "x": 24,
+        "y": 119.46875,
+        "width": 342,
+        "height": 43.5
+      },
+      "animated": false,
+      "interactive": false,
+      "text": {
+        "fontSizePx": 13,
+        "fontWeight": 400,
+        "color": "rgb(17, 17, 17)",
+        "backgroundStack": [
+          "rgb(244, 244, 245)"
+        ],
+        "backdropObscured": false,
+        "contentWidthPx": 734,
+        "overflowX": "auto",
+        "ancestorScrollsX": false
+      }
+    },
+    {
+      "tag": "p",
+      "id": "wide-row",
+      "testId": null,
+      "role": null,
+      "cssPath": "body > main > div > p",
+      "rect": {
+        "x": 25,
+        "y": 187.96875,
+        "width": 340,
+        "height": 40
+      },
+      "animated": false,
+      "interactive": false,
+      "text": {
+        "fontSizePx": 16,
+        "fontWeight": 400,
+        "color": "rgb(17, 17, 17)",
+        "backgroundStack": [
+          "rgba(0, 0, 0, 0)",
+          "rgba(0, 0, 0, 0)",
+          "rgba(0, 0, 0, 0)",
+          "rgb(255, 255, 255)"
+        ],
+        "backdropObscured": false,
+        "contentWidthPx": 666,
+        "overflowX": "visible",
+        "ancestorScrollsX": true
+      }
+    },
+    {
+      "tag": "p",
+      "id": "spilling-line",
+      "testId": null,
+      "role": null,
+      "cssPath": "body > main > p",
+      "rect": {
+        "x": 24,
+        "y": 252.96875,
+        "width": 240,
+        "height": 24
+      },
+      "animated": false,
+      "interactive": false,
+      "text": {
+        "fontSizePx": 16,
+        "fontWeight": 400,
+        "color": "rgb(17, 17, 17)",
+        "backgroundStack": [
+          "rgb(255, 255, 255)"
+        ],
+        "backdropObscured": false,
+        "contentWidthPx": 482,
+        "overflowX": "visible",
+        "ancestorScrollsX": false
+      }
+    }
+  ],
+  "fonts": [],
+  "bodyText": "Scroll containers and real overflow\n$ pnpm --filter @engine/capture exec vitest run --reporter verbose --coverage.enabled=false\n\n2026-08-14T09:12:44Z deploy succeeded region=us-east-1 build=8f31c02 duration=214s\n\nInvoice INV-2026-000418 for Northwind Traders, due 2026-09-01",
+  "canvasBackground": "rgb(255, 255, 255)",
+  "documentHeight": 844
+}

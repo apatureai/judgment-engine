@@ -48,26 +48,38 @@ export interface TextNodeStyle {
    * `contentWidthPx` alone cannot tell breakage from design: a `<pre>` with a
    * scrollbar, a horizontal carousel and a deliberately scrollable table all
    * have `scrollWidth > clientWidth` and are all working exactly as authored.
-   * Only `overflow-x: visible` means the content actually escapes its box.
    *
    * Optional because the engine and the capture fleet deploy separately, and a
    * fleet that predates the field sends nothing. Absent is UNKNOWN, never
    * "visible": an unknown value is reported as a measurement and is never
-   * block-eligible. The violation itself is still emitted either way, because a
-   * measured overflow is worth a look even when it is intentional.
+   * block-eligible.
    */
   overflowX?: string;
+  /**
+   * Whether an ANCESTOR of this element scrolls horizontally.
+   *
+   * The scroller is usually not the element that overflows. A wide row inside a
+   * `.table-wrap`, a long line inside a scrolling code shell: the text itself
+   * computes `overflow-x: visible` and looks exactly like a page coming apart,
+   * and the reader can reach every pixel of it.
+   *
+   * Optional for the same reason, and absent is UNKNOWN: the measurement is
+   * reported and not block-eligible, because an unseen ancestor scroller could
+   * be the whole explanation.
+   */
+  ancestorScrollsX?: boolean;
   /**
    * Whether anything in this element's background stack paints something
    * `resolvedBackground` cannot see: a `background-image` or a `backdrop-filter`.
    *
    * The contrast check flattens background COLORS onto the canvas. White text on
-   * a photo sitting over a white base therefore measures as a 1:1 violation that
-   * a reader never experiences. The measurement is still emitted, because a
-   * flagged element is worth a human look, but it is never block-eligible.
+   * a photo sitting over a white base would therefore measure as a 1:1 failure
+   * no reader experiences. A ratio against an image is not computable from a
+   * flattened colour at all, so a KNOWN-obscured backdrop is declined rather
+   * than measured, exactly like an unparseable colour: the check emits nothing.
    *
-   * Optional for the same reason `overflowX` is, and absent is UNKNOWN, so a
-   * pre-upgrade capture yields a reported, non-block-eligible measurement.
+   * Optional for the same reason `overflowX` is, and absent is UNKNOWN, which
+   * still yields a reported, non-block-eligible measurement.
    */
   backdropObscured?: boolean;
 }
@@ -79,6 +91,16 @@ export interface InteractiveElement {
   selector: string;
   role: string | null;
   rect: Rect;
+  /**
+   * Whether this target is an inline element inside a run of non-target text,
+   * i.e. a link in a sentence.
+   *
+   * Both target-size criteria exempt that shape by name ("Inline"), because
+   * such a target's height is the line-height of the prose around it. Optional,
+   * and absent is UNKNOWN: reported, never block-eligible, because an
+   * unevaluated exception could be the entire finding.
+   */
+  inlineTarget?: boolean;
 }
 
 export type CheckKind = "contrast" | "overflow" | "touch_target";
@@ -167,26 +189,53 @@ function contrastThreshold(node: TextNodeStyle): number {
 }
 
 /**
- * REPORTING threshold for touch-target size, in CSS px.
+ * The two WCAG target-size criteria, with the level each one belongs to.
  *
- * 44 is WCAG 2.5.5 Target Size (Enhanced), which is level **AAA**, and it is
- * also the iOS/Android platform HIG number. It is the right line to REPORT
- * against: a 30px control is worth telling a designer about.
+ * This table exists because the emitted text has to name the criterion it
+ * actually applied. The check used to measure against 44 and cite "2.5.5"
+ * without its level, which reads as a conformance failure and is not one: 2.5.5
+ * Target Size (Enhanced) is level AAA, a line almost no product commits to. The
+ * level **AA** criterion, the one a repository plausibly conforms to, is 2.5.8
+ * Target Size (Minimum) at 24x24 CSS px.
  *
- * It is the wrong line to fail a build on, and this comment used to imply
- * otherwise by citing 2.5.5 without its level. See `AA_TOUCH_TARGET_PX`.
+ * So AA is the default, and 44 stays available for a team that has chosen the
+ * stricter line. Whichever is applied, its number, id, name and level go into
+ * the sentence, so a reader can check the claim against the spec.
  */
-export const MIN_TOUCH_TARGET_PX = 44;
+export const TOUCH_TARGET_CRITERIA = {
+  AA: { sc: "2.5.8", name: "Target Size (Minimum)", level: "AA", minPx: 24 },
+  AAA: { sc: "2.5.5", name: "Target Size (Enhanced)", level: "AAA", minPx: 44 },
+} as const;
+
+/** Which target-size criterion to measure against. */
+export type TouchTargetCriterion = keyof typeof TOUCH_TARGET_CRITERIA;
 
 /**
- * The level **AA** touch-target line: WCAG 2.2 SC 2.5.8 Target Size (Minimum),
- * 24x24 CSS px.
- *
- * This, not 44, is what a repo may gate a merge on, and only on a mobile
- * viewport: 2.5.8 is a pointer-target criterion, and applying a phone rule to a
- * 1440px desktop surface with a mouse fails pages that are not failing anyone.
+ * AA, not AAA. The engine measures what a team is likely to have committed to,
+ * and reports it as what it is.
  */
-export const AA_TOUCH_TARGET_PX = 24;
+export const DEFAULT_TOUCH_TARGET_CRITERION: TouchTargetCriterion = "AA";
+
+/** WCAG 2.2 SC 2.5.8 Target Size (Minimum), level AA. */
+export const AA_TOUCH_TARGET_PX = TOUCH_TARGET_CRITERIA.AA.minPx;
+
+/** WCAG 2.2 SC 2.5.5 Target Size (Enhanced), level AAA. Also the iOS/Android HIG number. */
+export const AAA_TOUCH_TARGET_PX = TOUCH_TARGET_CRITERIA.AAA.minPx;
+
+/**
+ * The viewports where a target-size criterion applies.
+ *
+ * Both criteria are about POINTER targets, and the hazard they describe is a
+ * finger. A 1440px desktop capture is driven with a mouse, where a 20px control
+ * is a design note and not an accessibility failure, so the check does not run
+ * there at all. Measuring it and then quietly refusing to gate on it would
+ * still put a sentence in front of a reader claiming a WCAG failure that the
+ * criterion does not assert.
+ *
+ * Tablet counts: it is an 834px touch surface, and a finger on it is the same
+ * finger.
+ */
+export const TOUCH_VIEWPORTS: readonly Viewport[] = ["mobile", "tablet"];
 
 export function contrastViolations(nodes: TextNodeStyle[]): DeterministicFinding[] {
   const out: DeterministicFinding[] = [];
@@ -195,6 +244,11 @@ export function contrastViolations(nodes: TextNodeStyle[]): DeterministicFinding
     // knowable from what was captured, so no fact is emitted. Silence, never a
     // guess; a wrong number here is published as a measurement.
     if (node.backgroundColor === null) continue;
+    // A background-image or a backdrop-filter paints something no flattened
+    // colour represents. White text on a photograph over a white page flattens
+    // to 1.00:1, a number that is not merely imprecise but false, and this
+    // engine publishes its measurements as facts. Not measurable here.
+    if (node.backdropObscured === true) continue;
     const bg = parseCssColor(node.backgroundColor);
     if (bg === null || !isOpaque(bg)) continue;
     const rawFg = parseCssColor(node.color);
@@ -211,10 +265,9 @@ export function contrastViolations(nodes: TextNodeStyle[]): DeterministicFinding
         viewport: node.viewport,
         selector: node.selector,
         detail: `text contrast ${ratio.toFixed(2)}:1 is below WCAG AA ${threshold.toFixed(1)}:1`,
-        // The ratio is exact for a flat colour backdrop and meaningless over a
-        // photo, and only the extractor can tell which this was. Unknown counts
-        // as obscured: the same discipline as the `continue`s above, one step
-        // weaker because the fact is still worth reporting.
+        // Exact when the extractor confirmed a flat colour backdrop. A capture
+        // that never reported the field could be sitting on an image nobody
+        // looked for, so it is reported and not gated on.
         blockEligible: node.backdropObscured === false,
       });
     }
@@ -222,47 +275,140 @@ export function contrastViolations(nodes: TextNodeStyle[]): DeterministicFinding
   return out;
 }
 
+/**
+ * The computed `overflow-x` values that make an element a scroll container: the
+ * excess is reachable, by wheel, swipe, drag or keyboard.
+ *
+ * `hidden` and `clip` are deliberately NOT here. They also declare what happens
+ * to the excess, but what happens is that the reader never gets it, so those
+ * stay reportable (and, being a common and usually deliberate authoring tool,
+ * not gateable).
+ */
+const SCROLLABLE_OVERFLOW_X: readonly string[] = ["auto", "scroll", "overlay"];
+
 export function overflowViolations(nodes: TextNodeStyle[]): DeterministicFinding[] {
   const out: DeterministicFinding[] = [];
   for (const node of nodes) {
-    if (node.contentWidthPx > Math.ceil(node.rect.width)) {
-      out.push({
-        kind: "overflow",
-        route: node.route,
-        viewport: node.viewport,
-        selector: node.selector,
-        detail: `content width ${node.contentWidthPx}px exceeds container ${Math.round(node.rect.width)}px (horizontal overflow)`,
-        // `scrollWidth` on a deliberate scroll container is not breakage. Only
-        // `visible` means the content escapes the box; `auto`, `scroll`,
-        // `hidden`, `clip` and unknown are reported and never gated on.
-        blockEligible: node.overflowX === "visible",
-      });
-    }
+    if (node.contentWidthPx <= Math.ceil(node.rect.width)) continue;
+    // A scroll container has content wider than its box by definition and on
+    // purpose. Every `<pre>` with a scrollbar and every horizontal carousel
+    // measured as breakage before this line existed, and `overflow` is the one
+    // kind that overrules a triage pass declining to look, so the noisiest
+    // measurement was also the loudest.
+    if (node.overflowX !== undefined && SCROLLABLE_OVERFLOW_X.includes(node.overflowX)) continue;
+    // The scroller is frequently the wrapper, not the text: a wide row inside a
+    // `.table-wrap` computes `overflow-x: visible` on the row itself. The
+    // reader can still reach all of it, so it is not the page coming apart.
+    if (node.ancestorScrollsX === true) continue;
+    out.push({
+      kind: "overflow",
+      route: node.route,
+      viewport: node.viewport,
+      selector: node.selector,
+      detail: `content width ${node.contentWidthPx}px exceeds container ${Math.round(node.rect.width)}px (horizontal overflow)`,
+      // Gateable only when the capture affirmatively established both halves:
+      // the box does not scroll, and nothing above it does either. A capture
+      // that did not report a field leaves the question open, and an open
+      // question must not fail a build.
+      blockEligible: node.overflowX === "visible" && node.ancestorScrollsX === false,
+    });
   }
   return out;
 }
 
+/** Centre of a rect, in the same coordinate space. */
+function centreOf(rect: Rect): { x: number; y: number } {
+  return { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 };
+}
+
+/** Whether a circle overlaps a rect (touching is not overlapping). */
+function circleOverlapsRect(
+  centre: { x: number; y: number },
+  radius: number,
+  rect: Rect,
+): boolean {
+  const nearestX = Math.min(Math.max(centre.x, rect.x), rect.x + rect.width);
+  const nearestY = Math.min(Math.max(centre.y, rect.y), rect.y + rect.height);
+  const dx = centre.x - nearestX;
+  const dy = centre.y - nearestY;
+  return dx * dx + dy * dy < radius * radius;
+}
+
+function isUndersized(rect: Rect, minPx: number): boolean {
+  return rect.width < minPx || rect.height < minPx;
+}
+
+/**
+ * The "Spacing" exception in WCAG 2.2 SC 2.5.8: an undersized target does not
+ * fail the criterion when a 24 CSS px diameter circle centred on it touches no
+ * other target, and no other undersized target's circle.
+ *
+ * This is the difference between a 20px icon button crammed against its
+ * neighbour, which is the hazard the criterion describes, and a 20px icon
+ * button with clear space around it, which is not. Citing 2.5.8 while ignoring
+ * its exceptions would be citing it incorrectly, which is the bug this check
+ * had in the first place.
+ *
+ * The exception belongs to 2.5.8 only; 2.5.5 (AAA) has no spacing relief.
+ */
+function meetsSpacingException(
+  target: InteractiveElement,
+  peers: readonly InteractiveElement[],
+): boolean {
+  const radius = AA_TOUCH_TARGET_PX / 2;
+  const centre = centreOf(target.rect);
+  for (const peer of peers) {
+    if (peer === target) continue;
+    if (peer.route !== target.route || peer.viewport !== target.viewport) continue;
+    if (circleOverlapsRect(centre, radius, peer.rect)) return false;
+    if (isUndersized(peer.rect, AA_TOUCH_TARGET_PX)) {
+      const peerCentre = centreOf(peer.rect);
+      const dx = centre.x - peerCentre.x;
+      const dy = centre.y - peerCentre.y;
+      if (Math.hypot(dx, dy) < AA_TOUCH_TARGET_PX) return false;
+    }
+  }
+  return true;
+}
+
+export interface TouchTargetOptions {
+  /**
+   * Which criterion to measure against. Defaults to AA (SC 2.5.8, 24x24). Pass
+   * `"AAA"` for SC 2.5.5 (44x44) if the repository has committed to it.
+   */
+  criterion?: TouchTargetCriterion;
+}
+
 export function touchTargetViolations(
   elements: InteractiveElement[],
-  minPx: number = MIN_TOUCH_TARGET_PX,
+  options: TouchTargetOptions = {},
 ): DeterministicFinding[] {
+  const name = options.criterion ?? DEFAULT_TOUCH_TARGET_CRITERION;
+  const criterion = TOUCH_TARGET_CRITERIA[name];
   const out: DeterministicFinding[] = [];
   for (const el of elements) {
-    if (el.rect.width < minPx || el.rect.height < minPx) {
-      out.push({
-        kind: "touch_target",
-        route: el.route,
-        viewport: el.viewport,
-        selector: el.selector,
-        detail: `touch target ${Math.round(el.rect.width)}x${Math.round(el.rect.height)}px is below ${minPx}x${minPx}px`,
-        // Reported at the AAA line, gateable only at the AA one, and only where
-        // a finger is the pointer. A 28x28 control on a desktop page is a note
-        // for a designer, not grounds to fail somebody's build.
-        blockEligible:
-          el.viewport === "mobile" &&
-          (el.rect.width < AA_TOUCH_TARGET_PX || el.rect.height < AA_TOUCH_TARGET_PX),
-      });
-    }
+    // A pointer-target criterion, on the surfaces it is about.
+    if (!TOUCH_VIEWPORTS.includes(el.viewport)) continue;
+    if (!isUndersized(el.rect, criterion.minPx)) continue;
+    // "Inline": a link in a sentence is sized by the line-height around it, and
+    // both criteria exempt it. Enlarging it would damage the paragraph.
+    if (el.inlineTarget === true) continue;
+    if (name === "AA" && meetsSpacingException(el, elements)) continue;
+    out.push({
+      kind: "touch_target",
+      route: el.route,
+      viewport: el.viewport,
+      selector: el.selector,
+      detail:
+        `touch target ${Math.round(el.rect.width)}x${Math.round(el.rect.height)}px is below ` +
+        `the ${criterion.minPx}x${criterion.minPx}px minimum in WCAG 2.2 SC ${criterion.sc} ` +
+        `${criterion.name}, level ${criterion.level}`,
+      // Every exception this check can evaluate has already been applied above.
+      // What is left is the one it cannot: a capture that never reported
+      // `inlineTarget` leaves the Inline exception unevaluated, and an
+      // unevaluated exception could be the whole finding.
+      blockEligible: el.inlineTarget === false,
+    });
   }
   return out;
 }
@@ -270,6 +416,8 @@ export function touchTargetViolations(
 export interface DeterministicCheckInput {
   textNodes: TextNodeStyle[];
   interactive: InteractiveElement[];
+  /** Target-size criterion for the touch-target check. Defaults to AA. */
+  touchTargetCriterion?: TouchTargetCriterion;
 }
 
 /** Run all deterministic checks, returning the facts for the critique prompt. */
@@ -277,7 +425,7 @@ export function deterministicChecks(input: DeterministicCheckInput): Determinist
   return [
     ...contrastViolations(input.textNodes),
     ...overflowViolations(input.textNodes),
-    ...touchTargetViolations(input.interactive),
+    ...touchTargetViolations(input.interactive, { criterion: input.touchTargetCriterion }),
   ];
 }
 

@@ -1,0 +1,28 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Pointer targets</title>
+<style>
+  :root { color-scheme: light; }
+  body { background: #ffffff; color: #111111; font: 16px/1.5 system-ui, sans-serif; margin: 0; padding: 24px; }
+  button { font: inherit; padding: 0; border: 1px solid #999; background: #fff; }
+  /* A 32px desktop toolbar control. Comfortable with a mouse, below 44. */
+  #toolbar-bold { width: 32px; height: 32px; }
+  /* A 20x20 close affordance packed against its neighbour: too small AND
+     too close, so no spacing exception applies. */
+  .packed { width: 20px; height: 20px; }
+  #packed-a { margin-right: 2px; }
+  /* A 20x20 control with 40px of clear space on every side. */
+  #isolated-star { width: 20px; height: 20px; margin: 40px; }
+  nav { display: flex; align-items: center; gap: 2px; margin-bottom: 8px; }
+</style>
+<main>
+  <h1>Pointer targets</h1>
+  <nav aria-label="Formatting">
+    <button id="toolbar-bold" type="button">B</button>
+  </nav>
+  <div>
+    <button id="packed-a" class="packed" type="button">x</button><button id="packed-b" class="packed" type="button">y</button>
+  </div>
+  <div><button id="isolated-star" type="button">*</button></div>
+  <p>Delivery is free on orders over 40 dollars; see the <a href="/terms" id="inline-terms">terms</a> for the details that apply to your region.</p>
+</main>

@@ -45,8 +45,9 @@ export interface ExtractedElement {
      * True when anything in that stack paints a `background-image` or a
      * `backdrop-filter`, which a flattened colour cannot represent. Optional
      * because the capture fleet deploys separately from the engine; absent is
-     * UNKNOWN, and the contrast check reads unknown as obscured for the
-     * purposes of block-eligibility only. The measurement is still emitted.
+     * UNKNOWN, and an unknown backdrop is measured and reported without being
+     * gateable. A KNOWN-obscured one is not measured at all: the ratio would be
+     * wrong, and a wrong number published as a measurement is worse than none.
      */
     backdropObscured?: boolean;
     contentWidthPx: number;
@@ -56,9 +57,39 @@ export interface ExtractedElement {
      * gateable just because an older capture did not say what it was.
      */
     overflowX?: string;
+    /**
+     * True when some ANCESTOR of this element scrolls horizontally
+     * (`overflow-x: auto | scroll | overlay`).
+     *
+     * The element's own `overflow-x` does not settle the question. The two
+     * commonest scrollers in real markup wrap the text rather than carry it: a
+     * `<div class="table-wrap">` around a wide row, and a code block inside a
+     * scrolling shell. The overflowing paragraph inside one of those computes
+     * `overflow-x: visible` and looks exactly like a page coming apart, while
+     * the reader can reach every pixel of it.
+     *
+     * Optional for the same deploy-skew reason, and absent is UNKNOWN, which
+     * costs block-eligibility rather than being read as `false`.
+     */
+    ancestorScrollsX?: boolean;
   } | null;
   /** True for elements a pointer can target (button/a/input/[role=button]…). */
   interactive: boolean;
+  /**
+   * True when this pointer target is an inline element sitting in a run of
+   * non-target text: a link inside a sentence.
+   *
+   * Both target-size criteria exempt exactly this shape (WCAG 2.2 SC 2.5.8 and
+   * SC 2.5.5, "Inline"), because such a target's height is set by the
+   * line-height of the prose around it and enlarging it would break the
+   * paragraph. Measuring it against 24x24 reports a failure the criterion does
+   * not describe.
+   *
+   * Only meaningful when `interactive` is true. Optional for the deploy-skew
+   * reason, and absent is UNKNOWN: the finding is reported and not gateable,
+   * because an unevaluated exception could be the whole of it.
+   */
+  inlineTarget?: boolean;
 }
 
 /** Everything one `page.evaluate` round-trip brings back. */

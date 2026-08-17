@@ -44,16 +44,20 @@ function fakePng(): Uint8Array {
 
 /**
  * One landmark the model can cite, one paragraph whose content is wider than its
- * box (measured overflow: breakage) and one undersized button (measured
- * touch-target: a real defect that is deliberately NOT breakage).
+ * box (measured overflow: breakage) and a crowded pair of undersized buttons
+ * (measured touch-target: a real defect that is deliberately NOT breakage).
  *
- * `undersizedButton: false` grows the button past the reporting threshold and
+ * The buttons come in a pair 2px apart because that is what WCAG 2.2 SC 2.5.8
+ * actually describes. A lone 20x20 control with clear space around it meets the
+ * criterion's Spacing exception and is not a failure at all.
+ *
+ * `undersizedButton: false` grows the buttons past the threshold and
  * `overflowing: false` narrows the paragraph, so the pair produces a page on
  * which every check runs and measures NOTHING. That page is the control for
  * every rule about measurements: an earned `ship` has to survive it.
  */
 function extracted(options: { overflowing: boolean; undersizedButton?: boolean }): ExtractedPage {
-  const buttonSide = options.undersizedButton === false ? 48 : 28;
+  const buttonSide = options.undersizedButton === false ? 48 : 20;
   return {
     bodyText: "pricing",
     documentHeight: 1400,
@@ -76,10 +80,23 @@ function extracted(options: { overflowing: boolean; undersizedButton?: boolean }
         id: "icon-close",
         testId: null,
         role: null,
-        cssPath: "body > main > button",
+        cssPath: "body > main > button:nth-of-type(1)",
         rect: { x: 700, y: 80, width: buttonSide, height: buttonSide },
         animated: false,
         interactive: true,
+        inlineTarget: false,
+        text: null,
+      },
+      {
+        tag: "button",
+        id: "icon-menu",
+        testId: null,
+        role: null,
+        cssPath: "body > main > button:nth-of-type(2)",
+        rect: { x: 700 + buttonSide + 2, y: 80, width: buttonSide, height: buttonSide },
+        animated: false,
+        interactive: true,
+        inlineTarget: false,
         text: null,
       },
       {
@@ -212,7 +229,9 @@ async function review(overflowing: boolean): Promise<{
     {
       url: "http://127.0.0.1:5000",
       routes: ["/pricing"],
-      viewports: ["desktop"],
+      // Both, because a target-size criterion is only measured where a finger
+      // is the pointer, and the model findings below cite the desktop capture.
+      viewports: ["mobile", "desktop"],
       installationId: "test",
       depth: "deep",
       context: CONTEXT,
@@ -312,7 +331,9 @@ async function reviewWith(
     {
       url: "http://127.0.0.1:5000",
       routes: ["/pricing"],
-      viewports: ["desktop"],
+      // Both, because a target-size criterion is only measured where a finger
+      // is the pointer, and the model findings below cite the desktop capture.
+      viewports: ["mobile", "desktop"],
       installationId: "test",
       depth: "deep",
       context: CONTEXT,

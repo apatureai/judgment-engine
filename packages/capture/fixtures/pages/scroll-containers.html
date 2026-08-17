@@ -1,0 +1,36 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Scroll containers and real overflow</title>
+<style>
+  :root { color-scheme: light; }
+  body { background: #ffffff; color: #111111; font: 16px/1.5 system-ui, sans-serif; margin: 0; padding: 24px; }
+  main { max-width: 480px; }
+  h1 { font-size: 22px; }
+  /* A code block that scrolls on purpose, exposed to a keyboard as a region.
+     scrollWidth is wider than the box on every render and always will be. */
+  pre.code {
+    overflow-x: auto;
+    background: #f4f4f5;
+    padding: 12px;
+    margin: 0 0 24px;
+    white-space: pre;
+    font: 13px/1.5 ui-monospace, monospace;
+  }
+  /* A wide table wrapped in a scroller: the SCROLLER is the div, and the
+     overflowing text node is the paragraph inside it. */
+  .table-wrap { overflow-x: auto; border: 1px solid #ddd; margin: 0 0 24px; }
+  .table-wrap p { white-space: nowrap; margin: 0; padding: 8px; }
+  /* Nothing scrolls here. The text escapes its box and paints over the page. */
+  p.spill { white-space: nowrap; overflow-x: visible; width: 240px; margin: 0; background: #fff; }
+</style>
+<main>
+  <h1>Scroll containers and real overflow</h1>
+
+  <pre class="code" role="region" tabindex="0" aria-label="Install command" id="scrollable-pre">$ pnpm --filter @engine/capture exec vitest run --reporter verbose --coverage.enabled=false</pre>
+
+  <div class="table-wrap" id="table-scroller">
+    <p id="wide-row">2026-08-14T09:12:44Z  deploy  succeeded  region=us-east-1  build=8f31c02  duration=214s</p>
+  </div>
+
+  <p class="spill" id="spilling-line">Invoice INV-2026-000418 for Northwind Traders, due 2026-09-01</p>
+</main>

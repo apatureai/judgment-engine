@@ -9,8 +9,11 @@ export {
   toMeasurementReport,
   ALL_MEASUREMENT_KINDS,
   BREAKAGE_KINDS,
-  MIN_TOUCH_TARGET_PX,
+  TOUCH_TARGET_CRITERIA,
+  DEFAULT_TOUCH_TARGET_CRITERION,
+  TOUCH_VIEWPORTS,
   AA_TOUCH_TARGET_PX,
+  AAA_TOUCH_TARGET_PX,
 } from "./checks.js";
 export type {
   Rect,
@@ -19,6 +22,8 @@ export type {
   CheckKind,
   DeterministicFinding,
   DeterministicCheckInput,
+  TouchTargetCriterion,
+  TouchTargetOptions,
 } from "./checks.js";
 
 export { parseCssColor, isOpaque, compositeOver, flattenBackground } from "./color.js";

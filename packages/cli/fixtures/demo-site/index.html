@@ -21,9 +21,13 @@
         <p id="hero-subtitle">
           Connect a warehouse, pick a metric, and share a link. No modelling layer to learn.
         </p>
-        <a id="cta-primary" href="/pricing">Start free trial</a>
-        <!-- Deliberate defect: a 28x28 target, under the 44x44 minimum. -->
-        <button id="icon-close" type="button" aria-label="Dismiss announcement">x</button>
+        <!--
+          Deliberate defect: a 20x20 dismiss control with no clear space beside
+          it. Written with no whitespace between the two tags so the gap really
+          is zero, which is what makes the Spacing exception in WCAG 2.2
+          SC 2.5.8 unavailable and the undersized target a genuine failure.
+        -->
+        <a id="cta-primary" href="/pricing">Start free trial</a><button id="icon-close" type="button" aria-label="Dismiss announcement">x</button>
       </section>
 
       <section id="features">

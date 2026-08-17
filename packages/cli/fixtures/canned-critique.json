@@ -24,9 +24,9 @@
           "route": "/",
           "viewport": "mobile",
           "elementRef": "#icon-close",
-          "title": "Dismiss control is a 28x28 touch target",
-          "description": "The announcement dismiss button measures 28x28 CSS px in the captured mobile viewport, below the 44x44 minimum, and it sits immediately beside the primary call to action so a mis-tap starts a trial.",
-          "suggestion": "Pad the control to at least 44x44, keeping the 28px visual box if the smaller glyph is wanted.",
+          "title": "Dismiss control is a 20x20 touch target",
+          "description": "The announcement dismiss button measures 20x20 CSS px in the captured mobile viewport, below the 24x24 minimum, and it sits immediately beside the primary call to action so a mis-tap starts a trial.",
+          "suggestion": "Pad the control to at least 24x24, keeping the 20px visual box if the smaller glyph is wanted.",
           "introducedByThisPr": true
         },
         {

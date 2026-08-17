@@ -88,7 +88,7 @@ pieces rather than the demo.
 
 That is a real run, unedited stdout, captured to [`docs/report.txt`](docs/report.txt) and typeset by
 [`scripts/render-report-image.mjs`](scripts/render-report-image.mjs). It shows both halves at once.
-**18 measurements** taken from the captured DOM, which is what you get with no credentials at all,
+**11 measurements** taken from the captured DOM, which is what you get with no credentials at all,
 and **no grade**, because no model was configured and the report will not invent one.
 
 ### The split, precisely
@@ -106,16 +106,16 @@ node packages/cli/dist/main.js --url https://example.com --routes / --viewports 
 
 ```console
 Measured facts  (computed from the captured DOM, no model involved)
-  1 measurement(s) (touch_target 1) over 1 distinct element(s)
-
-   1. [touch_target] / body > div > p:nth-of-type(2) > a (mobile)
-      touch target 82x18px is below 44x44px
+  none: no contrast, overflow or touch-target violation was measured
 ```
 
-Those are real numbers off a real page, and `out/screenshots/index/mobile.png` is the photograph
-they came from. `--model mock` states the absence of a model rather than hiding it: no network call,
-no critique, no grade. Swap in a live endpoint ([step 3](#3-add-a-model-and-the-critique-half-turns-on))
-and the same run adds the critique.
+That is a real run against a real page, and it is a measurement rather than a shrug: three checks
+ran over the captured DOM and each one came back clean. `example.com` is two paragraphs of dark text
+on white, and its one link sits inside a sentence, where both WCAG target-size criteria exempt it.
+`out/screenshots/index/mobile.png` is the photograph those checks were run against. `--model mock`
+states the absence of a model rather than hiding it: no network call, no critique, no grade. Swap in
+a live endpoint ([step 3](#3-add-a-model-and-the-critique-half-turns-on)) and the same run adds the
+critique.
 
 Around that call the repository also ships the parts that usually get skipped: calibration (so
 numeric confidence is earned rather than verbalized by the model), agreement metrics against human
@@ -202,9 +202,12 @@ because the clock pin is per-context.
 
 **4. Some facts should never be left to a model.**
 WCAG contrast ratios, horizontal overflow and touch-target sizes are computed from the captured DOM
-and handed to the model as facts it is told to trust over its own pixels. The contrast check reports
-nothing it cannot measure exactly: text whose backdrop never resolves to an opaque, parseable color
-produces no fact rather than a guessed one.
+and handed to the model as facts it is told to trust over its own pixels. Each check reports nothing
+it cannot measure exactly. Text whose backdrop never resolves to an opaque, parseable colour produces
+no fact rather than a guessed one, and neither does text over a `background-image`, where a flattened
+colour would report white-on-a-photo as 1.00:1. An element that scrolls on purpose is not overflow.
+A pointer-target criterion is measured where a finger is the pointer, at the level the emitted
+sentence names.
 
 **5. It judges, it never edits.**
 There is no write path to any repository anywhere in this codebase, and no code that drives the UI.
@@ -279,20 +282,16 @@ Capture
   page health: clean
 
 Measured facts  (computed from the captured DOM, no model involved)
-  18 measurement(s) (contrast 6, overflow 3, touch_target 9) over 6 distinct element(s)
+  11 measurement(s) (contrast 6, overflow 3, touch_target 2) over 4 distinct element(s)
 
    1. [contrast] / #hero-subtitle (mobile, tablet, desktop)
       text contrast 3.23:1 is below WCAG AA 4.5:1
    2. [overflow] / #promo-code (mobile, tablet, desktop)
       content width 345px exceeds container 140px (horizontal overflow)
-   3. [touch_target] / #icon-close (mobile, tablet, desktop)
-      touch target 28x28px is below 44x44px
+   3. [touch_target] / #icon-close (mobile, tablet)
+      touch target 20x20px is below the 24x24px minimum in WCAG 2.2 SC 2.5.8 Target Size (Minimum), level AA
    4. [contrast] /pricing #pricing-fineprint (mobile, tablet, desktop)
       text contrast 2.61:1 is below WCAG AA 4.5:1
-   5. [touch_target] /pricing #plan-team-cta (mobile, tablet, desktop)
-      touch target 98x18px is below 44x44px
-   6. [touch_target] /pricing #plan-scale-cta (mobile, tablet, desktop)
-      touch target 30x30px is below 44x44px
   every measurement: out/deterministic-facts.txt
 
 Grounding gate
@@ -308,7 +307,7 @@ Review
   It was authored before this page was captured; it survived the grounding gate
   only because this page happens to contain the elements it names.
 
-    - [major/accessibility] Dismiss control is a 28x28 touch target
+    - [major/accessibility] Dismiss control is a 20x20 touch target
       / mobile → #icon-close
     - [major/accessibility] Scale plan action is a 30x30 arrow glyph
       /pricing mobile → #plan-scale-cta
@@ -325,7 +324,7 @@ Wrote
 Done in 8.0s.
 ```
 
-**Success looks like this:** **18 measurements** over 6 distinct elements, **2 dropped** by the
+**Success looks like this:** **11 measurements** over 4 distinct elements, **2 dropped** by the
 grounding gate, six real PNGs under `out/screenshots/`, and **no grade**. Open
 `out/screenshots/index/desktop.png`, which is a photograph of the page those measurements came from.
 
@@ -395,15 +394,17 @@ critique with no network call, useful for exercising the pipeline's shape in you
   It re-screenshots each already-prepared page rather than re-running the whole lifecycle, so it is
   cheap (7.6s to 8.0s on the demo site). If any page differs the line says `FAILED` and `page health`
   reports the capture as unstable.
-- **18 measurements.** Measured, not asserted, and the reason an offline run is worth anything at
+- **11 measurements.** Measured, not asserted, and the reason an offline run is worth anything at
   all. The report prints one line per distinct defect with the viewports it was measured at, which
-  is why 18 measurements read as 6 entries: the same contrast ratio at mobile, tablet and desktop is
-  one thing to fix. Every measurement, one per line, is in `out/deterministic-facts.txt`:
+  is why 11 measurements read as 4 entries: the same contrast ratio at mobile, tablet and desktop is
+  one thing to fix. The dismiss control appears at two viewports rather than three because a
+  target-size criterion is about a finger, and the desktop capture is driven with a mouse. Every
+  measurement, one per line, is in `out/deterministic-facts.txt`:
 
   ```
   [contrast] / mobile #hero-subtitle: text contrast 3.23:1 is below WCAG AA 4.5:1
   [overflow] / mobile #promo-code: content width 345px exceeds container 140px (horizontal overflow)
-  [touch_target] / mobile #icon-close: touch target 28x28px is below 44x44px
+  [touch_target] / mobile #icon-close: touch target 20x20px is below the 24x24px minimum in WCAG 2.2 SC 2.5.8 Target Size (Minimum), level AA
   ```
 
   A clean page writes a line too, rather than an empty file:
@@ -494,10 +495,10 @@ own, with no `MODEL_API_KEY` set:
 Measured facts  (computed from the captured DOM, no model involved)
   2 measurement(s) (contrast 1, touch_target 1) over 2 distinct element(s)
 
-   1. [contrast] / #note (desktop)
-      text contrast 2.32:1 is below WCAG AA 4.5:1
-   2. [touch_target] / #close (desktop)
-      touch target 30x30px is below 44x44px
+   1. [contrast] / #note (mobile)
+      text contrast 2.52:1 is below WCAG AA 4.5:1
+   2. [touch_target] / #close (mobile)
+      touch target 20x20px is below the 24x24px minimum in WCAG 2.2 SC 2.5.8 Target Size (Minimum), level AA
 
 Grounding gate
   3 replayed finding(s) parsed, 3 dropped for citing a route or element that was never captured
@@ -740,15 +741,30 @@ with no violations is the positive statement "these checks ran and found nothing
 ABSENT means this producer does not report measurements, and never means the page is clean.
 
 `blockEligible` is the engine's claim that a measurement is precise enough for a consumer to gate a
-merge on, and it is `false` far more often than a measurement is wrong. A `<pre>` with
-`overflow-x: auto` has content wider than its box on purpose, so overflow is block-eligible only when
-the computed `overflow-x` is `visible`. 44px is WCAG 2.5.5, which is level **AAA**; the AA line is
-2.5.8 at 24px, so a touch target is block-eligible only below 24px and only on the mobile viewport,
-where a finger is the pointer. A flattened background *colour* cannot see a `background-image`, so
-white text on a photo over a white base is measured and reported and never block-eligible. The
-violation is emitted in all three cases, because a flagged element is worth a human look; what
-`blockEligible` withholds is permission to fail somebody's build automatically. The engine owns
-precision; a consumer owns policy.
+merge on. It is the second of three answers a check can give, and the first one matters more.
+
+A check DECLINES when the number is not computable from what was captured, and then no measurement
+is emitted at all. Contrast over a `background-image` or a `backdrop-filter` is declined, because a
+flattened background *colour* cannot see a photograph and white text on a dusk sky over a white page
+flattens to `1.00:1`, which is not an imprecise number but a false one. An element whose computed
+`overflow-x` is `auto`, `scroll` or `overlay` is declined, and so is one inside an ancestor that
+scrolls: a `<pre>` with a scrollbar and a wide row inside a `.table-wrap` have content wider than
+their box on purpose and forever, and `overflow` is the one kind that overrules a triage pass. A
+pointer target is measured only on a touch viewport, and only after the exceptions the criterion
+itself carries: a link inside a sentence (Inline), and an undersized control with a clear 24px circle
+around it (Spacing). Citing a success criterion while ignoring its exceptions is citing it
+incorrectly.
+
+A check REPORTS with `blockEligible: false` when the measurement is true but something the capture
+could not evaluate leaves room to explain it away, which is mostly deploy skew: a capture fleet that
+predates a field sends nothing, and unknown never means "no". Clipped content (`overflow-x: hidden`
+or `clip`) is reported and not gated, because clipping is usually deliberate.
+
+What the engine will stand behind is the rest: an escape from every scroller, a ratio over a
+backdrop confirmed flat, an undersized target on a touch viewport with no exception left to apply.
+The emitted sentence names the criterion it applied, at the level it applied, so `20x20px is below
+the 24x24px minimum in WCAG 2.2 SC 2.5.8 Target Size (Minimum), level AA` can be checked against the
+spec. The engine owns precision; a consumer owns policy.
 
 `measurements` never enters the grade. No measurement is converted into a finding, given a severity
 or given a confidence, and `gradeFromFindings` and `reconcileGrade` are untouched by any of this: the
@@ -874,15 +890,30 @@ rediscover them from a result that did not say what they expected.
   overflow or touch-target violation, a judge that returns nothing produces a clean-looking `ship`
   with nothing in the payload to contradict it. The measured channel is structurally incapable of
   covering that case, and nothing else in this repository covers it either.
-- **The measured checks are unaudited on real repositories.** The only corpus with known ground
-  truth is a fixture site built to contain planted defects. `blockEligible` narrows each check to the
-  cases believed sound (see the wire section above), and reporting is deliberately wider than
-  gating, so the *reported* set may well be noisy on a large legacy codebase. If a kind turns out to
-  have a high false-positive rate the answer is to stop emitting that kind, not to add another
-  setting. Note also that `overflow` is the only member of `BREAKAGE_KINDS`, so the check with the
-  strongest claim on a triage pass is the one whose measurement is least sound; `blockEligible`
-  narrows what may GATE on it and deliberately does not narrow what forces a deep look, because
-  forcing a deep look is free.
+- **The measured checks are unaudited on real repositories.** The corpora with known ground truth
+  are a fixture site built to contain planted defects and the three pages in
+  `packages/capture/fixtures/pages`, each built around one false-positive shape (a scrollable
+  `<pre>`, a small desktop control, white text on a photograph) with a genuine violation of the same
+  kind beside it as a control. Those are real pages rendered in the real browser, and they are still
+  six pages. What remains unmeasured on a large legacy codebase is the *rate*.
+- **The target-size check evaluates two of the criterion's exceptions, not all of them.** WCAG 2.2
+  SC 2.5.8 also exempts a target with an equivalent full-size control elsewhere on the page, one
+  whose presentation is user-agent controlled, and one whose size is essential. None of those is
+  visible in a computed style or a rect, so none is evaluated, and an undersized target that meets
+  one of them is reported as a failure. The Inline and Spacing exceptions are applied because they
+  are computable, and a capture that did not report the inline flag is reported without being
+  gateable rather than assumed.
+- **Contrast declines more than it must.** Any `background-image` in the stack silences the check,
+  including a `linear-gradient` whose endpoints a smarter implementation could sample, and including
+  an image that is entirely behind an opaque layer. Sampling the rendered pixels under the glyphs
+  would measure all of these; nothing here does that yet. Declining is the conservative direction:
+  the failure mode is a violation nobody hears about rather than a number that is wrong.
+- **Clipped content is reported without being gateable, and that is a guess.**
+  `overflow-x: hidden` with content wider than the box means the reader never gets the excess, which
+  is a real defect, and it is also how `text-overflow: ellipsis` and a hundred deliberate layout
+  clips look from the DOM. The engine cannot tell them apart, so it reports and does not gate. Note
+  also that `overflow` is the only member of `BREAKAGE_KINDS`, so what forces a deep model look is
+  deliberately wider than what may gate a merge: forcing a deep look is free.
 - **There is no baseline store, so nothing here is scoped to what a PR introduced.** Every
   measurement is of the page as it is now, not of what this change did to it. A repository that
   turns measurements into a merge blocker gets its pre-existing debt on the first run.
