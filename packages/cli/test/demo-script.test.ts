@@ -22,6 +22,8 @@ interface DemoModule {
   formatBytes(bytes: number): string;
   artifactLines(entries: Array<{ path: string; size: string; note: string }>): string[];
   listFiles(dir: string): string[];
+  closingNote(modelBacked: boolean | null): string;
+  readModelBacked(path: string): boolean | null;
   selectRunArtifacts(files: string[]): { screenshots: string[]; documents: string[] };
   openCommand(platform: string): string | null;
 }
@@ -179,6 +181,55 @@ describe("listFiles", () => {
 
   it("returns nothing for a directory that does not exist", () => {
     expect(demo.listFiles(join(tmpdir(), "demo-listing-that-is-not-there"))).toEqual([]);
+  });
+});
+
+describe("closingNote", () => {
+  it("says no model saw the page on an unjudged run, and how to change that", () => {
+    const note = demo.closingNote(false);
+    expect(note).toContain("No model saw this page");
+    expect(note).toContain("MODEL_API_KEY");
+    expect(note).toContain("--model live");
+  });
+
+  it("does not claim the page was unjudged when a model did judge it", () => {
+    // `node demo.mjs --model live` with an endpoint configured is one flag away.
+    const note = demo.closingNote(true);
+    expect(note).toContain("model_backed: true");
+    expect(note).not.toContain("No model saw this page");
+  });
+
+  it("says it does not know rather than guessing when review.json is unreadable", () => {
+    const note = demo.closingNote(null);
+    expect(note).toContain("could not read that file");
+    expect(note).not.toContain("No model saw this page");
+  });
+
+  it("always points at reviewing your own site", () => {
+    for (const state of [true, false, null]) {
+      expect(demo.closingNote(state)).toContain("--url https://your-preview-deploy");
+    }
+  });
+});
+
+describe("readModelBacked", () => {
+  const write = (contents: string): string => {
+    const dir = mkdtempSync(join(tmpdir(), "demo-provenance-"));
+    const path = join(dir, "review.json");
+    writeFileSync(path, contents);
+    return path;
+  };
+
+  it("reads the provenance stamp the engine writes", () => {
+    expect(demo.readModelBacked(write('{"provenance":{"model_backed":true}}'))).toBe(true);
+    expect(demo.readModelBacked(write('{"provenance":{"model_backed":false}}'))).toBe(false);
+  });
+
+  it("returns null for a missing, malformed or unstamped file", () => {
+    expect(demo.readModelBacked(join(tmpdir(), "demo-review-that-is-not-there.json"))).toBeNull();
+    expect(demo.readModelBacked(write("{not json"))).toBeNull();
+    expect(demo.readModelBacked(write("{}"))).toBeNull();
+    expect(demo.readModelBacked(write('{"provenance":{"model_backed":"yes"}}'))).toBeNull();
   });
 });
 

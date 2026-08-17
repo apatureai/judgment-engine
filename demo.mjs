@@ -17,7 +17,7 @@
  * itself only when it is the process entry point.
  */
 import { spawn } from "node:child_process";
-import { existsSync, readdirSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -119,6 +119,54 @@ export function openCommand(platform) {
   return null;
 }
 
+/**
+ * What to say once the run is over, decided by what the run actually did rather
+ * than by what the demo usually does. `--model live` with an endpoint configured
+ * is one flag away, and telling that reader no model saw their page would be
+ * false in the paragraph whose whole job is to say what they are holding.
+ *
+ * `modelBacked` is the `provenance.model_backed` field the engine stamps into
+ * review.json: true, false, or null when the file could not be read.
+ */
+export function closingNote(modelBacked) {
+  const ownSite =
+    "To review your own site instead of the demo:\n\n" +
+    "  node packages/cli/dist/main.js --url https://your-preview-deploy --routes /,/pricing\n";
+  if (modelBacked === true) {
+    return (
+      "A model judged this page: review.json is stamped model_backed: true, and the grade above\n" +
+      "is reconciled down to the findings that survived the grounding gate.\n\n" +
+      ownSite
+    );
+  }
+  if (modelBacked === null) {
+    return (
+      "Whether a model judged this page is recorded in the provenance block of review.json,\n" +
+      "under model_backed. This run could not read that file back to tell you here.\n\n" +
+      ownSite
+    );
+  }
+  return (
+    "No model saw this page, so there is no grade above and the report says so instead of\n" +
+    "inventing one. The capture, the geometry map, the measured facts and the grounding gate\n" +
+    "are all real. To turn the critique half on, point it at any OpenAI-compatible endpoint\n" +
+    "that accepts images:\n\n" +
+    "  export MODEL_BASE_URL=https://your-endpoint/v1 MODEL_API_KEY=your-key\n" +
+    "  node packages/cli/dist/main.js --model live\n\n" +
+    ownSite
+  );
+}
+
+/** `provenance.model_backed` out of a review.json, or null if it cannot be read. */
+export function readModelBacked(path) {
+  try {
+    const provenance = JSON.parse(readFileSync(path, "utf8")).provenance;
+    return typeof provenance?.model_backed === "boolean" ? provenance.model_backed : null;
+  } catch {
+    return null;
+  }
+}
+
 const STEP_TITLES = [
   "Checking prerequisites",
   "Installing dependencies",
@@ -189,8 +237,23 @@ async function main(argv) {
   console.log(`      Node ${process.version} on ${process.platform}/${process.arch}`);
   console.log(`      pnpm via ${corepack ? "corepack (pinned by packageManager)" : "pnpm on PATH"}\n`);
 
+  // On a fresh clone the CLI's entry point does not exist yet, so pnpm warns
+  // that it cannot link the `judgment-engine` bin during install. It is expected
+  // and the build in the next step fixes it, which is worth saying rather than
+  // leaving a first-time reader to wonder what they broke.
+  const cliEntry = join(root, "packages", "cli", "dist", "main.js");
+  const freshClone = !existsSync(cliEntry);
+
   const steps = [
-    { args: ["install", "--frozen-lockfile"], note: "", hint: "" },
+    {
+      args: ["install", "--frozen-lockfile"],
+      note: "",
+      hint: "",
+      after: freshClone
+        ? "      pnpm warned it could not create the judgment-engine bin: expected on a fresh\n" +
+          "      clone, since that entry point is built in the next step."
+        : "",
+    },
     { args: ["build"], note: "", hint: "" },
     {
       args: ["browser:install"],
@@ -214,6 +277,7 @@ async function main(argv) {
       if (step.hint) console.error(step.hint);
       return result.code;
     }
+    if (step.after) console.log(step.after);
     console.log("");
   }
 
@@ -261,20 +325,15 @@ async function main(argv) {
     });
   }
 
-  console.log("Artifacts you can open, all produced by the run above:\n");
-  console.log(artifactLines(entries).join("\n"));
-  const opener = openCommand(process.platform);
-  if (opener !== null && showcase !== undefined) console.log(`\n  ${opener} ${show(showcase)}`);
-  console.log(
-    "\nNo model saw this page, so there is no grade above and the report says so instead of\n" +
-      "inventing one. The capture, the geometry map, the measured facts and the grounding gate\n" +
-      "are all real. To turn the critique half on, point it at any OpenAI-compatible endpoint\n" +
-      "that accepts images:\n\n" +
-      "  export MODEL_BASE_URL=https://your-endpoint/v1 MODEL_API_KEY=your-key\n" +
-      "  node packages/cli/dist/main.js --model live\n\n" +
-      "To review your own site instead of the demo:\n\n" +
-      "  node packages/cli/dist/main.js --url https://your-preview-deploy --routes /,/pricing\n",
-  );
+  if (entries.length === 0) {
+    console.log(`The review reported success but wrote nothing to ${show("")}.`);
+  } else {
+    console.log("Artifacts you can open, all produced by the run above:\n");
+    console.log(artifactLines(entries).join("\n"));
+    const opener = openCommand(process.platform);
+    if (opener !== null && showcase !== undefined) console.log(`\n  ${opener} ${show(showcase)}`);
+  }
+  console.log(`\n${closingNote(readModelBacked(join(outDir, "review.json")))}`);
   console.log(`Demo finished in ${Math.round((Date.now() - started) / 1000)}s.`);
   return 0;
 }
