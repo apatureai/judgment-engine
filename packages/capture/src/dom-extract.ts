@@ -69,6 +69,22 @@ export const DOM_EXTRACT_EXPRESSION = `(() => {
       if (image && image !== "none") obscured = true;
       const filter = style.backdropFilter || style.webkitBackdropFilter;
       if (filter && filter !== "none") { obscured = true; filtered = true; }
+      // A paint effect composites the text against pixels no colour walk can
+      // reach. mix-blend-mode was the sharper miss of the two: an element
+      // rendering grey on black measured 5.24:1 against the real pixels and the
+      // engine reported 3.95:1 against a white it never painted, which is a
+      // false merge blocker on the one measurement nominated as ready to gate.
+      // Partial opacity is the same blind spot in the other direction, hiding
+      // text that genuinely renders at 2:1.
+      // No backticks in this comment on purpose: this whole function is a
+      // template literal injected into the page, and one would end the string.
+      const blend = style.mixBlendMode;
+      if (blend && blend !== "normal") { obscured = true; filtered = true; }
+      const nodeOpacity = Number(style.opacity);
+      if (Number.isFinite(nodeOpacity) && nodeOpacity > 0 && nodeOpacity < 1) {
+        obscured = true;
+        filtered = true;
+      }
       const bg = style.backgroundColor;
       if (bg) {
         stack.push(bg);
@@ -309,6 +325,9 @@ export function toTextNodeStyles(
       ...(el.text.backdropObscured !== undefined
         ? { backdropObscured: el.text.backdropObscured }
         : {}),
+      // Already collected for every element and never read: a marquee or ticker
+      // is clipped on purpose and its affordance is the motion.
+      ...(el.animated ? { animated: true } : {}),
     });
   }
   return out;

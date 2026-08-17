@@ -162,6 +162,64 @@ describe("overflow violations", () => {
     expect(overflowViolations([textNode({ contentWidthPx: 190, rect: rect(200, 20) })])).toHaveLength(0);
   });
 
+  it("does not flag a fractional box whose content rounds up to the same width", () => {
+    // Chromium rounds scrollWidth to an integer while the box keeps its fraction,
+    // so a three-column flex row reports contentWidthPx 234 against a 233.66px
+    // box and every column looks clipped by 0.34px. Without the rounding
+    // allowance this engine blocks merges on ordinary layouts, and the sentence
+    // it prints contradicts itself: "234px exceeds 234px and 0.34px is clipped".
+    for (const width of [233.66, 233.01, 233.999, 100.5]) {
+      const content = Math.ceil(width);
+      expect(
+        overflowViolations([
+          textNode({ contentWidthPx: content, rect: rect(width, 20), overflowX: "hidden" }),
+        ]),
+      ).toHaveLength(0);
+    }
+  });
+
+  it("does not gate an animated clip, whose affordance is the motion", () => {
+    // A marquee or ticker is clipped on purpose and the content scrolls into
+    // view on its own. No computed style says so and a single screenshot cannot
+    // show it, so this was gating as content loss while the extractor already
+    // knew the element was animated.
+    const marquee = textNode({
+      contentWidthPx: 900,
+      rect: rect(200, 20),
+      overflowX: "hidden",
+      textOverflow: "clip",
+      whiteSpace: "nowrap",
+      animated: true,
+    });
+    const found = overflowViolations([marquee]);
+    expect(found).toHaveLength(1);
+    // Still reported, because a clipped marquee may genuinely be broken. Not
+    // gated, because nothing in computed style can tell the two apart.
+    expect(found[0]!.blockEligible).toBe(false);
+    expect(found[0]!.detail).toContain("animated");
+  });
+
+  it("still gates the same clip when nothing reported it as animated", () => {
+    const still = textNode({
+      contentWidthPx: 900,
+      rect: rect(200, 20),
+      overflowX: "hidden",
+      textOverflow: "clip",
+      whiteSpace: "nowrap",
+    });
+    expect(overflowViolations([still])[0]!.blockEligible).toBe(true);
+  });
+
+  it("still flags a fractional box clipped by more than the rounding allowance", () => {
+    // The allowance is one rounding step, not a general tolerance: real content
+    // loss on a fractional box has to survive it.
+    expect(
+      overflowViolations([
+        textNode({ contentWidthPx: 260, rect: rect(233.66, 20), overflowX: "hidden" }),
+      ]),
+    ).toHaveLength(1);
+  });
+
   it("says nothing about an element that scrolls on purpose", () => {
     // The `<pre>` with a scrollbar, the carousel, the scrollable table. All
     // three have scrollWidth wider than the box on every render, forever.

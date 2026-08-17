@@ -43,6 +43,15 @@ export interface TextNodeStyle {
   /** scrollWidth of the node's content; > rect.width means horizontal overflow. */
   contentWidthPx: number;
   /**
+   * Whether the element is animated, when the capture reported it.
+   *
+   * A marquee or a ticker is clipped by design and its affordance is the motion,
+   * which no computed style can express and a single screenshot cannot show.
+   * Without this the engine gated them as content loss. Optional: a capture
+   * fleet that does not report it leaves the classification exactly as it was.
+   */
+  animated?: boolean;
+  /**
    * The element's computed `overflow-x`, when the capture reported it.
    *
    * `contentWidthPx` alone cannot tell breakage from design: a `<pre>` with a
@@ -464,6 +473,14 @@ export function classifyClip(node: TextNodeStyle): ClipVerdict {
       reason:
         `a ${Math.round(node.rect.width)}x${Math.round(node.rect.height)}px box is the ` +
         "visually-hidden idiom, not a box content is rendered in",
+    };
+  }
+  if (node.animated === true) {
+    return {
+      verdict: "indeterminate",
+      reason:
+        "the element is animated, so the content may scroll into view on its own and the " +
+        "affordance is the motion rather than anything in its computed style",
     };
   }
   return { verdict: "content_loss" };
