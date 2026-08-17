@@ -45,6 +45,51 @@ jobs:
       - name: Test
         run: pnpm test
 
+  demo:
+    # The first thing the README tells a stranger to run, run the way a stranger
+    # runs it: a checkout, a Node, and `node demo.mjs`. Nothing else is installed
+    # first, because the whole claim of that command is that nothing else has to
+    # be. If it stops working, the README's opening promise is false, so it fails
+    # the build.
+    name: demo · one command from a clean checkout
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      # Deliberately no pnpm setup action and no cache: the demo has to reach
+      # pnpm through the corepack that ships with Node, exactly as it would on a
+      # machine that has only ever installed Node.
+      - name: Setup Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version-file: .node-version
+
+      - name: node demo.mjs
+        run: |
+          set -euo pipefail
+          node demo.mjs | tee demo.txt
+
+      - name: Assert the demo produced what it says it produced
+        run: |
+          set -euo pipefail
+          test -f out/report.txt
+          test -f out/review.json
+          test -f out/deterministic-facts.txt
+          test -f out/screenshots/index/desktop.png
+          test "$(find out/screenshots -name '*.png' | wc -l | tr -d ' ')" = "6"
+          grep -q "18 measurement(s)" out/report.txt
+          grep -q "Artifacts you can open, all produced by the run above" demo.txt
+          grep -q "out/screenshots/index/desktop.png" demo.txt
+          # The same promise the quickstart job keeps, from the entry point that
+          # a first-time reader actually runs: no model saw this page, so the run
+          # states the absence of a grade instead of printing one.
+          grep -q "grade       n/a (canned client, no model saw this page)" out/report.txt
+          if grep -qE "^  grade *(ship|needs_work|block)" out/report.txt; then
+            echo "the demo printed a grade for a page no model looked at"
+            exit 1
+          fi
+
   quickstart:
     # The README's quickstart, run for real: a headless Chromium captures the
     # bundled demo site, and the grounding gate deletes the two deliberately
