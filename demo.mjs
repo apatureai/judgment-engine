@@ -59,6 +59,14 @@ export function outDirFrom(argv, fallback = "out") {
   return fallback;
 }
 
+/**
+ * `node demo.mjs --help` asks the CLI's own usage, which is a question, not a
+ * run: it writes no artifacts, so the demo must not go on to describe any.
+ */
+export function isHelpRequest(argv) {
+  return argv.includes("-h") || argv.includes("--help");
+}
+
 export function stepLine(index, total, title) {
   return `[${index}/${total}] ${title}`;
 }
@@ -292,6 +300,7 @@ async function main(argv) {
     console.error(`\nThe review failed (exit ${review.code}).`);
     return review.code;
   }
+  if (isHelpRequest(argv)) return 0;
 
   // The terminal output is the most legible artifact of the run and the only one
   // that scrolls away, so it is written next to the ones it describes.

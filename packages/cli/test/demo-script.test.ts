@@ -18,6 +18,7 @@ interface DemoModule {
   parseNodeMajor(version: string): number | null;
   nodeVersionProblem(version: string, required?: number): string | null;
   outDirFrom(argv: string[], fallback?: string): string;
+  isHelpRequest(argv: string[]): boolean;
   stepLine(index: number, total: number, title: string): string;
   formatBytes(bytes: number): string;
   artifactLines(entries: Array<{ path: string; size: string; note: string }>): string[];
@@ -94,6 +95,19 @@ describe("outDirFrom", () => {
 
   it("ignores a trailing --out with no value", () => {
     expect(demo.outDirFrom(["--out"])).toBe("out");
+  });
+});
+
+describe("isHelpRequest", () => {
+  it("recognises both spellings the CLI accepts", () => {
+    expect(demo.isHelpRequest(["--help"])).toBe(true);
+    expect(demo.isHelpRequest(["-h"])).toBe(true);
+    expect(demo.isHelpRequest(["--routes", "/", "--help"])).toBe(true);
+  });
+
+  it("is false for a real run", () => {
+    expect(demo.isHelpRequest([])).toBe(false);
+    expect(demo.isHelpRequest(["--out", "run-2"])).toBe(false);
   });
 });
 

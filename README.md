@@ -18,8 +18,9 @@ node demo.mjs
 configure, no second terminal. `demo.mjs` reaches the pinned pnpm through the corepack that ships
 with Node, installs the workspace, builds it, makes sure a Chromium is present, then serves the
 bundled demo site on a local port and reviews the page it is serving. The first run downloads about
-275 MB of Chromium (565 MB on disk); later runs skip that. Interrupting it with Ctrl-C leaves
-nothing running.
+275 MB of Chromium (565 MB on disk); later runs skip that. On a GitHub Actions Linux runner the
+whole command, download included, takes about 30 seconds. Interrupting it with Ctrl-C leaves nothing
+running.
 
 ```console
 $ node demo.mjs
