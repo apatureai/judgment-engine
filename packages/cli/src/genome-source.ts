@@ -1,5 +1,5 @@
 import { readFile } from "node:fs/promises";
-import { join } from "node:path";
+import { join, relative } from "node:path";
 import type { GenomeRule } from "@engine/context";
 import type { LocalGenome } from "./grounding.js";
 
@@ -109,6 +109,13 @@ function toGenome(document: unknown, source: string): { version: string; rules: 
  */
 export async function loadRepoGenome(directory: string): Promise<LocalGenome> {
   const path = join(directory, UI_DNA_FILENAME);
+  // WHAT A READER IS TOLD IS THE PATH INSIDE THEIR REPOSITORY, never the one on
+  // the machine that ran the review. These sentences are published: they reach a
+  // pull request comment, and they are typeset into this project's own README
+  // image. An absolute path there is noise at best, since the checkout directory
+  // on a runner means nothing to the person reading the comment, and at worst it
+  // publishes the directory layout and the account name of whoever ran it.
+  const shown = relative(process.cwd(), path) || path;
   let raw: string;
   try {
     raw = await readFile(path, "utf8");
@@ -116,7 +123,7 @@ export async function loadRepoGenome(directory: string): Promise<LocalGenome> {
     return {
       available: false,
       reason: "no_genome_file",
-      detail: `no UI-DNA snapshot was found at ${path}`,
+      detail: `no UI-DNA snapshot was found at ${shown}`,
     };
   }
 
@@ -127,7 +134,7 @@ export async function loadRepoGenome(directory: string): Promise<LocalGenome> {
     return {
       available: false,
       reason: "genome_unreadable",
-      detail: `the UI-DNA snapshot at ${path} is not valid JSON (${
+      detail: `the UI-DNA snapshot at ${shown} is not valid JSON (${
         error instanceof Error ? error.message : String(error)
       }), so it was not used`,
     };

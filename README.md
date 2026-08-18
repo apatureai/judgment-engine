@@ -88,7 +88,7 @@ pieces rather than the demo.
 
 That is a real run, unedited stdout, captured to [`docs/report.txt`](docs/report.txt) and typeset by
 [`scripts/render-report-image.mjs`](scripts/render-report-image.mjs). It shows both halves at once.
-**11 measurements** taken from the captured DOM, which is what you get with no credentials at all,
+**13 measurements** taken from the captured DOM, which is what you get with no credentials at all,
 and **no grade**, because no model was configured and the report will not invent one.
 
 ### The split, precisely
@@ -285,7 +285,7 @@ Capture
   page health: clean
 
 Measured facts  (computed from the captured DOM, no model involved)
-  11 measurement(s) (contrast 6, overflow 3, touch_target 2) over 4 distinct element(s)
+  13 measurement(s) (contrast 6, overflow 3, touch_target 4) over 5 distinct element(s)
 
    1. [contrast] / #hero-subtitle (mobile, tablet, desktop)
       text contrast 3.23:1 is below WCAG AA 4.5:1
@@ -295,6 +295,10 @@ Measured facts  (computed from the captured DOM, no model involved)
       touch target 20x20px is below the 24x24px minimum in WCAG 2.2 SC 2.5.8 Target Size (Minimum), level AA
    4. [contrast] /pricing #pricing-fineprint (mobile, tablet, desktop)
       text contrast 2.61:1 is below WCAG AA 4.5:1
+   5. [touch_target] /pricing #plan-scale-cta (mobile, tablet)
+      advisory: touch target 30x30px meets the 24x24px minimum in WCAG 2.2 SC 2.5.8 Target Size
+      (Minimum), level AA, and is below the 44x44px minimum in WCAG 2.2 SC 2.5.5 Target Size
+      (Enhanced), level AAA
   every measurement: out/deterministic-facts.txt
 
 Grounding gate
@@ -327,7 +331,7 @@ Wrote
 Done in 8.0s.
 ```
 
-**Success looks like this:** **11 measurements** over 4 distinct elements, **2 dropped** by the
+**Success looks like this:** **13 measurements** over 5 distinct elements, **2 dropped** by the
 grounding gate, six real PNGs under `out/screenshots/`, and **no grade**. Open
 `out/screenshots/index/desktop.png`, which is a photograph of the page those measurements came from.
 
@@ -397,9 +401,9 @@ critique with no network call, useful for exercising the pipeline's shape in you
   It re-screenshots each already-prepared page rather than re-running the whole lifecycle, so it is
   cheap (7.6s to 8.0s on the demo site). If any page differs the line says `FAILED` and `page health`
   reports the capture as unstable.
-- **11 measurements.** Measured, not asserted, and the reason an offline run is worth anything at
+- **13 measurements.** Measured, not asserted, and the reason an offline run is worth anything at
   all. The report prints one line per distinct defect with the viewports it was measured at, which
-  is why 11 measurements read as 4 entries: the same contrast ratio at mobile, tablet and desktop is
+  is why 13 measurements read as 5 entries: the same contrast ratio at mobile, tablet and desktop is
   one thing to fix. The dismiss control appears at two viewports rather than three because a
   target-size criterion is about a finger, and the desktop capture is driven with a mouse. Every
   measurement, one per line, is in `out/deterministic-facts.txt`:
