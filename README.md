@@ -747,9 +747,13 @@ clean.
 `severity` is the engine's BAND: an ordinal, higher is worse, and nothing else. It exists because a
 consumer comparing a pull request against its base commit holds sentences, not numbers, and a
 sentence cannot tell a violation that got worse from one that was merely re-measured. Take an element
-from `2.91:1` to `1.02:1` and the words barely move; the band moves from 1 to 3. The bands are coarse
-on purpose, so that ordinary re-measurement noise cannot move one and a band that DID move is a
-material change rather than a re-render.
+from `2.91:1` to `1.02:1` and the words barely move; the band moves from 2 to 3. The bands are coarse
+on purpose, so that ordinary re-measurement noise cannot move one.
+
+They are coarse in both directions, and the second one is worth saying out loud: a band is a range,
+so a change WITHIN one is invisible here. `3.00:1` down to `1.51:1` is band 2 at both ends, and so is
+23px down to 10px. A consumer comparing bands sees nothing, which is the price of a signal that does
+not fire on a re-render.
 
 The landmarks are the engine's, and they are not arbitrary. Contrast bands against the WCAG lines:
 at or above `3.0:1` is 1, which is the AA bar for large text and the lowest ratio any level-AA
